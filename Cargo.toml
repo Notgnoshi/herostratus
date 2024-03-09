@@ -1,0 +1,9 @@
+[package]
+name = "herostratus"
+description = "An ancient Greek known for winning fame through crime and destruction. Also a Git repository achievements engine"
+repository = "https://github.com/Notgnoshi/herostratus"
+license = "MIT"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]

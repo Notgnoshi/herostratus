@@ -1,0 +1,49 @@
+name: Lint
+on: [push]
+env:
+    RUSTFLAGS: -D warnings
+    CARGO_TERM_COLOR: always
+
+jobs:
+    format:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - name: Setup Rust toolchain
+              uses: dtolnay/rust-toolchain@master
+              with:
+                  toolchain: stable
+                  components: rustfmt
+            - name: Setup Rust cache
+              uses: swatinem/rust-cache@v2
+            - name: Run rustfmt
+              run: cargo fmt -- --check --config group_imports=StdExternalCrate,imports_granularity=Module
+
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - name: Setup Rust toolchain
+              uses: dtolnay/rust-toolchain@master
+              with:
+                  toolchain: stable
+                  components: clippy
+            - name: Setup Rust cache
+              uses: swatinem/rust-cache@v2
+            - name: Build
+              run: cargo build --release --all-targets
+            - name: Clippy
+              run: cargo clippy --release --all-targets
+
+    test:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - name: Setup Rust toolchain
+              uses: dtolnay/rust-toolchain@master
+              with:
+                  toolchain: stable
+            - name: Setup Rust cache
+              uses: swatinem/rust-cache@v2
+            - name: Test
+              run: cargo test --release --all-targets
