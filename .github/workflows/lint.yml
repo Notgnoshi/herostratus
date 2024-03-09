@@ -33,7 +33,7 @@ jobs:
             - name: Build
               run: cargo build --release --all-targets
             - name: Clippy
-              run: cargo clippy --release --all-targets
+              run: cargo clippy --no-deps --release --all-targets
 
     test:
         runs-on: ubuntu-latest
