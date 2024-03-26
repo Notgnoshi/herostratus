@@ -8,5 +8,8 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.5.2", features = ["derive"] }
+color-eyre = "0.6.2"
+eyre = "0.6.12"
+git2 = "0.18.3"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }

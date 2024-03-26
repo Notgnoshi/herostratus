@@ -1,4 +1,7 @@
+mod git;
+
 use clap::Parser;
+use eyre::WrapErr;
 use tracing::Level;
 use tracing_subscriber::EnvFilter;
 
@@ -18,16 +21,18 @@ struct CliArgs {
     log_level: Level,
 }
 
-fn main() {
+fn main() -> eyre::Result<()> {
+    color_eyre::install()?;
     let args = CliArgs::parse();
 
     let filter = EnvFilter::builder()
         .with_default_directive(args.log_level.into())
         .with_env_var("HEROSTRATUS_LOG")
         .from_env_lossy();
-    tracing_subscriber::fmt()
-        .with_env_filter(filter)
-        .init();
+    tracing_subscriber::fmt().with_env_filter(filter).init();
 
-    tracing::info!("Scraping {}", args.repository);
+    let _repo = git::fetch_or_find(&args.repository)
+        .wrap_err(format!("Could not find or clone {:?}", args.repository))?;
+
+    Ok(())
 }
