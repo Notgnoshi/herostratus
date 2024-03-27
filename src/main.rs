@@ -11,6 +11,18 @@ struct CliArgs {
     /// A path to a work tree or bare repository, or a clone URL
     repository: String,
 
+    /// The reference or revision to search for achievements
+    ///
+    /// Examples:
+    /// * v0.1.0 (tag)
+    /// * HEAD (symbolic ref)
+    /// * origin/main (remote branch)
+    /// * main (branch)
+    /// * bf266ef (short rev)
+    /// * bf266effe9701f07ebeb0935bd2c48c5f02bc483 (full rev)
+    #[clap(verbatim_doc_comment)]
+    reference: String,
+
     /// Set the application log level
     ///
     /// You can also set the value of the HEROSTRATUS_LOG environment variable like so
@@ -31,8 +43,11 @@ fn main() -> eyre::Result<()> {
         .from_env_lossy();
     tracing_subscriber::fmt().with_env_filter(filter).init();
 
-    let _repo = git::fetch_or_find(&args.repository)
+    let repo = git::fetch_or_find(&args.repository)
         .wrap_err(format!("Could not find or clone {:?}", args.repository))?;
+
+    let oid = git::rev_parse(&args.reference, &repo)
+        .wrap_err(format!("Failed to resolve reference {:?}", args.reference))?;
 
     Ok(())
 }

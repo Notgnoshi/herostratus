@@ -1,6 +1,7 @@
 use std::path::Path;
 
-use git2::Repository;
+use eyre::WrapErr;
+use git2::{ObjectType, Oid, Repository};
 
 /// Fetch or find the specified repository
 ///
@@ -25,4 +26,16 @@ pub fn fetch_or_find(repo: &str) -> eyre::Result<Repository> {
         tracing::info!("Found git repository at {:?}", repo.path());
         Ok(repo)
     }
+}
+
+pub fn rev_parse(reference: &str, repo: &Repository) -> eyre::Result<Oid> {
+    let object = repo
+        .revparse_single(reference)
+        .wrap_err("Failed to rev-parse")?;
+    let oid = object.id();
+    tracing::info!(
+        "Resolved {reference:?} to {:?} {oid:?}",
+        object.kind().unwrap_or(ObjectType::Any)
+    );
+    Ok(oid)
 }
