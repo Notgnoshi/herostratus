@@ -48,6 +48,16 @@ fn main() -> eyre::Result<()> {
 
     let oid = git::rev_parse(&args.reference, &repo)
         .wrap_err(format!("Failed to resolve reference {:?}", args.reference))?;
+    let oids = git::rev_walk(oid, &repo).wrap_err(format!("Failed to walk OID {oid:?}"))?;
+    for oid in oids {
+        // I'm not sure why this would happen, nor why the iterator wouldn't just return None.
+        // Maybe it's because returning None gives no context?
+        let oid = oid.wrap_err("Failed to get next OID")?;
+        let commit = repo
+            .find_commit(oid)
+            .wrap_err(format!("Failed to find commit with OID {oid:?}"))?;
+        tracing::debug!("Found commit: {:?}", commit.summary().unwrap_or("??"));
+    }
 
     Ok(())
 }
