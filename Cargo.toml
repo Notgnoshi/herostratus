@@ -16,3 +16,4 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
 [dev-dependencies]
 ctor = "0.2.7"
+tempfile = "3.10.1"

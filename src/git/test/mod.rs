@@ -1,3 +1,4 @@
+pub mod fixtures;
 use tracing::Level;
 use tracing_subscriber::fmt::writer::TestWriter;
 use tracing_subscriber::EnvFilter;
