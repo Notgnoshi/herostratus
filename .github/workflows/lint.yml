@@ -46,4 +46,6 @@ jobs:
             - name: Setup Rust cache
               uses: swatinem/rust-cache@v2
             - name: Test
-              run: cargo test --release --all-targets
+              run: |
+                  git fetch
+                  cargo test --release --all-targets
