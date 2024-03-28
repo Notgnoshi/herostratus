@@ -1,3 +1,6 @@
+#[cfg(test)]
+pub mod test;
+
 use std::path::Path;
 
 use eyre::WrapErr;

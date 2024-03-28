@@ -13,3 +13,6 @@ eyre = "0.6.12"
 git2 = "0.18.3"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+
+[dev-dependencies]
+ctor = "0.2.7"
