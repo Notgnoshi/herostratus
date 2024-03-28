@@ -1,4 +1,5 @@
 mod git;
+use std::io::IsTerminal;
 
 use clap::Parser;
 use eyre::WrapErr;
@@ -34,14 +35,21 @@ struct CliArgs {
 }
 
 fn main() -> eyre::Result<()> {
-    color_eyre::install()?;
+    let use_color = std::io::stdout().is_terminal();
+    if use_color {
+        color_eyre::install()?;
+    }
+
     let args = CliArgs::parse();
 
     let filter = EnvFilter::builder()
         .with_default_directive(args.log_level.into())
         .with_env_var("HEROSTRATUS_LOG")
         .from_env_lossy();
-    tracing_subscriber::fmt().with_env_filter(filter).init();
+    tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_ansi(use_color)
+        .init();
 
     let repo = git::fetch_or_find(&args.repository)
         .wrap_err(format!("Could not find or clone {:?}", args.repository))?;
