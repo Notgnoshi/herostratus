@@ -56,7 +56,11 @@ fn main() -> eyre::Result<()> {
         let commit = repo
             .find_commit(oid)
             .wrap_err(format!("Failed to find commit with OID {oid:?}"))?;
-        tracing::debug!("Found commit: {:?}", commit.summary().unwrap_or("??"));
+        tracing::debug!(
+            "commit: {:?} summary: {:?}",
+            commit.id(),
+            commit.summary().unwrap_or("??")
+        );
     }
 
     Ok(())
