@@ -17,7 +17,10 @@ impl Rule for ParticipationTrophy {
     }
     fn process(&mut self, commit: &git2::Commit, _repo: &git2::Repository) -> Option<Achievement> {
         tracing::debug!("Granting {:?} a participation trophy", commit.id());
-        Some(Achievement { name: self.name() })
+        Some(Achievement {
+            commit: commit.id(),
+            name: self.name(),
+        })
     }
 }
 
@@ -32,6 +35,9 @@ impl Rule for ParticipationTrophy2 {
 
     fn finalize(&mut self, _repo: &git2::Repository) -> Vec<Achievement> {
         tracing::debug!("Finalizing ParticipationTrophy2");
-        vec![Achievement { name: self.name() }]
+        vec![Achievement {
+            commit: git2::Oid::zero(),
+            name: self.name(),
+        }]
     }
 }

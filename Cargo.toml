@@ -17,4 +17,5 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 [dev-dependencies]
 assert_cmd = { version = "2.0.14", features = ["color"] }
 ctor = "0.2.7"
+predicates = "3.1.0"
 tempfile = "3.10.1"

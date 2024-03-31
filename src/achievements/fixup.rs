@@ -21,7 +21,10 @@ impl Rule for IMeantToFixThatUpLaterISwear {
         let summary = commit.summary()?;
         for pattern in PATTERNS {
             if summary.starts_with(pattern) {
-                return Some(Achievement { name: self.name() });
+                return Some(Achievement {
+                    commit: commit.id(),
+                    name: self.name(),
+                });
             }
         }
         None

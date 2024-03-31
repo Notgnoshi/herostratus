@@ -1,6 +1,7 @@
 #[derive(Debug)]
 pub struct Achievement {
     pub name: &'static str,
+    pub commit: git2::Oid,
     // TODO: Add the user (how to accommodate mailmaps?)
     // TODO: Add the commit hash
     // TODO: Identify the repository somehow
