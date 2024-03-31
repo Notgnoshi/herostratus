@@ -6,4 +6,4 @@ mod process_rules;
 mod test_process_rules;
 
 pub use achievement::{Achievement, Rule};
-pub use process_rules::process_rules;
+pub use process_rules::{grant, grant_with_rules};

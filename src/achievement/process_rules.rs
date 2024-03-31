@@ -1,3 +1,5 @@
+use eyre::WrapErr;
+
 use crate::achievement::{Achievement, Rule};
 
 trait LoggedRule: Rule {
@@ -148,4 +150,32 @@ where
         next_rule: usize::MAX,
         finalized: None,
     }
+}
+
+pub fn grant<'repo>(
+    reference: &str,
+    repo: &'repo git2::Repository,
+) -> eyre::Result<impl Iterator<Item = Achievement> + 'repo> {
+    grant_with_rules(reference, repo, crate::achievements::builtin_rules())
+}
+
+pub fn grant_with_rules<'repo>(
+    reference: &str,
+    repo: &'repo git2::Repository,
+    rules: Vec<Box<dyn Rule>>,
+) -> eyre::Result<impl Iterator<Item = Achievement> + 'repo> {
+    let rev = crate::git::rev_parse(reference, repo)
+        .wrap_err(format!("Failed to rev-parse: {reference:?}"))?;
+    let oids =
+        crate::git::rev_walk(rev, repo).wrap_err(format!("Failed to rev-walk rev: {rev:?}"))?;
+
+    // TODO: There should be better error handling than this
+    let oids = oids.filter_map(|o| match o {
+        Ok(o) => Some(o),
+        Err(e) => {
+            tracing::error!("Skipping OID: {e:?}");
+            None
+        }
+    });
+    Ok(process_rules(oids, repo, rules))
 }
