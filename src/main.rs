@@ -1,6 +1,8 @@
 mod achievement;
 mod achievements;
 mod git;
+#[cfg(test)]
+mod test;
 
 use std::io::IsTerminal;
 

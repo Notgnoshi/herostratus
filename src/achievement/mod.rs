@@ -6,4 +6,4 @@ mod rule;
 mod test_rule;
 
 pub use achievement::Achievement;
-pub use rule::{process_rules, Achievements, Rule};
+pub use rule::{process_rules, Rule};
