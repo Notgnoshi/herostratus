@@ -49,6 +49,7 @@ fn main() -> eyre::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_ansi(use_color)
+        .with_writer(std::io::stderr)
         .init();
 
     let repo = git::fetch_or_find(&args.repository)
