@@ -1,13 +1,17 @@
 #[derive(Debug)]
 pub struct Achievement {
     pub name: &'static str,
-    // TODO: What's actually in an achievement?
-    // It should somehow identify the user, and the commit that generated the achievement
+    // TODO: Add the user (how to accommodate mailmaps?)
+    // TODO: Add the commit hash
+    // TODO: Identify the repository somehow
 }
 
 // TODO: How could user-contrib rule _scripts_ work? Consume commits via stdin, emit achievement
 // JSON on stdout?
 pub trait Rule {
+    // TODO: Add an ID
+    // TODO: Add a description
+
     /// Return the name of the [Achievement] that this rule generates
     ///
     /// There is expected to be a 1-1 correspondence between [Achievement]s and [Rule]s.
