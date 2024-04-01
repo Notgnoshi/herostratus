@@ -1,4 +1,3 @@
-mod git;
 use std::io::IsTerminal;
 
 use clap::Parser;
@@ -49,26 +48,17 @@ fn main() -> eyre::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_ansi(use_color)
+        .with_writer(std::io::stderr)
         .init();
 
-    let repo = git::fetch_or_find(&args.repository)
+    let repo = herostratus::git::fetch_or_find(&args.repository)
         .wrap_err(format!("Could not find or clone {:?}", args.repository))?;
 
-    let oid = git::rev_parse(&args.reference, &repo)
-        .wrap_err(format!("Failed to resolve reference {:?}", args.reference))?;
-    let oids = git::rev_walk(oid, &repo).wrap_err(format!("Failed to walk OID {oid:?}"))?;
-    for oid in oids {
-        // I'm not sure why this would happen, nor why the iterator wouldn't just return None.
-        // Maybe it's because returning None gives no context?
-        let oid = oid.wrap_err("Failed to get next OID")?;
-        let commit = repo
-            .find_commit(oid)
-            .wrap_err(format!("Failed to find commit with OID {oid:?}"))?;
-        tracing::debug!(
-            "commit: {:?} summary: {:?}",
-            commit.id(),
-            commit.summary().unwrap_or("??")
-        );
+    let achievements = herostratus::achievement::grant(&args.reference, &repo)
+        .wrap_err("Failed to grant achievements")?;
+
+    for achievement in achievements {
+        println!("{achievement:?}");
     }
 
     Ok(())
