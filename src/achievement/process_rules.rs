@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use eyre::WrapErr;
 
 use crate::achievement::{Achievement, Rule};
@@ -56,6 +58,10 @@ where
     next_rule: usize,
 
     finalized: Option<std::vec::IntoIter<Achievement>>,
+
+    start_processing: Option<Instant>,
+    num_commits_processed: u64,
+    num_achievements_generated: u64,
 }
 
 impl<'repo, Oids> Achievements<'repo, Oids>
@@ -82,6 +88,7 @@ where
                     .find_commit(oid)
                     .expect("Failed to find commit in repository");
                 self.current_commit = Some(commit);
+                self.num_commits_processed += 1;
             }
 
             let Some(commit) = &self.current_commit else {
@@ -118,8 +125,13 @@ where
     type Item = Achievement;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if self.start_processing.is_none() {
+            self.start_processing = Some(Instant::now());
+        }
+
         // Get all of the achievements from processing the rules online
         if let Some(achievement) = self.get_next_achievement_online() {
+            self.num_achievements_generated += 1;
             return Some(achievement);
         }
 
@@ -127,7 +139,24 @@ where
         if self.finalized.is_none() {
             self.finalize_all_rules();
         }
-        self.get_next_achievement_finalized()
+        if let Some(achievement) = self.get_next_achievement_finalized() {
+            self.num_achievements_generated += 1;
+            return Some(achievement);
+        }
+
+        // If we get to here, we've finished generating achievements, and it's time to log summary
+        // stats. Use .take() so that the stats are only logged once, even if .next() is repeatedly
+        // called at the end.
+        if let Some(start_timestamp) = self.start_processing.take() {
+            tracing::info!(
+                "Generated {} achievements after processing {} commits in {:?}",
+                self.num_achievements_generated,
+                self.num_commits_processed,
+                start_timestamp.elapsed()
+            );
+        }
+
+        None
     }
 }
 
@@ -149,6 +178,9 @@ where
         current_commit: None,
         next_rule: usize::MAX,
         finalized: None,
+        start_processing: None,
+        num_commits_processed: 0,
+        num_achievements_generated: 0,
     }
 }
 
