@@ -5,6 +5,30 @@ env:
     CARGO_TERM_COLOR: always
 
 jobs:
+    gitlint:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                # Check out at the last commit (pre-automated merge, we don't care about the
+                # temporary commit for linting)
+                ref: ${{ github.event.pull_request.head.sha }}
+                # Get all history
+                fetch-depth: 0
+            - name: Install gitlint
+              run: python -m pip install gitlint
+            - name: Run gitlint
+              env:
+                GITLINT_COMMIT_RANGE: "${{ github.event.pull_request.base.sha }}..HEAD"
+              run: |
+                echo "GITLINT_COMMIT_RANGE=$GITLINT_COMMIT_RANGE"
+                git log --color=always --graph --decorate --oneline "$GITLINT_COMMIT_RANGE"
+                gitlint \
+                    --ignore-stdin \
+                    --config .github/gitlint/gitlint.ini \
+                    --extra-path .github/gitlint/ \
+                    --commits "$GITLINT_COMMIT_RANGE"
+
     format:
         runs-on: ubuntu-latest
         steps:
@@ -12,8 +36,8 @@ jobs:
             - name: Setup Rust toolchain
               uses: dtolnay/rust-toolchain@master
               with:
-                  toolchain: stable
-                  components: rustfmt
+                toolchain: stable
+                components: rustfmt
             - name: Setup Rust cache
               uses: swatinem/rust-cache@v2
             - name: Run rustfmt
@@ -26,8 +50,8 @@ jobs:
             - name: Setup Rust toolchain
               uses: dtolnay/rust-toolchain@master
               with:
-                  toolchain: stable
-                  components: clippy
+                toolchain: stable
+                components: clippy
             - name: Setup Rust cache
               uses: swatinem/rust-cache@v2
             - name: Build
@@ -42,10 +66,10 @@ jobs:
             - name: Setup Rust toolchain
               uses: dtolnay/rust-toolchain@master
               with:
-                  toolchain: stable
+                toolchain: stable
             - name: Setup Rust cache
               uses: swatinem/rust-cache@v2
             - name: Test
               run: |
-                  git fetch
-                  cargo test --release --all-targets
+                git fetch
+                cargo test --release --all-targets
