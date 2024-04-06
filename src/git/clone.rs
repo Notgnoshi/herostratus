@@ -58,7 +58,7 @@ pub fn find_local_repository(path: &Path) -> eyre::Result<git2::Repository> {
 // domain:path                              => path
 pub fn parse_path_from_url(url: &str) -> eyre::Result<PathBuf> {
     let known_remote_protocols = [
-        "ssh://", "git://", "http://", "https://", "ftp://", "ftps://",
+        "ssh://", "git://", "http://", "https://", "ftp://", "ftps://", "file://",
     ];
     for protocol in known_remote_protocols {
         if let Some(url) = url.strip_prefix(protocol) {
@@ -93,22 +93,20 @@ pub fn parse_path_from_url(url: &str) -> eyre::Result<PathBuf> {
 /// If the given URL has already been cloned, fetch from the remote instead.
 pub fn clone_or_cache_remote_repository(
     url: &str,
+    cache_dir: &Path,
     force_clone: bool,
     skip_fetch: bool,
 ) -> eyre::Result<git2::Repository> {
-    // TODO: Enable overriding this path, for testing purposes
-    let cache_dir = directories::ProjectDirs::from("com", "Notgnoshi", "Herostratus")
-        .ok_or(eyre::eyre!("Failed to determine project cache dir"))?;
     let clone_path = parse_path_from_url(url).wrap_err("Failed to parse clone path from URL")?;
-    let clone_path = cache_dir.cache_dir().join("git").join(clone_path);
+    let clone_path = cache_dir.join("git").join(clone_path);
 
     tracing::info!(
-        "Attempting to clone remote URL '{url}' to {}",
+        "Attempting to clone remote URL {url:?} to {}",
         clone_path.display()
     );
 
     if !clone_path.exists() {
-
+        tracing::debug!("Cloning {url:?}...");
         git2::build::RepoBuilder::new()
             .bare(true)
             // TODO(#21,#22): SSH and HTTPS auth

@@ -1,4 +1,5 @@
 use std::io::IsTerminal;
+use std::path::PathBuf;
 
 use clap::Parser;
 use eyre::WrapErr;
@@ -9,7 +10,8 @@ use tracing_subscriber::EnvFilter;
 #[clap(about, verbatim_doc_comment, version)]
 struct CliArgs {
     /// A path to a work tree or bare repository, or a clone URL
-    repository: String,
+    #[clap(verbatim_doc_comment, required_unless_present = "get_cache_dir")]
+    repository: Option<String>,
 
     /// The reference or revision to search for achievements
     ///
@@ -20,8 +22,8 @@ struct CliArgs {
     /// * main (branch)
     /// * bf266ef (short rev)
     /// * bf266effe9701f07ebeb0935bd2c48c5f02bc483 (full rev)
-    #[clap(verbatim_doc_comment)]
-    reference: String,
+    #[clap(verbatim_doc_comment, required_unless_present = "get_cache_dir")]
+    reference: Option<String>,
 
     /// Set the application log level
     ///
@@ -31,6 +33,17 @@ struct CliArgs {
     /// If HEROSTRATUS_LOG is non-empty, the value of --log-level will be ignored.
     #[clap(short, long, verbatim_doc_comment, default_value_t = tracing::Level::INFO)]
     log_level: Level,
+
+    /// Override the application cache directory
+    ///
+    /// Will default to a platform-dependent directory consistent with the XDG spec. You can use
+    /// `--get-cache-dir` to determine where Herostratus will cache data.
+    #[clap(long)]
+    cache_dir: Option<PathBuf>,
+
+    /// Get the application cache directory and exit
+    #[clap(long)]
+    get_cache_dir: bool,
 }
 
 fn main() -> eyre::Result<()> {
@@ -40,6 +53,16 @@ fn main() -> eyre::Result<()> {
     }
 
     let args = CliArgs::parse();
+    let proj_dir = directories::ProjectDirs::from("com", "Notgnoshi", "Herostratus").ok_or(
+        eyre::eyre!("Failed to determine Herostratus cache directory"),
+    )?;
+    let cache_dir = proj_dir.cache_dir();
+    let cache_dir = args.cache_dir.unwrap_or(cache_dir.to_owned());
+
+    if args.get_cache_dir {
+        println!("{}", cache_dir.display());
+        return Ok(());
+    }
 
     let filter = EnvFilter::builder()
         .with_default_directive(args.log_level.into())
@@ -51,10 +74,12 @@ fn main() -> eyre::Result<()> {
         .with_writer(std::io::stderr)
         .init();
 
-    let repo = herostratus::git::fetch_or_find(&args.repository)
-        .wrap_err(format!("Could not find or clone {:?}", args.repository))?;
+    let repo =
+        herostratus::git::fetch_or_find(args.repository.as_ref().unwrap(), &cache_dir).wrap_err(
+            format!("Could not find or clone {:?}", args.repository.unwrap()),
+        )?;
 
-    let achievements = herostratus::achievement::grant(&args.reference, &repo)
+    let achievements = herostratus::achievement::grant(&args.reference.unwrap(), &repo)
         .wrap_err("Failed to grant achievements")?;
 
     for achievement in achievements {
