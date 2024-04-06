@@ -97,6 +97,8 @@ pub fn clone_or_cache_remote_repository(
     force_clone: bool,
     skip_fetch: bool,
 ) -> eyre::Result<git2::Repository> {
+    let start = std::time::Instant::now();
+
     let clone_path = parse_path_from_url(url).wrap_err("Failed to parse clone path from URL")?;
     let clone_path = cache_dir.join("git").join(clone_path);
 
@@ -107,7 +109,7 @@ pub fn clone_or_cache_remote_repository(
 
     if !clone_path.exists() {
         tracing::debug!("Cloning {url:?}...");
-        git2::build::RepoBuilder::new()
+        let repo = git2::build::RepoBuilder::new()
             .bare(true)
             // TODO(#21,#22): SSH and HTTPS auth
             // .fetch_options()
@@ -115,7 +117,10 @@ pub fn clone_or_cache_remote_repository(
             // has to clone the reference provided by the user.
             // .branch(branch)
             .clone(url, &clone_path)
-            .wrap_err("Failed to clone repository")
+            .wrap_err("Failed to clone repository")?;
+        tracing::info!("Finished cloning {url:?} after {:?}", start.elapsed());
+
+        Ok(repo)
     } else {
         tracing::debug!("Found existing {}", clone_path.display());
         let repo = git2::Repository::discover(clone_path).wrap_err("Failed to use cached clone")?;
@@ -137,7 +142,7 @@ pub fn clone_or_cache_remote_repository(
         )?;
 
         drop(remote);
-        tracing::debug!("Finished fetch.");
+        tracing::info!("Finished fetching {url:?} after {:?}", start.elapsed());
 
         Ok(repo)
     }
