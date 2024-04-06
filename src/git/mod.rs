@@ -1,4 +1,6 @@
-use std::path::Path;
+mod clone;
+#[cfg(test)]
+mod test_clone;
 
 use eyre::WrapErr;
 use git2::{ObjectType, Oid, Repository, Sort};
@@ -6,25 +8,36 @@ use git2::{ObjectType, Oid, Repository, Sort};
 /// Fetch or find the specified repository
 ///
 /// If the `repo` is an accessible path, it will not be cloned. Otherwise, the `repo` is assumed to
-/// be a clone URL supporting the following protocols
-/// * `file://`
-/// * `ssh://` or `git@`
-/// * `git://`
-/// * `https://`
-pub fn fetch_or_find(repo: &str) -> eyre::Result<Repository> {
-    // TODO: The reliability, flexibility, and clarity of this method will be very important.
-    // TODO: Special case file://
-    let path = Path::new(repo);
-    if !path.exists() {
-        // TODO: Support remote URLs
-        // TODO: Test cases!
-        eyre::bail!("{path:?} does not exist, and remote clone URLs are not supported yet");
-    } else {
-        let path = path.canonicalize()?;
-        tracing::debug!("Searching {path:?} for a Git repository");
-        let repo = Repository::discover(&path)?;
-        tracing::info!("Found git repository at {:?}", repo.path());
-        Ok(repo)
+/// be a remote URL.
+///
+/// The [`git-clone(1)`](https://git-scm.com/docs/git-clone/) man page specifies the supported URL
+/// formats. As a summary,
+///
+/// * SSH protocol: `ssh://[user@]example.com[:port]/path/to/repo.git`
+///   * Variant: `[user@]example.com:path/to/repo.git`
+/// * Git protocol: `git://example.com[:port]/path/to/repo.git`
+/// * HTTP protocol: `http[s]://example.com[:port]/path/to/repo.git`
+/// * FTP protocol (old and slow, do not use): `ftp[s]://example.com[:port]/path/to/repo.git`
+///
+/// A local path may also be used
+///
+/// * `./relative/path/to/repo`
+/// * `/absolute/path/to/repo`
+/// * `file:///absolute/path/to/repo`
+///
+/// The local repository paths may be to the repository work tree, the repository `.git/`
+/// directory, or the path to a bare repository.
+///
+/// If a remote URL is passed, the repository will be cloned as a bare repository. Otherwise, if a
+/// local path is passed, the existing repository will be used, with no bare repository created.
+pub fn fetch_or_find(repo: &str) -> eyre::Result<git2::Repository> {
+    tracing::info!("Finding repository '{repo}' ...");
+    match clone::local_or_remote(repo).wrap_err(format!("Failed to find repository: '{repo}'"))? {
+        clone::RepoType::LocalFilePath(path) => clone::find_local_repository(&path),
+        clone::RepoType::RemoteCloneUrl(url) => {
+            // TODO: Inject CLI arguments
+            clone::clone_or_cache_remote_repository(&url, false, false)
+        }
     }
 }
 
