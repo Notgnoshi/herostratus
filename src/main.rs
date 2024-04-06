@@ -44,6 +44,14 @@ struct CliArgs {
     /// Get the application cache directory and exit
     #[clap(long)]
     get_cache_dir: bool,
+
+    /// If <REPOSITORY> is a clone URL, do not use the cached clone if present
+    #[clap(long)]
+    force_clone: bool,
+
+    /// If <REPOSITORY> is a clone URL, and a cached repository is found, skip fetching
+    #[clap(long)]
+    skip_fetch: bool,
 }
 
 fn main() -> eyre::Result<()> {
@@ -74,10 +82,16 @@ fn main() -> eyre::Result<()> {
         .with_writer(std::io::stderr)
         .init();
 
-    let repo =
-        herostratus::git::fetch_or_find(args.repository.as_ref().unwrap(), &cache_dir).wrap_err(
-            format!("Could not find or clone {:?}", args.repository.unwrap()),
-        )?;
+    let repo = herostratus::git::fetch_or_find(
+        args.repository.as_ref().unwrap(),
+        &cache_dir,
+        args.force_clone,
+        args.skip_fetch,
+    )
+    .wrap_err(format!(
+        "Could not find or clone {:?}",
+        args.repository.unwrap()
+    ))?;
 
     let achievements = herostratus::achievement::grant(&args.reference.unwrap(), &repo)
         .wrap_err("Failed to grant achievements")?;

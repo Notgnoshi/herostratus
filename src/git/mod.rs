@@ -32,12 +32,17 @@ use git2::{ObjectType, Oid, Repository, Sort};
 ///
 /// If a remote URL is passed, the repository will be cloned as a bare repository. Otherwise, if a
 /// local path is passed, the existing repository will be used, with no bare repository created.
-pub fn fetch_or_find(repo: &str, cache_dir: &Path) -> eyre::Result<git2::Repository> {
+pub fn fetch_or_find(
+    repo: &str,
+    cache_dir: &Path,
+    force_clone: bool,
+    skip_fetch: bool,
+) -> eyre::Result<git2::Repository> {
     tracing::info!("Finding repository '{repo}' ...");
     match clone::local_or_remote(repo).wrap_err(format!("Failed to find repository: '{repo}'"))? {
         clone::RepoType::LocalFilePath(path) => clone::find_local_repository(&path),
         clone::RepoType::RemoteCloneUrl(url) => {
-            clone::clone_or_cache_remote_repository(&url, cache_dir, false, false)
+            clone::clone_or_cache_remote_repository(&url, cache_dir, force_clone, skip_fetch)
         }
     }
 }

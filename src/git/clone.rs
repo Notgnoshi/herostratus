@@ -84,6 +84,21 @@ pub fn parse_path_from_url(url: &str) -> eyre::Result<PathBuf> {
     Ok(PathBuf::from(&url[idx + 1..]))
 }
 
+fn remove_dir_contents<P: AsRef<Path>>(path: P) -> std::io::Result<()> {
+    for entry in std::fs::read_dir(path)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        if entry.file_type()?.is_dir() {
+            remove_dir_contents(&path)?;
+            std::fs::remove_dir(path)?;
+        } else {
+            std::fs::remove_file(path)?;
+        }
+    }
+    Ok(())
+}
+
 /// Clone a remote URL, or fetch from a previous clone
 ///
 /// Projects will be cloned to a platform-dependent project cache dir. See
@@ -107,8 +122,15 @@ pub fn clone_or_cache_remote_repository(
         clone_path.display()
     );
 
-    if !clone_path.exists() {
+    if !clone_path.exists() || force_clone {
         tracing::debug!("Cloning {url:?}...");
+
+        if clone_path.exists() {
+            tracing::info!("Deleting existing cached clone for {url:?}");
+            remove_dir_contents(&clone_path)
+                .wrap_err(format!("Failed to clear cached clone for {url:?}"))?;
+        }
+
         let repo = git2::build::RepoBuilder::new()
             .bare(true)
             // TODO(#21,#22): SSH and HTTPS auth
@@ -124,25 +146,30 @@ pub fn clone_or_cache_remote_repository(
     } else {
         tracing::debug!("Found existing {}", clone_path.display());
         let repo = git2::Repository::discover(clone_path).wrap_err("Failed to use cached clone")?;
-        tracing::debug!("Fetching from 'origin' remote ...");
-        let mut remote = repo
-            .find_remote("origin")
-            .wrap_err("Failed to find default 'origin' remote")?;
 
-        // TODO(#33): This would be more efficient if it only had to fetch the reference provided
-        // by the user. But the user could also provide a revision, so we'd have to determine
-        // whether it's a ref or rev.
-        let refspecs = remote.fetch_refspecs()?;
-        let refspecs: Vec<&str> = refspecs.iter().flatten().collect();
+        if skip_fetch {
+            tracing::debug!("Skipping fetch from {url:?}");
+        } else {
+            tracing::debug!("Fetching from 'origin' remote ...");
+            let mut remote = repo
+                .find_remote("origin")
+                .wrap_err("Failed to find default 'origin' remote")?;
 
-        remote.fetch(
-            refspecs.as_slice(),
-            None, // TODO(#21,#22): SSH and HTTPS auth
-            Some("Automated fetch by herostratus"),
-        )?;
+            // TODO(#33): This would be more efficient if it only had to fetch the reference provided
+            // by the user. But the user could also provide a revision, so we'd have to determine
+            // whether it's a ref or rev.
+            let refspecs = remote.fetch_refspecs()?;
+            let refspecs: Vec<&str> = refspecs.iter().flatten().collect();
 
-        drop(remote);
-        tracing::info!("Finished fetching {url:?} after {:?}", start.elapsed());
+            remote.fetch(
+                refspecs.as_slice(),
+                None, // TODO(#21,#22): SSH and HTTPS auth
+                Some("Automated fetch by herostratus"),
+            )?;
+
+            drop(remote);
+            tracing::info!("Finished fetching {url:?} after {:?}", start.elapsed());
+        }
 
         Ok(repo)
     }
