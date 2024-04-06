@@ -18,6 +18,25 @@ This is a silly project to gamify things that shouldn't be gamified.
     * It should provide an integration with GitLab achievements
     * It could provide an integration with GitHub
 
+## Changelog
+
+This project keeps a [CHANGELOG](CHANGELOG.md). Not every PR needs to add an entry to the changelog,
+but every notable feature should be added.
+
+**Please keep the changelog focused on the user impact, instead of the actual changes made.**
+
+## Releases
+
+Releases are automated by the CI/CD pipeline, and are triggered by merging a change that bumps the
+version number in the project [Cargo.toml](Cargo.toml). Each release is required to have an entry in
+the changelog.
+
+**TODO:** Add automated release pipeline.
+
+## Deployment
+
+**TODO:** Find a suitable deployment strategy.
+
 ## Tests
 
 This project values tests. Please consider adding tests with contributions. That said, I do not
