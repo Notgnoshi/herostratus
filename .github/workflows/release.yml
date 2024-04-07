@@ -1,9 +1,6 @@
 name: Release
 
-on:
-    push:
-        tags:
-            - "v*.*.*"
+on: push
 
 jobs:
     release:
@@ -17,11 +14,17 @@ jobs:
                 DESCRIPTION="$(.github/parse-manifest-key.sh Cargo.toml description)"
                 echo "VERSION=$VERSION" >> "$GITHUB_ENV"
                 echo "DESCRIPTION=$DESCRIPTION" >> "$GITHUB_ENV"
+
+            # Always generate release notes for the current version. If the version from the Cargo
+            # manifest isn't found in the CHANGELOG.md, then fail the pipeline (even in PRs)
             - name: Generate Release Notes
               shell: bash
               run: .github/get-release-notes.sh "$VERSION" "$DESCRIPTION" | tee release.md
+
             - name: Make The Release
               uses: softprops/action-gh-release@v2
+              # Only actually make the release on a tag
+              if: startsWith(github.ref, 'refs/tags/')
               with:
                 body_path: release.md
                 prerelease: ${{ contains(env.VERSION, '-rc') }}

@@ -1,5 +1,5 @@
 name: Lint
-on: [pull_request]
+on: push
 env:
     RUSTFLAGS: -D warnings
     CARGO_TERM_COLOR: always
@@ -10,18 +10,18 @@ jobs:
         steps:
             - uses: actions/checkout@v4
               with:
-                # Check out at the last commit (pre-automated merge, we don't care about the
-                # temporary commit for linting)
-                ref: ${{ github.event.pull_request.head.sha }}
-                # Get all history
-                fetch-depth: 0
+                # PRs (hopefully??!) won't have more than 20 commits
+                fetch-depth: 20
             - name: Install gitlint
               run: python -m pip install gitlint
             - name: Run gitlint
               env:
-                GITLINT_COMMIT_RANGE: "${{ github.event.pull_request.base.sha }}..HEAD"
+                # Don't use github.event.pull_request.base-sha, because that requires a workflow
+                # event of 'pull_request' which precludes running this workflow on 'main'.
+                GITLINT_COMMIT_RANGE: "origin/main..HEAD"
               run: |
                 echo "GITLINT_COMMIT_RANGE=$GITLINT_COMMIT_RANGE"
+                git fetch origin main:main
                 git log --color=always --graph --decorate --oneline "$GITLINT_COMMIT_RANGE"
                 gitlint \
                     --ignore-stdin \
