@@ -1,0 +1,28 @@
+name: Release
+
+on:
+    push:
+        tags:
+            - "v*.*.*"
+
+jobs:
+    release:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - name: Extract Release Metadata
+              shell: bash
+              run: |
+                VERSION="$(.github/parse-manifest-key.sh Cargo.toml version)"
+                DESCRIPTION="$(.github/parse-manifest-key.sh Cargo.toml description)"
+                echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+                echo "DESCRIPTION=$DESCRIPTION" >> "$GITHUB_ENV"
+            - name: Generate Release Notes
+              shell: bash
+              run: .github/get-release-notes.sh "$VERSION" "$DESCRIPTION" | tee release.md
+            - name: Make The Release
+              uses: softprops/action-gh-release@v2
+              with:
+                body_path: release.md
+                prerelease: ${{ contains(env.VERSION, '-rc') }}
+                token: ${{ secrets.HEROSTRATUS_RELEASE_TOKEN }}

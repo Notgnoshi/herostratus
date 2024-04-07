@@ -8,12 +8,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 These changelog entries will automatically be added to the project release notes. **Please keep the
 focus on the user impact** rather than the actual changes made.
 
-## Unreleased - (YYYY-MM-DD)
+# Herostratus - Unreleased - (YYYY-MM-DD)
 <!-- Please add new changelog entries here -->
 
-### Added
-### Changed
-### Deprecated
-### Removed
-### Fixed
-### Security
+## Added
+## Changed
+## Deprecated
+## Removed
+## Fixed
+## Security
