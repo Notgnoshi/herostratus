@@ -21,7 +21,7 @@ jobs:
                 GITLINT_COMMIT_RANGE: "origin/main..HEAD"
               run: |
                 echo "GITLINT_COMMIT_RANGE=$GITLINT_COMMIT_RANGE"
-                git fetch origin main:main
+                git fetch origin main
                 git log --color=always --graph --decorate --oneline "$GITLINT_COMMIT_RANGE"
                 gitlint \
                     --ignore-stdin \
