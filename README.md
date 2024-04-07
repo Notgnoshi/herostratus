@@ -1,4 +1,6 @@
 # Herostratus
+![lint workflow](https://github.com/Notgnoshi/herostratus/actions/workflows/lint.yml/badge.svg?event=push)
+![release workflow](https://github.com/Notgnoshi/herostratus/actions/workflows/release.yml/badge.svg?event=push)
 
 **Herostratus** *n.* **1.** An ancient Greek known for winning fame through crime and destruction.
 **2.** A Git repository achievements engine.

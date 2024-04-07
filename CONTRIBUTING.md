@@ -25,13 +25,21 @@ but every notable feature should be added.
 
 **Please keep the changelog focused on the user impact, instead of the actual changes made.**
 
+These changelog entries are automatically added to the generated releases:
+<https://github.com/Notgnoshi/herostratus/releases>
+
 ## Releases
 
 Releases are automated by the CI/CD pipeline, and are triggered by merging a change that bumps the
-version number in the project [Cargo.toml](Cargo.toml). Each release is required to have an entry in
-the changelog.
+version number in the project [Cargo.toml](Cargo.toml).
 
-**TODO:** Add automated release pipeline.
+The process for making a new release is:
+1. Submit a PR making the release
+    1. Bump the version number in `Cargo.toml`
+    2. Add the new version number to the `CHANGELOG.md`, moving all of the entries under the `#
+       Herostratus - Unreleased - (YYYY-MM-DD)` header down under the header for the new release.
+    3. Perform any last-minute release notes polish
+2. Merge it!
 
 ## Deployment
 
