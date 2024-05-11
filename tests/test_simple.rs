@@ -6,7 +6,7 @@ fn search_current_repo_for_test_simple_branch() {
     // TODO: Consider caching this, so it doesn't get so expensive as
     // https://github.com/assert-rs/assert_cmd/issues/6 suggests.
     let mut cmd = assert_cmd::Command::cargo_bin("herostratus").unwrap();
-    cmd.arg(".").arg("origin/test/simple");
+    cmd.arg("check").arg(".").arg("origin/test/simple");
 
     cmd.assert().success();
 }
@@ -14,7 +14,9 @@ fn search_current_repo_for_test_simple_branch() {
 #[test]
 fn search_current_repo_for_branch_that_does_not_exist() {
     let mut cmd = assert_cmd::Command::cargo_bin("herostratus").unwrap();
-    cmd.arg(".").arg("origin/test/this-branch-will-never-exist");
+    cmd.arg("check")
+        .arg(".")
+        .arg("origin/test/this-branch-will-never-exist");
 
     cmd.assert().failure();
 }
@@ -22,7 +24,7 @@ fn search_current_repo_for_branch_that_does_not_exist() {
 #[test]
 fn search_current_repo_for_fixup_commits() {
     let mut cmd = assert_cmd::Command::cargo_bin("herostratus").unwrap();
-    cmd.arg(".").arg("origin/test/fixup");
+    cmd.arg("check").arg(".").arg("origin/test/fixup");
 
     cmd.assert()
         .stdout(
@@ -49,6 +51,7 @@ fn clone_herostratus() {
     cmd.arg("--data-dir")
         .arg(data_dir)
         .arg("--log-level=DEBUG")
+        .arg("add")
         .arg(url)
         // This assumes that the user running these tests has at some point checked out 'main',
         // which is very likely true. But we can't ensure anything about how up-to-date 'main' is.
@@ -65,6 +68,7 @@ fn clone_herostratus() {
     cmd.arg("--data-dir")
         .arg(data_dir)
         .arg("--log-level=DEBUG")
+        .arg("add")
         .arg(url)
         // This assumes that the user running these tests has at some point checked out 'main',
         // which is very likely true. But we can't ensure anything about how up-to-date 'main' is.
