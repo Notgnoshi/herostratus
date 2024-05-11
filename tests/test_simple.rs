@@ -37,24 +37,24 @@ fn search_current_repo_for_fixup_commits() {
 #[ignore = "Slow; performs git clone"]
 fn clone_herostratus() {
     let temp = tempfile::tempdir().unwrap();
-    let cache_dir = temp.path();
-    // let cache_dir = PathBuf::from("/tmp/herostratus");
+    let data_dir = temp.path();
+    // let data_dir = PathBuf::from("/tmp/herostratus");
 
     let mut cmd = assert_cmd::Command::cargo_bin("herostratus").unwrap();
-    let expected_bare_repo = cache_dir
+    let expected_bare_repo = data_dir
         .join("git")
         .join("Notgnoshi")
         .join("herostratus.git");
     let url = "https://github.com/Notgnoshi/herostratus.git";
-    cmd.arg("--cache-dir")
-        .arg(cache_dir)
+    cmd.arg("--data-dir")
+        .arg(data_dir)
         .arg("--log-level=DEBUG")
         .arg(url)
         // This assumes that the user running these tests has at some point checked out 'main',
         // which is very likely true. But we can't ensure anything about how up-to-date 'main' is.
         .arg("origin/main");
 
-    assert!(!cache_dir.join("git").exists());
+    assert!(!data_dir.join("git").exists());
 
     cmd.assert().success();
 
@@ -62,8 +62,8 @@ fn clone_herostratus() {
 
     // Running the command again should be successful
     let mut cmd = assert_cmd::Command::cargo_bin("herostratus").unwrap();
-    cmd.arg("--cache-dir")
-        .arg(cache_dir)
+    cmd.arg("--data-dir")
+        .arg(data_dir)
         .arg("--log-level=DEBUG")
         .arg(url)
         // This assumes that the user running these tests has at some point checked out 'main',

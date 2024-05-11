@@ -34,7 +34,7 @@ use git2::{ObjectType, Oid, Repository, Sort};
 /// local path is passed, the existing repository will be used, with no bare repository created.
 pub fn fetch_or_find(
     repo: &str,
-    cache_dir: &Path,
+    data_dir: &Path,
     force_clone: bool,
     skip_fetch: bool,
 ) -> eyre::Result<git2::Repository> {
@@ -42,7 +42,7 @@ pub fn fetch_or_find(
     match clone::local_or_remote(repo).wrap_err(format!("Failed to find repository: '{repo}'"))? {
         clone::RepoType::LocalFilePath(path) => clone::find_local_repository(&path),
         clone::RepoType::RemoteCloneUrl(url) => {
-            clone::clone_or_cache_remote_repository(&url, cache_dir, force_clone, skip_fetch)
+            clone::clone_or_cache_remote_repository(&url, data_dir, force_clone, skip_fetch)
         }
     }
 }

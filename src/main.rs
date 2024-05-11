@@ -10,7 +10,7 @@ use tracing_subscriber::EnvFilter;
 #[clap(about, verbatim_doc_comment, version)]
 struct CliArgs {
     /// A path to a work tree or bare repository, or a clone URL
-    #[clap(verbatim_doc_comment, required_unless_present = "get_cache_dir")]
+    #[clap(verbatim_doc_comment, required_unless_present = "get_data_dir")]
     repository: Option<String>,
 
     /// The reference or revision to search for achievements
@@ -22,7 +22,7 @@ struct CliArgs {
     /// * main (branch)
     /// * bf266ef (short rev)
     /// * bf266effe9701f07ebeb0935bd2c48c5f02bc483 (full rev)
-    #[clap(verbatim_doc_comment, required_unless_present = "get_cache_dir")]
+    #[clap(verbatim_doc_comment, required_unless_present = "get_data_dir")]
     reference: Option<String>,
 
     /// Set the application log level
@@ -34,16 +34,16 @@ struct CliArgs {
     #[clap(short, long, verbatim_doc_comment, default_value_t = tracing::Level::INFO)]
     log_level: Level,
 
-    /// Override the application cache directory
+    /// Override the application data directory
     ///
     /// Will default to a platform-dependent directory consistent with the XDG spec. You can use
-    /// `--get-cache-dir` to determine where Herostratus will cache data.
+    /// `--get-data-dir` to determine where Herostratus will save data.
     #[clap(long)]
-    cache_dir: Option<PathBuf>,
+    data_dir: Option<PathBuf>,
 
-    /// Get the application cache directory and exit
+    /// Get the application data directory and exit
     #[clap(long)]
-    get_cache_dir: bool,
+    get_data_dir: bool,
 
     /// If <REPOSITORY> is a clone URL, do not use the cached clone if present
     #[clap(long)]
@@ -62,13 +62,13 @@ fn main() -> eyre::Result<()> {
 
     let args = CliArgs::parse();
     let proj_dir = directories::ProjectDirs::from("com", "Notgnoshi", "Herostratus").ok_or(
-        eyre::eyre!("Failed to determine Herostratus cache directory"),
+        eyre::eyre!("Failed to determine Herostratus data directory"),
     )?;
-    let cache_dir = proj_dir.cache_dir();
-    let cache_dir = args.cache_dir.unwrap_or(cache_dir.to_owned());
+    let data_dir = proj_dir.data_local_dir();
+    let data_dir = args.data_dir.unwrap_or(data_dir.to_owned());
 
-    if args.get_cache_dir {
-        println!("{}", cache_dir.display());
+    if args.get_data_dir {
+        println!("{}", data_dir.display());
         return Ok(());
     }
 
@@ -84,7 +84,7 @@ fn main() -> eyre::Result<()> {
 
     let repo = herostratus::git::fetch_or_find(
         args.repository.as_ref().unwrap(),
-        &cache_dir,
+        &data_dir,
         args.force_clone,
         args.skip_fetch,
     )

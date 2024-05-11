@@ -101,21 +101,21 @@ fn remove_dir_contents<P: AsRef<Path>>(path: P) -> std::io::Result<()> {
 
 /// Clone a remote URL, or fetch from a previous clone
 ///
-/// Projects will be cloned to a platform-dependent project cache dir. See
-/// <https://docs.rs/directories/latest/directories/struct.ProjectDirs.html#method.cache_dir> for
-/// details.
+/// Projects will be cloned to a platform-dependent project data dir. See
+/// <https://docs.rs/directories/latest/directories/struct.ProjectDirs.html#method.data_local_dir>
+/// for details.
 ///
 /// If the given URL has already been cloned, fetch from the remote instead.
 pub fn clone_or_cache_remote_repository(
     url: &str,
-    cache_dir: &Path,
+    data_dir: &Path,
     force_clone: bool,
     skip_fetch: bool,
 ) -> eyre::Result<git2::Repository> {
     let start = std::time::Instant::now();
 
     let clone_path = parse_path_from_url(url).wrap_err("Failed to parse clone path from URL")?;
-    let clone_path = cache_dir.join("git").join(clone_path);
+    let clone_path = data_dir.join("git").join(clone_path);
 
     tracing::info!(
         "Attempting to clone remote URL {url:?} to {}",
