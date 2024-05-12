@@ -1,4 +1,4 @@
-mod clone;
+pub mod clone;
 #[cfg(test)]
 mod test_clone;
 

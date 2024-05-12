@@ -13,6 +13,8 @@ focus on the user impact** rather than the actual changes made.
 
 ## Added
 ## Changed
+* Changed CLI interface to use subcommands
+
 ## Deprecated
 ## Removed
 ## Fixed
