@@ -87,9 +87,16 @@ pub struct AddArgs {
     #[clap(short, long, verbatim_doc_comment)]
     pub path: Option<PathBuf>,
 
+    // TODO: Add optional branch. If given, will configure the reference to parse, and will do a
+    // fetch of *just* that branch. This needs to be thought out more, because there should be a
+    // way to clone the whole thing, and use a rev instead of a ref ...
     /// Skip cloning the repository
     #[clap(long)]
     pub skip_clone: bool,
+
+    /// Forcefully overwrite an existing clone, if it exists
+    #[clap(long)]
+    pub force: bool,
     // TODO: Authentication
 }
 
