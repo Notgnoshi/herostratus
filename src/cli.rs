@@ -80,6 +80,14 @@ pub struct AddArgs {
     #[clap(verbatim_doc_comment)]
     pub url: String,
 
+    /// The branch to clone, and check
+    ///
+    /// If given, only the specified branch will be fetched.
+    ///
+    /// If given, this will be the branch that will be checked for achievements instead of the
+    /// default HEAD.
+    pub branch: Option<String>,
+
     /// The path to clone the repository
     ///
     /// Given a URL like `https://github.com/Notgnoshi/herostratus.git`, the repository will be
@@ -87,9 +95,7 @@ pub struct AddArgs {
     #[clap(short, long, verbatim_doc_comment)]
     pub path: Option<PathBuf>,
 
-    // TODO: Add optional branch. If given, will configure the reference to parse, and will do a
-    // fetch of *just* that branch. This needs to be thought out more, because there should be a
-    // way to clone the whole thing, and use a rev instead of a ref ...
+    // TODO: What good is --skip-clone?
     /// Skip cloning the repository
     #[clap(long)]
     pub skip_clone: bool,

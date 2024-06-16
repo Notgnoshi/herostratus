@@ -36,3 +36,30 @@ fn clone_herostratus() {
     let output = cmd.captured_output().unwrap();
     assert!(output.status.success());
 }
+
+#[test]
+#[ignore = "Slow; performs git clone"]
+fn clone_herostratus_branch() {
+    let (mut cmd, temp) = common::herostratus(None);
+    let clone_dir = temp
+        .as_ref()
+        .unwrap()
+        .path()
+        .join("git")
+        .join("Notgnoshi")
+        .join("herostratus.git");
+
+    let url = "https://github.com/Notgnoshi/herostratus.git";
+    cmd.arg("add").arg(url).arg("test/fixup");
+
+    assert!(!clone_dir.exists());
+
+    let output = cmd.captured_output().unwrap();
+    assert!(output.status.success());
+    assert!(clone_dir.exists());
+
+    let repo = herostratus::git::clone::find_local_repository(&clone_dir).unwrap();
+    let head = repo.head().unwrap();
+    let head = head.name().unwrap();
+    assert_eq!(head, "refs/heads/test/fixup");
+}
