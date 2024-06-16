@@ -91,6 +91,7 @@ pub fn clone_repository(
     // .fetch_options()
 
     if let Some(branch) = branch {
+        tracing::debug!("Cloning just the '{branch}' branch ...");
         builder.branch(branch);
     }
 
