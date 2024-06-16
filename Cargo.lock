@@ -355,6 +355,7 @@ dependencies = [
  "directories",
  "eyre",
  "git2",
+ "lazy_static",
  "predicates",
  "tempfile",
  "tracing",
