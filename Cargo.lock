@@ -357,6 +357,7 @@ dependencies = [
  "git2",
  "lazy_static",
  "predicates",
+ "serde",
  "tempfile",
  "tracing",
  "tracing-subscriber",
