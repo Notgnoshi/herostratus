@@ -13,6 +13,7 @@ directories = "5.0.1"
 eyre = "0.6.12"
 git2 = "0.19"
 serde = { version = "1.0.204", features =["derive"] }
+toml = "0.8.14"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
