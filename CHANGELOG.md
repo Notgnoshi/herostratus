@@ -13,6 +13,17 @@ focus on the user impact** rather than the actual changes made.
 
 ## Added
 ## Changed
+* Changed CLI interface to use subcommands
+
+  * `herostratus check <path> [reference]` - statelessly check the repository at the given path
+  * `herostratus add <url> [branch]` - clone the given repository for later processing
+  * `herostratus remove` - remove the given repository
+  * `herostratus fetch-all` - fetch each cloned repository
+  * `herostratus check-all` - check each cloned repository
+  
+  Not all subcommands are implemented, but this is the CLI interface `herostratus` will use in the
+  future.
+
 ## Deprecated
 ## Removed
 ## Fixed
