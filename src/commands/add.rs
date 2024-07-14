@@ -1,9 +1,10 @@
 use std::path::Path;
 
 use crate::cli::AddArgs;
+use crate::config::Config;
 use crate::git::clone::{clone_repository, get_clone_path};
 
-pub fn add(args: &AddArgs, data_dir: &Path) -> eyre::Result<()> {
+pub fn add(args: &AddArgs, config: &mut Config, data_dir: &Path) -> eyre::Result<()> {
     // TODO: Resolve the right clone path in the following priority order
     // 1. args.path
     // 2. configuration file

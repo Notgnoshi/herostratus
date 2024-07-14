@@ -47,6 +47,11 @@ pub fn serialize_config(config: &Config) -> eyre::Result<String> {
 
 pub fn write_config(data_dir: &Path, config: &Config) -> eyre::Result<()> {
     let contents = serialize_config(config)?;
+
+    if !data_dir.exists() {
+        std::fs::create_dir_all(data_dir).wrap_err("Failed to create application data dir")?;
+    }
+
     let file = config_path(data_dir);
     let mut file = std::fs::File::create(file).wrap_err("Failed to open config file")?;
     file.write_all(contents.as_bytes())

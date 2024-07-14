@@ -2,6 +2,7 @@ use std::path::Path;
 
 use crate::achievement::{grant, Achievement};
 use crate::cli::{CheckAllArgs, CheckArgs};
+use crate::config::Config;
 use crate::git::clone::find_local_repository;
 
 // Stateless; do not allow filesystem modification, or reading from application data
@@ -17,7 +18,7 @@ pub fn check(args: &CheckArgs) -> eyre::Result<()> {
     process_achievements(achievements)
 }
 
-pub fn check_all(_args: &CheckAllArgs, _data_dir: &Path) -> eyre::Result<()> {
+pub fn check_all(_args: &CheckAllArgs, _config: &Config, _data_dir: &Path) -> eyre::Result<()> {
     eyre::bail!("check-all not implemented");
 }
 

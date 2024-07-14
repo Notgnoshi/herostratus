@@ -21,10 +21,6 @@ fn main() -> eyre::Result<()> {
         println!("{}", data_dir.display());
         return Ok(());
     }
-    if args.get_config {
-        println!("{args:?}");
-        return Ok(());
-    }
 
     let filter = EnvFilter::builder()
         .with_default_directive(args.log_level.into())
@@ -35,6 +31,12 @@ fn main() -> eyre::Result<()> {
         .with_ansi(use_color)
         .with_writer(std::io::stderr)
         .init();
+
+    if args.get_config {
+        let config = herostratus::config::read_config(&data_dir)?;
+        println!("{}", herostratus::config::serialize_config(&config)?);
+        return Ok(());
+    }
 
     match args.command {
         // Shortcoming of clap; you can't have required_unless_present_any=[] for subcommands
@@ -48,19 +50,31 @@ fn main() -> eyre::Result<()> {
                 args.path.display(),
                 args.reference
             )),
-        Some(herostratus::cli::Command::Add(args)) => herostratus::commands::add(&args, &data_dir)
-            .wrap_err(format!("Failed to add repository with url: {:?}", args.url)),
-        Some(herostratus::cli::Command::CheckAll(args)) => {
-            herostratus::commands::check_all(&args, &data_dir)
-                .wrap_err("Failed to check all repositories")
-        }
-        Some(herostratus::cli::Command::FetchAll(args)) => {
-            herostratus::commands::fetch_all(&args, &data_dir)
-                .wrap_err("Failed to fetch all repositories")
-        }
-        Some(herostratus::cli::Command::Remove(args)) => {
-            herostratus::commands::remove(&args, &data_dir)
-                .wrap_err(format!("Failed to remove repository: {:?}", args.url))
+        // The other subcommands are stateful, and require reading the application configuration
+        Some(command) => {
+            let mut config = herostratus::config::read_config(&data_dir)?;
+            match command {
+                herostratus::cli::Command::Add(args) => {
+                    herostratus::commands::add(&args, &mut config, &data_dir)
+                        .wrap_err(format!("Failed to add repository with url: {:?}", args.url))?;
+                }
+                herostratus::cli::Command::Remove(args) => {
+                    herostratus::commands::remove(&args, &mut config, &data_dir)
+                        .wrap_err(format!("Failed to remove repository: {:?}", args.url))?;
+                }
+                herostratus::cli::Command::CheckAll(args) => {
+                    herostratus::commands::check_all(&args, &config, &data_dir)
+                        .wrap_err("Failed to check all repositories")?;
+                }
+                herostratus::cli::Command::FetchAll(args) => {
+                    herostratus::commands::fetch_all(&args, &config, &data_dir)
+                        .wrap_err("Failed to fetch all repositories")?;
+                }
+                _ => unreachable!(),
+            }
+
+            // Write the modified Config (in the case of Add and Remove subcommands) to the config file
+            herostratus::config::write_config(&data_dir, &config)
         }
     }
 }
