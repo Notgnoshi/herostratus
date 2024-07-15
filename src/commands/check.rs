@@ -18,8 +18,18 @@ pub fn check(args: &CheckArgs) -> eyre::Result<()> {
     process_achievements(achievements)
 }
 
-pub fn check_all(_args: &CheckAllArgs, _config: &Config, _data_dir: &Path) -> eyre::Result<()> {
-    eyre::bail!("check-all not implemented");
+pub fn check_all(_args: &CheckAllArgs, config: &Config, _data_dir: &Path) -> eyre::Result<()> {
+    for config in config.repositories.values() {
+        let repo = find_local_repository(&config.path)?;
+        let reference = config
+            .branch
+            .clone()
+            .unwrap_or_else(|| String::from("HEAD"));
+        let achievements = grant(&reference, &repo)?;
+        process_achievements(achievements)?;
+    }
+
+    Ok(())
 }
 
 /// A common achievement sink that both check and check_all can use
