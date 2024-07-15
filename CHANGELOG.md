@@ -13,21 +13,32 @@ focus on the user impact** rather than the actual changes made.
 
 ## Added
 ## Changed
-* Changed CLI interface to use subcommands
-
-  * `herostratus check <path> [reference]` - statelessly check the repository at the given path
-  * `herostratus add <url> [branch]` - clone the given repository for later processing
-  * `herostratus remove` - remove the given repository
-  * `herostratus fetch-all` - fetch each cloned repository
-  * `herostratus check-all` - check each cloned repository
-  
-  Not all subcommands are implemented, but this is the CLI interface `herostratus` will use in the
-  future.
-
 ## Deprecated
 ## Removed
 ## Fixed
 ## Security
+
+# Herostratus - 0.1.0-rc2 - (2024-07-14)
+
+## Changed
+The Herostratus CLI interface has been changed to use subcommands:
+
+* `herostratus check <path> [reference]` - statelessly check the repository at the given path
+* `herostratus add <url> [branch]` - clone the given repository for later processing
+* `herostratus remove` - remove the given repository
+* `herostratus fetch-all` - fetch each cloned repository
+* `herostratus check-all` - check each cloned repository
+
+This is a fairly major milestone in the project roadmap, and enables both quickly processing any
+given local checkout, as well as the ability to remember state about the checkouts that have already
+been cloned, which is intended to support periodic runs of herostratus as a background service at
+some point in the future.
+
+Not all subcommands are implemented, and the ones that are implemented need to be fleshed out more:
+
+* `check` -- finished
+* `add` -- needs better error / edge case handling, and support of SSH/HTTPS clone URLs
+* `check-all` -- needs better error / edge case handling
 
 # Herostratus - 0.1.0-rc1 - (2024-04-07)
 This is the first release of Herostratus! This release is largely centered around project

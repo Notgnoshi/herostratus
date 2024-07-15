@@ -1,6 +1,7 @@
 mod common;
 
 use common::CommandExt;
+use herostratus::config::{config_path, read_config, Config, RepositoryConfig};
 
 #[test]
 #[ignore = "Slow; performs git clone"]
@@ -17,10 +18,26 @@ fn clone_herostratus() {
     cmd.arg("add").arg(url);
 
     assert!(!data_dir.join("git").exists());
+    assert!(!config_path(data_dir).exists());
 
     let output = cmd.captured_output().unwrap();
     assert!(output.status.success());
     assert!(expected_bare_repo.exists());
+
+    let default_config = Config::default();
+    let actual_config = read_config(data_dir).unwrap();
+    assert_ne!(
+        default_config, actual_config,
+        "Adding the repo modified the config"
+    );
+    assert!(actual_config.repositories.contains_key("herostratus.git"));
+    let repo_config = &actual_config.repositories["herostratus.git"];
+    let expected = RepositoryConfig {
+        path: expected_bare_repo,
+        remote_url: url.to_string(),
+        branch: None,
+    };
+    assert_eq!(repo_config, &expected);
 
     // Adding the same URL again in the same data_dir fails ...
     let (mut cmd, _temp) = common::herostratus(Some(data_dir));
@@ -53,10 +70,26 @@ fn clone_herostratus_branch() {
     cmd.arg("add").arg(url).arg("test/fixup");
 
     assert!(!clone_dir.exists());
+    assert!(!config_path(temp.as_ref().unwrap().path()).exists());
 
     let output = cmd.captured_output().unwrap();
     assert!(output.status.success());
     assert!(clone_dir.exists());
+
+    let default_config = Config::default();
+    let actual_config = read_config(temp.as_ref().unwrap().path()).unwrap();
+    assert_ne!(
+        default_config, actual_config,
+        "Adding the repo modified the config"
+    );
+    assert!(actual_config.repositories.contains_key("herostratus.git"));
+    let repo_config = &actual_config.repositories["herostratus.git"];
+    let expected = RepositoryConfig {
+        path: clone_dir.clone(),
+        remote_url: url.to_string(),
+        branch: Some(String::from("test/fixup")),
+    };
+    assert_eq!(repo_config, &expected);
 
     let repo = herostratus::git::clone::find_local_repository(&clone_dir).unwrap();
     let head = repo.head().unwrap();
