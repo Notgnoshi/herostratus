@@ -22,6 +22,7 @@ pub fn add(args: &AddArgs, config: &mut Config, data_dir: &Path) -> eyre::Result
         path: clone_path,
         remote_url: args.url.clone(),
         branch: args.branch.clone(),
+        ..Default::default()
     };
 
     let _repo = clone_repository(

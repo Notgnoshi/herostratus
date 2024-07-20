@@ -21,6 +21,7 @@ fn read_write_config() {
         path: PathBuf::from("git/Notgnoshi/herostratus"),
         branch: None,
         remote_url: String::from("git@github.com:Notgnoshi/herostratus.git"),
+        ..Default::default()
     };
     repositories.insert(String::from("herostratus"), config);
     let config = Config { repositories };

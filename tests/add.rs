@@ -36,6 +36,7 @@ fn clone_herostratus() {
         path: expected_bare_repo,
         remote_url: url.to_string(),
         branch: None,
+        ..Default::default()
     };
     assert_eq!(repo_config, &expected);
 
@@ -88,6 +89,7 @@ fn clone_herostratus_branch() {
         path: clone_dir.clone(),
         remote_url: url.to_string(),
         branch: Some(String::from("test/fixup")),
+        ..Default::default()
     };
     assert_eq!(repo_config, &expected);
 
