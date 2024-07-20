@@ -63,24 +63,27 @@ fn remove_dir_contents<P: AsRef<Path>>(path: P) -> std::io::Result<()> {
 }
 
 pub fn clone_repository(
-    path: &Path,
-    url: &str,
-    branch: Option<&str>,
+    config: &crate::config::RepositoryConfig,
     force: bool,
 ) -> eyre::Result<git2::Repository> {
     let start = std::time::Instant::now();
-    tracing::info!("Cloning {url:?} to {} ...", path.display());
+    tracing::info!(
+        "Cloning {:?} to {} ...",
+        config.remote_url,
+        config.path.display()
+    );
 
-    if path.exists() {
-        tracing::warn!("{} already exists", path.display());
+    if config.path.exists() {
+        tracing::warn!("{} already exists", config.path.display());
         if force {
-            tracing::info!("Deleting {} ...", path.display());
-            remove_dir_contents(path).wrap_err(format!(
-                "Failed to force clone {url:?} to {}",
-                path.display()
+            tracing::info!("Deleting {} ...", config.path.display());
+            remove_dir_contents(&config.path).wrap_err(format!(
+                "Failed to force clone {:?} to {}",
+                config.remote_url,
+                config.path.display()
             ))?;
         } else {
-            eyre::bail!("{} already exists", path.display());
+            eyre::bail!("{} already exists", config.path.display());
         }
     }
 
@@ -90,14 +93,18 @@ pub fn clone_repository(
     // TODO(#21,#22): SSH and HTTPS auth
     // .fetch_options()
 
-    if let Some(branch) = branch {
+    if let Some(branch) = &config.branch {
         tracing::debug!("Cloning just the '{branch}' branch ...");
         builder.branch(branch);
     }
 
     let repo = builder
-        .clone(url, path)
+        .clone(&config.remote_url, &config.path)
         .wrap_err("Failed to clone repository")?;
-    tracing::info!("Finished cloning {url:?} after {:?}", start.elapsed());
+    tracing::info!(
+        "Finished cloning {:?} after {:?}",
+        config.remote_url,
+        start.elapsed()
+    );
     Ok(repo)
 }
