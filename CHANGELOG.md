@@ -12,6 +12,32 @@ focus on the user impact** rather than the actual changes made.
 <!-- Please add new changelog entries here -->
 
 ## Added
+* The `add` subcommand now supports cloning SSH and HTTPS URLs.
+
+  * Host SSH agent (the default)
+  * SSH private and public keys, including those protected by a passphrase
+  * HTTPS username + password
+
+  Assuming the user has their SSH agent configured, and can "just" `git clone` the same SSH URL, so
+  can Herostratus!
+
+  ```sh
+  herostratus add git@github.com:Notgnoshi/herostratus.git
+  ```
+* The `add` subcommand now handles sharing the same clone directory between two repositories with
+  the same remote.
+
+  ```sh
+  herostratus add --name hero-1 git@github.com:Notgnoshi/herostratus.git test/simple
+  herostratus add --name hero-2 git@github.com:Notgnoshi/herostratus.git test/fixup --skip-clone
+  ```
+
+  You must provide each (URL, Branch) pair a unique name, and you must `--skip-clone` after the
+  first invocation cloned the repository.
+
+  Note that the `fetch-all` subcommand isn't yet supported, so you must clone the repository at
+  least once with `add`.
+
 ## Changed
 ## Deprecated
 ## Removed
