@@ -62,42 +62,93 @@ fn remove_dir_contents<P: AsRef<Path>>(path: P) -> std::io::Result<()> {
     Ok(())
 }
 
+fn clone_credentials(
+    config: &crate::config::RepositoryConfig,
+    parsed_username: Option<&str>,
+) -> eyre::Result<git2::Cred> {
+    let username = config
+        .remote_username
+        .as_deref()
+        .unwrap_or(parsed_username.unwrap_or("git"));
+
+    if config.url.starts_with("https://") {
+        if let Some(password) = &config.https_password {
+            Ok(git2::Cred::userpass_plaintext(username, password)?)
+        } else {
+            let git_config = git2::Config::open_default()?;
+            Ok(git2::Cred::credential_helper(
+                &git_config,
+                &config.url,
+                Some(username),
+            )?)
+        }
+    } else if config.url.starts_with("ssh://") || config.url.contains('@') {
+        if let Some(priv_key) = &config.ssh_private_key {
+            Ok(git2::Cred::ssh_key(
+                username,
+                config.ssh_public_key.as_deref(),
+                priv_key,
+                config.ssh_passphrase.as_deref(),
+            )?)
+        } else {
+            Ok(git2::Cred::ssh_key_from_agent(username)?)
+        }
+    } else {
+        Ok(git2::Cred::default()?)
+    }
+}
+
 pub fn clone_repository(
-    path: &Path,
-    url: &str,
-    branch: Option<&str>,
+    config: &crate::config::RepositoryConfig,
     force: bool,
 ) -> eyre::Result<git2::Repository> {
     let start = std::time::Instant::now();
-    tracing::info!("Cloning {url:?} to {} ...", path.display());
+    tracing::info!("Cloning {:?} to {} ...", config.url, config.path.display());
 
-    if path.exists() {
-        tracing::warn!("{} already exists", path.display());
+    if config.path.exists() {
+        tracing::warn!("{} already exists", config.path.display());
         if force {
-            tracing::info!("Deleting {} ...", path.display());
-            remove_dir_contents(path).wrap_err(format!(
-                "Failed to force clone {url:?} to {}",
-                path.display()
+            tracing::info!("Deleting {} ...", config.path.display());
+            remove_dir_contents(&config.path).wrap_err(format!(
+                "Failed to force clone {:?} to {}",
+                config.url,
+                config.path.display()
             ))?;
         } else {
-            eyre::bail!("{} already exists", path.display());
+            eyre::bail!("{} already exists", config.path.display());
         }
     }
 
     let mut builder = git2::build::RepoBuilder::new();
     builder.bare(true);
 
-    // TODO(#21,#22): SSH and HTTPS auth
-    // .fetch_options()
+    let mut callbacks = git2::RemoteCallbacks::new();
+    callbacks.credentials(|_url, username_from_url, _allowed_typed| {
+        match clone_credentials(config, username_from_url) {
+            Ok(creds) => Ok(creds),
+            Err(e) => Err(git2::Error::new(
+                git2::ErrorCode::NotFound,
+                git2::ErrorClass::Config,
+                format!("Failed to determine appropriate clone credentials: {e:?}"),
+            )),
+        }
+    });
+    let mut options = git2::FetchOptions::new();
+    options.remote_callbacks(callbacks);
+    builder.fetch_options(options);
 
-    if let Some(branch) = branch {
+    if let Some(branch) = &config.branch {
         tracing::debug!("Cloning just the '{branch}' branch ...");
         builder.branch(branch);
     }
 
     let repo = builder
-        .clone(url, path)
+        .clone(&config.url, &config.path)
         .wrap_err("Failed to clone repository")?;
-    tracing::info!("Finished cloning {url:?} after {:?}", start.elapsed());
+    tracing::info!(
+        "Finished cloning {:?} after {:?}",
+        config.url,
+        start.elapsed()
+    );
     Ok(repo)
 }

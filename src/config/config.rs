@@ -13,11 +13,38 @@ pub struct Config {
 }
 
 /// Configuration for cloning, fetching, and processing a repository
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
 pub struct RepositoryConfig {
     pub path: PathBuf,
     pub branch: Option<String>,
-    pub remote_url: String,
+    pub url: String,
+
+    /// The username to authenticate with.
+    ///
+    /// If the username cannot be parsed from a clone URL, it will default to 'git'.
+    pub remote_username: Option<String>,
+
+    /// The path to the appropriate SSH private key to use for SSH authentication.
+    ///
+    /// If not set for an SSH clone URL, Herostratus will attempt to use your SSH agent.
+    pub ssh_private_key: Option<PathBuf>,
+
+    /// The path to the appropriate SSH public key to use for SSH authentication.
+    ///
+    /// Often, if a private key is specified, you do not need to specify the public key, as it can
+    /// be inferred.
+    pub ssh_public_key: Option<PathBuf>,
+
+    /// The SSH key passphrase, if required.
+    pub ssh_passphrase: Option<String>,
+
+    /// The password to use to authenticate HTTPS clone URLs.
+    ///
+    /// If using HTTPS, it's very likely that you will also need to set `remote_username`.
+    ///
+    /// If not set for an HTTPS clone URL, Herostratus will attempt to use your configured Git
+    /// `credential.helper`.
+    pub https_password: Option<String>,
 }
 
 pub fn config_path(data_dir: &Path) -> PathBuf {

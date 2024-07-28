@@ -71,6 +71,13 @@ pub struct CheckArgs {
 }
 
 /// Add a repository to be processed later
+///
+// See also the RepositoryConfig
+/// These CLI arguments are saved to Herostratus's generated config.toml, where they may be tweaked
+/// further.
+///
+/// NOTE: The config file will only be modified if cloning is successful. Use '--skip-clone' to
+/// modify the config file without cloning.
 #[derive(Debug, clap::Args)]
 pub struct AddArgs {
     /// A valid clone URL
@@ -95,15 +102,51 @@ pub struct AddArgs {
     #[clap(short, long, verbatim_doc_comment)]
     pub path: Option<PathBuf>,
 
-    // TODO: What good is --skip-clone?
-    /// Skip cloning the repository
+    /// Override the repository name
+    ///
+    /// Multiple pairs of remote URLs and branches may be configured, so long as they have unique
+    /// names.
     #[clap(long)]
-    pub skip_clone: bool,
+    pub name: Option<String>,
 
     /// Forcefully overwrite an existing clone, if it exists
     #[clap(long)]
     pub force: bool,
-    // TODO: Authentication
+
+    /// Skip cloning; just add the repository to Herostratus's config file
+    #[clap(long)]
+    pub skip_clone: bool,
+
+    /// The SSH or HTTPS remote username
+    ///
+    /// If not set, it will default to 'git'.
+    #[clap(long)]
+    pub remote_username: Option<String>,
+
+    /// The path to an appropriate SSH private key
+    ///
+    /// Often, if a private key is given, the public key need not be specified if it can be
+    /// inferred. If a private key is not specified for an SSH URL, Herostratus will attempt to use
+    /// your SSH agent.
+    #[clap(long)]
+    pub ssh_private_key: Option<PathBuf>,
+
+    /// The path to an appropriate SSH public key
+    #[clap(long)]
+    pub ssh_public_key: Option<PathBuf>,
+
+    /// The SSH key passphrase, if required
+    #[clap(long)]
+    pub ssh_passphrase: Option<String>,
+
+    /// The password to use for HTTPS clone URLs
+    ///
+    /// It's very likely that you will also need to set `remote_username`.
+    ///
+    /// If the password is not set for an HTTPS clone URL, Herostratus will attempt to use your
+    /// configured Git `credential.helper`.
+    #[clap(long)]
+    pub https_password: Option<String>,
 }
 
 /// Process rules on all cloned repositories
