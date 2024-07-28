@@ -71,18 +71,18 @@ fn clone_credentials(
         .as_deref()
         .unwrap_or(parsed_username.unwrap_or("git"));
 
-    if config.remote_url.starts_with("https://") {
+    if config.url.starts_with("https://") {
         if let Some(password) = &config.https_password {
             Ok(git2::Cred::userpass_plaintext(username, password)?)
         } else {
             let git_config = git2::Config::open_default()?;
             Ok(git2::Cred::credential_helper(
                 &git_config,
-                &config.remote_url,
+                &config.url,
                 Some(username),
             )?)
         }
-    } else if config.remote_url.starts_with("ssh://") || config.remote_url.contains('@') {
+    } else if config.url.starts_with("ssh://") || config.url.contains('@') {
         if let Some(priv_key) = &config.ssh_private_key {
             Ok(git2::Cred::ssh_key(
                 username,
@@ -103,11 +103,7 @@ pub fn clone_repository(
     force: bool,
 ) -> eyre::Result<git2::Repository> {
     let start = std::time::Instant::now();
-    tracing::info!(
-        "Cloning {:?} to {} ...",
-        config.remote_url,
-        config.path.display()
-    );
+    tracing::info!("Cloning {:?} to {} ...", config.url, config.path.display());
 
     if config.path.exists() {
         tracing::warn!("{} already exists", config.path.display());
@@ -115,7 +111,7 @@ pub fn clone_repository(
             tracing::info!("Deleting {} ...", config.path.display());
             remove_dir_contents(&config.path).wrap_err(format!(
                 "Failed to force clone {:?} to {}",
-                config.remote_url,
+                config.url,
                 config.path.display()
             ))?;
         } else {
@@ -147,11 +143,11 @@ pub fn clone_repository(
     }
 
     let repo = builder
-        .clone(&config.remote_url, &config.path)
+        .clone(&config.url, &config.path)
         .wrap_err("Failed to clone repository")?;
     tracing::info!(
         "Finished cloning {:?} after {:?}",
-        config.remote_url,
+        config.url,
         start.elapsed()
     );
     Ok(repo)

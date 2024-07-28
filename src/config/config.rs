@@ -17,7 +17,7 @@ pub struct Config {
 pub struct RepositoryConfig {
     pub path: PathBuf,
     pub branch: Option<String>,
-    pub remote_url: String,
+    pub url: String,
 
     /// The username to authenticate with.
     ///

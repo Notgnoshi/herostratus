@@ -20,7 +20,7 @@ fn read_write_config() {
     let config = RepositoryConfig {
         path: PathBuf::from("git/Notgnoshi/herostratus"),
         branch: None,
-        remote_url: String::from("git@github.com:Notgnoshi/herostratus.git"),
+        url: String::from("git@github.com:Notgnoshi/herostratus.git"),
         ..Default::default()
     };
     repositories.insert(String::from("herostratus"), config);
@@ -32,7 +32,7 @@ fn read_write_config() {
     let contents = std::fs::read_to_string(config_path(&fixture.data_dir)).unwrap();
     let expected = "[repositories.herostratus]\n\
                     path = \"git/Notgnoshi/herostratus\"\n\
-                    remote_url = \"git@github.com:Notgnoshi/herostratus.git\"\n\
+                    url = \"git@github.com:Notgnoshi/herostratus.git\"\n\
                    ";
     assert_eq!(contents, expected);
 

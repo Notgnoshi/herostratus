@@ -34,7 +34,7 @@ fn clone_herostratus() {
     let repo_config = &actual_config.repositories["herostratus.git"];
     let expected = RepositoryConfig {
         path: expected_bare_repo,
-        remote_url: url.to_string(),
+        url: url.to_string(),
         branch: None,
         ..Default::default()
     };
@@ -87,7 +87,7 @@ fn clone_herostratus_branch() {
     let repo_config = &actual_config.repositories["herostratus.git"];
     let expected = RepositoryConfig {
         path: clone_dir.clone(),
-        remote_url: url.to_string(),
+        url: url.to_string(),
         branch: Some(String::from("test/fixup")),
         ..Default::default()
     };
