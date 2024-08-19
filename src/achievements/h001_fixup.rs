@@ -14,8 +14,17 @@ const FIXUP_PREFIXES: [&str; 11] = [
 ];
 
 impl Rule for Fixup {
+    fn id(&self) -> usize {
+        1
+    }
+    fn human_id(&self) -> &'static str {
+        "fixup"
+    }
     fn name(&self) -> &'static str {
         "I meant to fix that up later, I swear!"
+    }
+    fn description(&self) -> &'static str {
+        "Prefix a commit message with a !fixup marker"
     }
     fn process(&mut self, commit: &git2::Commit, repo: &git2::Repository) -> Option<Achievement> {
         let summary = commit.summary()?;
