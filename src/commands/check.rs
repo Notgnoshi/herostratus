@@ -19,7 +19,11 @@ pub fn check(args: &CheckArgs) -> eyre::Result<()> {
     process_achievements(achievements)
 }
 
-pub fn check_all(_args: &CheckAllArgs, config: &Config, _data_dir: &Path) -> eyre::Result<()> {
+pub fn check_all(args: &CheckAllArgs, config: &Config, data_dir: &Path) -> eyre::Result<()> {
+    if !args.no_fetch {
+        crate::commands::fetch_all(&args.into(), config, data_dir)?
+    }
+
     tracing::info!("Checking repositories ...");
     let start = Instant::now();
     for (name, config) in config.repositories.iter() {

@@ -44,6 +44,18 @@ focus on the user impact** rather than the actual changes made.
 
   If the repository hasn't been cloned yet (you passed `--skip-clone` to `add`), it will be cloned
   at this time.
+* The `check-all` subcommand now fetches by default and has a `--no-fetch` flag to disable. This is
+  the expected way to fetch-and-check added repositories.
+
+  ```sh
+  # One time setup
+  herostratus add <URL> [BRANCH]
+  herostratus add <URL> [BRANCH]
+  ...
+
+  # Repeatedly by the user (on a timer, or when they're bored)
+  herostratus check-all
+  ```
 
 ## Changed
 ## Deprecated
