@@ -13,13 +13,48 @@ pub struct Achievement {
 // TODO: How could user-contrib rule _scripts_ work? Consume commits via stdin, emit achievement
 // JSON on stdout?
 pub trait Rule {
-    // TODO: Add an ID
-    // TODO: Add a description
+    /// The numeric ID of this [Rule]
+    ///
+    /// Must be unique per-rule. Either the [id], [human_id], or [pretty_id] may be used to
+    /// identify a [Rule].
+    fn id(&self) -> usize;
+
+    /// The human ID of this [Rule]
+    ///
+    /// Example: `longest-commit-subject-line`
+    ///
+    /// Must be unique per-rule. Either the [id], [human_id], or [pretty_id] may be used to
+    /// identify a [Rule].
+    fn human_id(&self) -> &'static str;
+
+    /// The pretty ID of this [Rule]
+    ///
+    /// Concatenates the numeric [id] and the human-meaningful [human_id].
+    ///
+    /// Example: `H42-whats-the-question`
+    ///
+    /// Must be unique per-rule. Either the [id], [human_id], or [pretty_id] may be used to
+    /// identify a [Rule].
+    fn pretty_id(&self) -> String {
+        format!("H{}-{}", self.id(), self.human_id())
+    }
 
     /// Return the name of the [Achievement] that this rule generates
     ///
+    /// The name should generally be humorous, even if the [description] isn't.
+    ///
     /// There is expected to be a 1-1 correspondence between [Achievement]s and [Rule]s.
     fn name(&self) -> &'static str;
+
+    /// A short flavor text describing what this [Rule] is all about
+    ///
+    /// Imagine the short one-sentence descriptions of Steam achievements.
+    ///
+    /// Examples:
+    /// * Use a swear word
+    /// * Use the most swear words
+    /// * The shortest subject line
+    fn description(&self) -> &'static str;
 
     /// Grant the given [git2::Commit] this rule's [Achievement]
     fn grant(&self, commit: &git2::Commit, _repo: &git2::Repository) -> Achievement {
