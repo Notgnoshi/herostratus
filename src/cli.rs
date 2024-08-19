@@ -151,11 +151,21 @@ pub struct AddArgs {
 
 /// Process rules on all cloned repositories
 #[derive(Debug, clap::Args)]
-pub struct CheckAllArgs;
+pub struct CheckAllArgs {
+    /// Skip fetching all repositories before checking
+    #[clap(long, short)]
+    pub no_fetch: bool,
+}
 
 /// Fetch each repository
 #[derive(Debug, clap::Args)]
 pub struct FetchAllArgs;
+
+impl From<&CheckAllArgs> for FetchAllArgs {
+    fn from(_args: &CheckAllArgs) -> FetchAllArgs {
+        FetchAllArgs
+    }
+}
 
 /// Remove the given repository
 #[derive(Debug, clap::Args)]

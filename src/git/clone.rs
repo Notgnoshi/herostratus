@@ -3,9 +3,9 @@ use std::path::{Path, PathBuf};
 use eyre::WrapErr;
 
 pub fn find_local_repository(path: &Path) -> eyre::Result<git2::Repository> {
-    tracing::info!("Searching local path {path:?} for a Git repository");
+    tracing::debug!("Searching local path {path:?} for a Git repository");
     let repo = git2::Repository::discover(path)?;
-    tracing::info!("Found local git repository at {:?}", repo.path());
+    tracing::debug!("Found local git repository at {:?}", repo.path());
     Ok(repo)
 }
 
@@ -98,6 +98,42 @@ fn clone_credentials(
     }
 }
 
+fn fetch_options(config: &crate::config::RepositoryConfig) -> git2::FetchOptions {
+    let mut callbacks = git2::RemoteCallbacks::new();
+    callbacks.credentials(|_url, username_from_url, _allowed_typed| {
+        match clone_credentials(config, username_from_url) {
+            Ok(creds) => Ok(creds),
+            Err(e) => Err(git2::Error::new(
+                git2::ErrorCode::NotFound,
+                git2::ErrorClass::Config,
+                format!("Failed to determine appropriate clone credentials: {e:?}"),
+            )),
+        }
+    });
+    let mut options = git2::FetchOptions::new();
+    options.remote_callbacks(callbacks);
+    options
+}
+
+pub fn fetch_remote(
+    config: &crate::config::RepositoryConfig,
+    repo: &git2::Repository,
+) -> eyre::Result<()> {
+    let mut remote = repo.find_remote("origin")?;
+    let reference = config
+        .branch
+        .clone()
+        .unwrap_or_else(|| String::from("HEAD"));
+    let refspecs = [&reference];
+    let mut options = fetch_options(config);
+
+    tracing::info!("Fetching from {:?} ...", remote.url().unwrap_or_default());
+    remote.fetch(&refspecs, Some(&mut options), None)?;
+    tracing::debug!("... done.");
+
+    Ok(())
+}
+
 pub fn clone_repository(
     config: &crate::config::RepositoryConfig,
     force: bool,
@@ -121,20 +157,7 @@ pub fn clone_repository(
 
     let mut builder = git2::build::RepoBuilder::new();
     builder.bare(true);
-
-    let mut callbacks = git2::RemoteCallbacks::new();
-    callbacks.credentials(|_url, username_from_url, _allowed_typed| {
-        match clone_credentials(config, username_from_url) {
-            Ok(creds) => Ok(creds),
-            Err(e) => Err(git2::Error::new(
-                git2::ErrorCode::NotFound,
-                git2::ErrorClass::Config,
-                format!("Failed to determine appropriate clone credentials: {e:?}"),
-            )),
-        }
-    });
-    let mut options = git2::FetchOptions::new();
-    options.remote_callbacks(callbacks);
+    let options = fetch_options(config);
     builder.fetch_options(options);
 
     if let Some(branch) = &config.branch {
@@ -146,7 +169,7 @@ pub fn clone_repository(
         .clone(&config.url, &config.path)
         .wrap_err("Failed to clone repository")?;
     tracing::info!(
-        "Finished cloning {:?} after {:?}",
+        "Finished cloning {:?} after {:.2?}",
         config.url,
         start.elapsed()
     );

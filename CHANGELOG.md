@@ -12,7 +12,7 @@ focus on the user impact** rather than the actual changes made.
 <!-- Please add new changelog entries here -->
 
 ## Added
-* The `add` subcommand now supports cloning SSH and HTTPS URLs.
+* The `add` and `fetch-all` subcommands now support cloning both SSH and HTTPS URLs.
 
   * Host SSH agent (the default)
   * SSH private and public keys, including those protected by a passphrase
@@ -22,7 +22,7 @@ focus on the user impact** rather than the actual changes made.
   can Herostratus!
 
   ```sh
-  herostratus add git@github.com:Notgnoshi/herostratus.git
+  herostratus add git@github.com:Notgnoshi/herostratus.git test/fixup
   ```
 * The `add` subcommand now handles sharing the same clone directory between two repositories with
   the same remote.
@@ -32,11 +32,30 @@ focus on the user impact** rather than the actual changes made.
   herostratus add --name hero-2 git@github.com:Notgnoshi/herostratus.git test/fixup --skip-clone
   ```
 
-  You must provide each (URL, Branch) pair a unique name, and you must `--skip-clone` after the
+  Each (URL, Branch) pair must have a unique name, and (for now) you must `--skip-clone` after the
   first invocation cloned the repository.
+* After a repository has been `add`ed, Herostratus can fetch from the default `origin` remote with
 
-  Note that the `fetch-all` subcommand isn't yet supported, so you must clone the repository at
-  least once with `add`.
+  ```sh
+  herostratus fetch-all
+  ```
+
+  It will fetch whatever branches have been `add`ed, as opposed to fetching everything.
+
+  If the repository hasn't been cloned yet (you passed `--skip-clone` to `add`), it will be cloned
+  at this time.
+* The `check-all` subcommand now fetches by default and has a `--no-fetch` flag to disable. This is
+  the expected way to fetch-and-check added repositories.
+
+  ```sh
+  # One time setup
+  herostratus add <URL> [BRANCH]
+  herostratus add <URL> [BRANCH]
+  ...
+
+  # Repeatedly by the user (on a timer, or when they're bored)
+  herostratus check-all
+  ```
 
 ## Changed
 ## Deprecated
