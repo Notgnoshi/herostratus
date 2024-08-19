@@ -40,19 +40,16 @@ fn required_clone_herostratus() {
     };
     assert_eq!(repo_config, &expected);
 
-    // Adding the same URL again in the same data_dir fails ...
+    // Adding the same URL again in the same data_dir succeeds
     let (mut cmd, _temp) = common::herostratus(Some(data_dir));
     cmd.arg("add").arg(url);
 
     let output = cmd.captured_output().unwrap();
-    assert!(!output.status.success());
-
-    // ... unless the --force flag is given
-    let (mut cmd, _temp) = common::herostratus(Some(data_dir));
-    cmd.arg("add").arg("--force").arg(url);
-
-    let output = cmd.captured_output().unwrap();
     assert!(output.status.success());
+
+    // And it didn't add a second repository to the config
+    let actual_config = read_config(data_dir).unwrap();
+    assert_eq!(actual_config.repositories.len(), 1);
 }
 
 #[test]
@@ -136,6 +133,8 @@ fn clone_herostratus_ssh() {
 fn add_the_same_repo_twice() {
     let (mut cmd1, temp) = common::herostratus(None);
     let (mut cmd2, _) = common::herostratus(Some(temp.as_ref().unwrap().path()));
+    let (mut cmd3, _) = common::herostratus(Some(temp.as_ref().unwrap().path()));
+    let data_dir = temp.as_ref().unwrap().path();
     let clone_dir = temp
         .as_ref()
         .unwrap()
@@ -150,7 +149,7 @@ fn add_the_same_repo_twice() {
     let output1 = cmd1.captured_output().unwrap();
     assert!(output1.status.success());
 
-    let contents = std::fs::read_to_string(config_path(temp.as_ref().unwrap().path())).unwrap();
+    let contents = std::fs::read_to_string(config_path(data_dir)).unwrap();
     let expected = format!(
         "[repositories.\"herostratus.git\"]\n\
          path = \"{}\"\n\
@@ -165,8 +164,8 @@ fn add_the_same_repo_twice() {
     let output2 = cmd2.captured_output().unwrap();
     assert!(output2.status.success());
 
-    // The URL gets replaced
-    let contents = std::fs::read_to_string(config_path(temp.as_ref().unwrap().path())).unwrap();
+    // The URL gets replaced, because the name didn't change
+    let contents = std::fs::read_to_string(config_path(data_dir)).unwrap();
     let expected = format!(
         "[repositories.\"herostratus.git\"]\n\
          path = \"{}\"\n\
@@ -175,6 +174,28 @@ fn add_the_same_repo_twice() {
         clone_dir.display()
     );
     assert_eq!(contents, expected);
+
+    let actual_config = read_config(data_dir).unwrap();
+    assert_eq!(actual_config.repositories.len(), 1);
+
+    // Adding the same URL again with a different name adds a second instance with the same clone
+    // dir
+    let url3 = "https://github.com/Notgnoshi/herostratus.git";
+    cmd3.arg("add")
+        .arg(url3)
+        .arg("--skip-clone")
+        .arg("--name")
+        .arg("unique-name");
+    let output3 = cmd3.captured_output().unwrap();
+    assert!(output3.status.success());
+
+    let actual_config = read_config(data_dir).unwrap();
+    assert_eq!(actual_config.repositories.len(), 2);
+
+    assert_eq!(
+        actual_config.repositories["herostratus.git"].path,
+        actual_config.repositories["unique-name"].path
+    );
 }
 
 #[test]
@@ -216,8 +237,7 @@ fn required_two_branches_share_one_bare_repo() {
         .arg(url)
         .arg("test/fixup")
         .arg("--name")
-        .arg("herostratus-2")
-        .arg("--skip-clone");
+        .arg("herostratus-2");
 
     let output2 = cmd2.captured_output().unwrap();
     assert!(output2.status.success());

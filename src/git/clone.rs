@@ -142,7 +142,7 @@ pub fn clone_repository(
     tracing::info!("Cloning {:?} to {} ...", config.url, config.path.display());
 
     if config.path.exists() {
-        tracing::warn!("{} already exists", config.path.display());
+        tracing::warn!("{} already exists ...", config.path.display());
         if force {
             tracing::info!("Deleting {} ...", config.path.display());
             remove_dir_contents(&config.path).wrap_err(format!(
@@ -151,7 +151,19 @@ pub fn clone_repository(
                 config.path.display()
             ))?;
         } else {
-            eyre::bail!("{} already exists", config.path.display());
+            let existing_repo = git2::Repository::discover(&config.path)?;
+            let remote = existing_repo.find_remote("origin")?;
+            let existing_url = remote.url().unwrap_or("THIS_STRING_WONT_MATCH");
+            if existing_url == config.url {
+                tracing::info!("... URLs match. Using existing repository");
+                drop(remote);
+                return Ok(existing_repo);
+            }
+
+            eyre::bail!(
+                "{} already exists with a different clone URL: {existing_url:?}",
+                config.path.display()
+            );
         }
     }
 
