@@ -29,4 +29,4 @@ impl Rule for Fixup {
     }
 }
 
-inventory::submit!(&Fixup as &dyn Rule);
+inventory::submit!(Box::new(Fixup) as Box<dyn Rule>);

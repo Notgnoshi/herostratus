@@ -48,5 +48,5 @@ pub trait Rule<RuleType = DefaultRule>: Sync + 'static {
     }
 }
 
-inventory::collect!(&'static dyn Rule<DefaultRule>);
-inventory::collect!(&'static dyn Rule<OpinionatedRule>);
+inventory::collect!(Box<dyn Rule<DefaultRule>>);
+inventory::collect!(Box<dyn Rule<OpinionatedRule>>);
