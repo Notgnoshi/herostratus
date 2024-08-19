@@ -3,9 +3,9 @@ use std::path::{Path, PathBuf};
 use eyre::WrapErr;
 
 pub fn find_local_repository(path: &Path) -> eyre::Result<git2::Repository> {
-    tracing::info!("Searching local path {path:?} for a Git repository");
+    tracing::debug!("Searching local path {path:?} for a Git repository");
     let repo = git2::Repository::discover(path)?;
-    tracing::info!("Found local git repository at {:?}", repo.path());
+    tracing::debug!("Found local git repository at {:?}", repo.path());
     Ok(repo)
 }
 
@@ -146,7 +146,7 @@ pub fn clone_repository(
         .clone(&config.url, &config.path)
         .wrap_err("Failed to clone repository")?;
     tracing::info!(
-        "Finished cloning {:?} after {:?}",
+        "Finished cloning {:?} after {:.2?}",
         config.url,
         start.elapsed()
     );

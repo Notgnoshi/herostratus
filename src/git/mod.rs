@@ -10,7 +10,7 @@ pub fn rev_parse(reference: &str, repo: &Repository) -> eyre::Result<Oid> {
         .revparse_single(reference)
         .wrap_err("Failed to rev-parse")?;
     let oid = object.id();
-    tracing::info!(
+    tracing::debug!(
         "Resolved {reference:?} to {:?} {oid:?}",
         object.kind().unwrap_or(ObjectType::Any)
     );
