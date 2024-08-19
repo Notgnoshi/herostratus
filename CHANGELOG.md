@@ -12,6 +12,14 @@ focus on the user impact** rather than the actual changes made.
 <!-- Please add new changelog entries here -->
 
 ## Added
+## Changed
+## Deprecated
+## Removed
+## Fixed
+## Security
+
+# Herostratus - 0.1.0-rc3 - (2024-08-19)
+
 * The `add` and `fetch-all` subcommands now support cloning both SSH and HTTPS URLs.
 
   * Host SSH agent (the default)
@@ -28,12 +36,12 @@ focus on the user impact** rather than the actual changes made.
   the same remote.
 
   ```sh
-  herostratus add --name hero-1 git@github.com:Notgnoshi/herostratus.git test/simple
-  herostratus add --name hero-2 git@github.com:Notgnoshi/herostratus.git test/fixup --skip-clone
+  herostratus add git@github.com:Notgnoshi/herostratus.git test/simple --name hero-1
+  herostratus add git@github.com:Notgnoshi/herostratus.git test/fixup --name hero-2
   ```
 
-  Each (URL, Branch) pair must have a unique name, and (for now) you must `--skip-clone` after the
-  first invocation cloned the repository.
+  Each (URL, Branch) pair must have a unique name. If a unique name is not specified, the second
+  invocation will overwrite the first.
 * After a repository has been `add`ed, Herostratus can fetch from the default `origin` remote with
 
   ```sh
@@ -56,12 +64,6 @@ focus on the user impact** rather than the actual changes made.
   # Repeatedly by the user (on a timer, or when they're bored)
   herostratus check-all
   ```
-
-## Changed
-## Deprecated
-## Removed
-## Fixed
-## Security
 
 # Herostratus - 0.1.0-rc2 - (2024-07-14)
 
