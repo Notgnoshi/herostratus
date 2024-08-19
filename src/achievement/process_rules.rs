@@ -52,7 +52,7 @@ where
 {
     repo: &'repo git2::Repository,
     oids: Oids,
-    rules: Vec<Box<dyn Rule>>,
+    rules: Vec<&'static dyn Rule>,
 
     current_commit: Option<git2::Commit<'repo>>,
     next_rule: usize,
@@ -163,11 +163,11 @@ where
 /// Process the given `oids` with the specified `rules`
 ///
 /// Returns a lazy iterator. The rules will be processed as the iterator advances.
-pub fn process_rules<Oids>(
+pub fn process_rules<'repo, Oids>(
     oids: Oids,
-    repo: &git2::Repository,
-    rules: Vec<Box<dyn Rule>>,
-) -> Achievements<Oids>
+    repo: &'repo git2::Repository,
+    rules: Vec<&'static dyn Rule>,
+) -> Achievements<'repo, Oids>
 where
     Oids: Iterator<Item = git2::Oid>,
 {
@@ -188,13 +188,13 @@ pub fn grant<'repo>(
     reference: &str,
     repo: &'repo git2::Repository,
 ) -> eyre::Result<impl Iterator<Item = Achievement> + 'repo> {
-    grant_with_rules(reference, repo, crate::achievements::builtin_rules())
+    grant_with_rules(reference, repo, crate::achievements::default_rules())
 }
 
 pub fn grant_with_rules<'repo>(
     reference: &str,
     repo: &'repo git2::Repository,
-    rules: Vec<Box<dyn Rule>>,
+    rules: Vec<&'static dyn Rule>,
 ) -> eyre::Result<impl Iterator<Item = Achievement> + 'repo> {
     let rev = crate::git::rev_parse(reference, repo)
         .wrap_err(format!("Failed to rev-parse: {reference:?}"))?;

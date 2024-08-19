@@ -1,11 +1,26 @@
 //! The achievements builtin to Herostratus
-// TODO: Figure out an easier / better way to organize rules
 mod h001_fixup;
 
-use crate::achievement::Rule;
+use crate::achievement::{DefaultRule, OpinionatedRule, Rule};
 
-pub fn builtin_rules() -> Vec<Box<dyn Rule>> {
-    // TODO: Rule factory? How to get Rules to register themselves? Through a static singleton +
-    // module ctor? Metaprogramming? Proc Macro?
-    vec![Box::new(h001_fixup::Fixup) as Box<dyn Rule>]
+pub fn default_rules() -> Vec<&'static dyn Rule<DefaultRule>> {
+    let mut rules = Vec::new();
+    for rule in inventory::iter::<&'static dyn Rule<DefaultRule>> {
+        rules.push(*rule);
+    }
+
+    // TODO: Sort rules by ID (inventory gives them in ¯\_(ツ)_/¯ order)
+
+    rules
+}
+
+pub fn opinionated_rules() -> Vec<&'static dyn Rule<OpinionatedRule>> {
+    let mut rules = Vec::new();
+    for rule in inventory::iter::<&'static dyn Rule<OpinionatedRule>> {
+        rules.push(*rule);
+    }
+
+    // TODO: Sort rules by ID (inventory gives them in ¯\_(ツ)_/¯ order)
+
+    rules
 }

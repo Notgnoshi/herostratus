@@ -9,10 +9,13 @@ pub struct Achievement {
     // TODO: Identify the repository somehow
 }
 
+pub struct DefaultRule;
+pub struct OpinionatedRule;
+
 /// Defines a [Rule] to grant [Achievement]s
 // TODO: How could user-contrib rule _scripts_ work? Consume commits via stdin, emit achievement
 // JSON on stdout?
-pub trait Rule {
+pub trait Rule<RuleType = DefaultRule>: Sync + 'static {
     // TODO: Add an ID
     // TODO: Add a description
 
@@ -44,3 +47,6 @@ pub trait Rule {
         Vec::new()
     }
 }
+
+inventory::collect!(&'static dyn Rule<DefaultRule>);
+inventory::collect!(&'static dyn Rule<OpinionatedRule>);

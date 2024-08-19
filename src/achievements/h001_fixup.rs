@@ -28,3 +28,5 @@ impl Rule for Fixup {
         None
     }
 }
+
+inventory::submit!(&Fixup as &dyn Rule);
