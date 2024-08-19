@@ -120,16 +120,46 @@ pub fn fetch_remote(
     repo: &git2::Repository,
 ) -> eyre::Result<()> {
     let mut remote = repo.find_remote("origin")?;
-    let reference = config
-        .branch
-        .clone()
-        .unwrap_or_else(|| String::from("HEAD"));
-    let refspecs = [&reference];
+    let reference_name = config.branch.as_deref().unwrap_or("HEAD");
+    // If this is the first time this reference is being fetched, fetch it like
+    //     git fetch origin branch:branch
+    // which updates the local branch to match the remote
+    let fetch_reference_name = if reference_name != "HEAD" {
+        format!("{reference_name}:{reference_name}")
+    } else {
+        reference_name.to_string()
+    };
+
+    let refspecs = [&fetch_reference_name];
     let mut options = fetch_options(config);
 
     tracing::info!("Fetching from {:?} ...", remote.url().unwrap_or_default());
+    let before = if let Ok(reference) = repo.resolve_reference_from_short_name(reference_name) {
+        reference.peel_to_commit().ok()
+    } else {
+        None
+    };
     remote.fetch(&refspecs, Some(&mut options), None)?;
-    tracing::debug!("... done.");
+    // If the fetch was successful, resolving the reference should succeed, even if this was the
+    // first fetch ever for this reference.
+    let reference = repo.resolve_reference_from_short_name(reference_name)?;
+    let after = reference.peel_to_commit()?;
+
+    if before.is_some() && before.as_ref().unwrap().id() == after.id() {
+        tracing::debug!("... done. No new commits");
+    } else {
+        let commits = crate::git::rev_walk(after.id(), repo)?;
+        let mut new_commits: usize = 0;
+        for commit_id in commits {
+            if let Some(before) = &before {
+                if commit_id? == before.id() {
+                    break;
+                }
+            }
+            new_commits += 1;
+        }
+        tracing::debug!("... done. {new_commits} new commits");
+    }
 
     Ok(())
 }
@@ -139,7 +169,12 @@ pub fn clone_repository(
     force: bool,
 ) -> eyre::Result<git2::Repository> {
     let start = std::time::Instant::now();
-    tracing::info!("Cloning {:?} to {} ...", config.url, config.path.display());
+    tracing::info!(
+        "Cloning {:?} (ref={}) to {} ...",
+        config.url,
+        config.branch.as_deref().unwrap_or("HEAD"),
+        config.path.display()
+    );
 
     if config.path.exists() {
         tracing::warn!("{} already exists ...", config.path.display());
@@ -155,7 +190,7 @@ pub fn clone_repository(
             let remote = existing_repo.find_remote("origin")?;
             let existing_url = remote.url().unwrap_or("THIS_STRING_WONT_MATCH");
             if existing_url == config.url {
-                tracing::info!("... URLs match. Using existing repository and fetching ...");
+                tracing::info!("... URLs match. Using existing repository and fetching");
                 fetch_remote(config, &existing_repo)?;
 
                 drop(remote);
