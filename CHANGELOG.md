@@ -12,6 +12,14 @@ focus on the user impact** rather than the actual changes made.
 <!-- Please add new changelog entries here -->
 
 ## Added
+## Changed
+## Deprecated
+## Removed
+## Fixed
+## Security
+
+# Herostratus - 0.1.0-rc3 - (2024-08-19)
+
 * The `add` and `fetch-all` subcommands now support cloning both SSH and HTTPS URLs.
 
   * Host SSH agent (the default)
@@ -56,12 +64,6 @@ focus on the user impact** rather than the actual changes made.
   # Repeatedly by the user (on a timer, or when they're bored)
   herostratus check-all
   ```
-
-## Changed
-## Deprecated
-## Removed
-## Fixed
-## Security
 
 # Herostratus - 0.1.0-rc2 - (2024-07-14)
 
