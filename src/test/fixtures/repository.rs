@@ -1,4 +1,3 @@
-use eyre::Result;
 use git2::{Repository, Signature, Time};
 use tempfile::{tempdir, TempDir};
 
@@ -7,47 +6,48 @@ pub struct TempRepository {
     pub repo: Repository,
 }
 
-pub fn simplest() -> Result<TempRepository> {
+pub fn add_empty_commit(repo: &Repository, message: &str) -> eyre::Result<()> {
+    let mut index = repo.index()?;
+    let head = repo.find_reference("HEAD")?;
+    let parent = head.peel_to_commit().ok();
+    let parents = if let Some(ref parent) = parent {
+        vec![parent]
+    } else {
+        vec![]
+    };
+
+    let oid = index.write_tree()?;
+    let tree = repo.find_tree(oid)?;
+
+    let time = Time::new(1711656630, -500);
+    let signature = Signature::new("Herostratus", "Herostratus@example.com", &time)?;
+
+    let oid = repo.commit(
+        Some("HEAD"),
+        &signature,
+        &signature,
+        message,
+        &tree,
+        &parents,
+    )?;
+    tracing::debug!("Created commit {oid:?}");
+
+    Ok(())
+}
+
+pub fn simplest() -> eyre::Result<TempRepository> {
     with_empty_commits(&["Initial commit"])
 }
 
-pub fn with_empty_commits(messages: &[&str]) -> Result<TempRepository> {
+pub fn with_empty_commits(messages: &[&str]) -> eyre::Result<TempRepository> {
     let tempdir = tempdir()?;
     tracing::debug!("Creating repo fixture in '{}'", tempdir.path().display());
 
     let repo = Repository::init(tempdir.path())?;
-    let mut index = repo.index()?;
-
-    let mut parent = None;
 
     for message in messages {
-        let oid = index.write_tree()?;
-        let tree = repo.find_tree(oid)?;
-
-        let time = Time::new(1711656630, -500);
-        let signature = Signature::new("Herostratus", "Herostratus@example.com", &time)?;
-
-        let parents = if let Some(ref parent) = parent {
-            vec![parent]
-        } else {
-            vec![]
-        };
-
-        let oid = repo.commit(
-            Some("HEAD"),
-            &signature,
-            &signature,
-            message,
-            &tree,
-            &parents,
-        )?;
-        let commit = repo.find_commit(oid)?;
-
-        tracing::debug!("Created commit {oid:?}");
-
-        parent = Some(commit);
+        add_empty_commit(&repo, message)?;
     }
-    drop(parent);
 
     Ok(TempRepository { tempdir, repo })
 }
