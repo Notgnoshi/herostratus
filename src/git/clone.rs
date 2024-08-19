@@ -155,7 +155,9 @@ pub fn clone_repository(
             let remote = existing_repo.find_remote("origin")?;
             let existing_url = remote.url().unwrap_or("THIS_STRING_WONT_MATCH");
             if existing_url == config.url {
-                tracing::info!("... URLs match. Using existing repository");
+                tracing::info!("... URLs match. Using existing repository and fetching ...");
+                fetch_remote(config, &existing_repo)?;
+
                 drop(remote);
                 return Ok(existing_repo);
             }
