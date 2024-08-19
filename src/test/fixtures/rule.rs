@@ -15,12 +15,9 @@ impl Rule for ParticipationTrophy {
     fn name(&self) -> &'static str {
         "Participation Trophy"
     }
-    fn process(&mut self, commit: &git2::Commit, _repo: &git2::Repository) -> Option<Achievement> {
+    fn process(&mut self, commit: &git2::Commit, repo: &git2::Repository) -> Option<Achievement> {
         tracing::debug!("Granting {:?} a participation trophy", commit.id());
-        Some(Achievement {
-            commit: commit.id(),
-            name: self.name(),
-        })
+        Some(self.grant(commit, repo))
     }
 }
 

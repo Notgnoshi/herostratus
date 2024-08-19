@@ -17,14 +17,12 @@ impl Rule for IMeantToFixThatUpLaterISwear {
     fn name(&self) -> &'static str {
         "I meant to fix that up later, I swear!"
     }
-    fn process(&mut self, commit: &git2::Commit, _repo: &git2::Repository) -> Option<Achievement> {
+    fn process(&mut self, commit: &git2::Commit, repo: &git2::Repository) -> Option<Achievement> {
         let summary = commit.summary()?;
         for pattern in PATTERNS {
             if summary.starts_with(pattern) {
-                return Some(Achievement {
-                    commit: commit.id(),
-                    name: self.name(),
-                });
+                let achievement = self.grant(commit, repo);
+                return Some(achievement);
             }
         }
         None
