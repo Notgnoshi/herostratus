@@ -98,6 +98,23 @@ fn clone_credentials(
     }
 }
 
+fn fetch_options(config: &crate::config::RepositoryConfig) -> git2::FetchOptions {
+    let mut callbacks = git2::RemoteCallbacks::new();
+    callbacks.credentials(|_url, username_from_url, _allowed_typed| {
+        match clone_credentials(config, username_from_url) {
+            Ok(creds) => Ok(creds),
+            Err(e) => Err(git2::Error::new(
+                git2::ErrorCode::NotFound,
+                git2::ErrorClass::Config,
+                format!("Failed to determine appropriate clone credentials: {e:?}"),
+            )),
+        }
+    });
+    let mut options = git2::FetchOptions::new();
+    options.remote_callbacks(callbacks);
+    options
+}
+
 pub fn clone_repository(
     config: &crate::config::RepositoryConfig,
     force: bool,
@@ -121,20 +138,7 @@ pub fn clone_repository(
 
     let mut builder = git2::build::RepoBuilder::new();
     builder.bare(true);
-
-    let mut callbacks = git2::RemoteCallbacks::new();
-    callbacks.credentials(|_url, username_from_url, _allowed_typed| {
-        match clone_credentials(config, username_from_url) {
-            Ok(creds) => Ok(creds),
-            Err(e) => Err(git2::Error::new(
-                git2::ErrorCode::NotFound,
-                git2::ErrorClass::Config,
-                format!("Failed to determine appropriate clone credentials: {e:?}"),
-            )),
-        }
-    });
-    let mut options = git2::FetchOptions::new();
-    options.remote_callbacks(callbacks);
+    let options = fetch_options(config);
     builder.fetch_options(options);
 
     if let Some(branch) = &config.branch {
