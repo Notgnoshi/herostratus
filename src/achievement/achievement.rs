@@ -75,6 +75,9 @@ pub trait Rule {
     ///
     /// This exists to enable rules that accumulate state (like calculating the shortest commit
     /// message) to generate achievements once all commits have been visited.
+    ///
+    /// TODO: Reset Rule state in between each repository. Should this be managed by the Rules, or
+    /// should it be managed by the Rule registry and commit iterator?
     fn finalize(&mut self, _repo: &git2::Repository) -> Vec<Achievement> {
         Vec::new()
     }
