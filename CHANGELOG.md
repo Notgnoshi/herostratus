@@ -12,6 +12,10 @@ focus on the user impact** rather than the actual changes made.
 <!-- Please add new changelog entries here -->
 
 ## Added
+* Achievement rule numbering. In the future this will be used to allow the user to enable/disable
+  the rules according to their preference.
+* Added the `H2-shortest-subject-line` achievement.
+
 ## Changed
 ## Deprecated
 ## Removed
