@@ -9,6 +9,39 @@ pub struct Achievement {
     // TODO: Identify the repository somehow
 }
 
+// TODO: Eventually I'll want to pass the &Config to the factory
+type FactoryFunc = fn() -> Box<dyn Rule>;
+
+/// A factory to build [Rule]s
+///
+/// Each [Rule] needs to provide a [RuleFactory] through [inventory::submit!] to register
+/// themselves.
+pub struct RuleFactory {
+    factory: FactoryFunc,
+}
+// See also: rules/mod.rs:builtin_rules(), and each of the inventory::submit!(...) in each Rule impl
+inventory::collect!(RuleFactory);
+
+// sugar
+impl RuleFactory {
+    /// Provide your own factory to build your [Rule]
+    pub const fn new(factory: FactoryFunc) -> Self {
+        Self { factory }
+    }
+
+    /// Create a [RuleFactory] that uses [Default] to build your [Rule]
+    pub const fn default<R: Rule + Default + 'static>() -> Self {
+        RuleFactory {
+            factory: || Box::new(R::default()) as Box<dyn Rule>,
+        }
+    }
+
+    /// Use the factory to build the [Rule]
+    pub fn build(&self) -> Box<dyn Rule> {
+        (self.factory)()
+    }
+}
+
 /// Defines a [Rule] to grant [Achievement]s
 // TODO: How could user-contrib rule _scripts_ work? Consume commits via stdin, emit achievement
 // JSON on stdout?

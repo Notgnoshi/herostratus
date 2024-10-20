@@ -147,6 +147,7 @@ pub fn grant<'repo>(
     reference: &str,
     repo: &'repo git2::Repository,
 ) -> eyre::Result<impl Iterator<Item = Achievement> + 'repo> {
+    // TODO: Eventually I'll want to use &Config to determine what rules to use
     grant_with_rules(reference, repo, crate::rules::builtin_rules())
 }
 

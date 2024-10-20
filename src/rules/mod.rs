@@ -2,13 +2,13 @@
 mod h001_fixup;
 mod h002_shortest_subject_line;
 
-use crate::achievement::Rule;
+use crate::achievement::{Rule, RuleFactory};
 
+/// Get a new instance of each builtin [Rule]
 pub fn builtin_rules() -> Vec<Box<dyn Rule>> {
-    // TODO: Rule factory? How to get Rules to register themselves? Through a static singleton +
-    // module ctor? Metaprogramming? Proc Macro?
-    vec![
-        Box::new(h001_fixup::Fixup) as Box<dyn Rule>,
-        Box::new(h002_shortest_subject_line::ShortestSubjectLine::default()) as Box<dyn Rule>,
-    ]
+    // Each Rule uses inventory::submit! to register a factory to build themselves with.
+    inventory::iter::<RuleFactory>
+        .into_iter()
+        .map(|factory| factory.build())
+        .collect()
 }

@@ -1,10 +1,17 @@
-use crate::achievement::{Achievement, Rule};
+use crate::achievement::{Achievement, Rule, RuleFactory};
 
 /// The shortest subject line in a branch
 #[derive(Default)]
 pub struct ShortestSubjectLine {
     shortest_so_far: Option<(git2::Oid, usize)>,
 }
+
+// As a proof of concept, don't use Default
+fn my_factory() -> Box<dyn Rule> {
+    Box::new(ShortestSubjectLine::default())
+}
+inventory::submit!(RuleFactory::new(my_factory));
+// inventory::submit!(RuleFactory::default::<ShortestSubjectLine>());
 
 fn subject_length(commit: &git2::Commit) -> usize {
     match commit.summary() {
