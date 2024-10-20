@@ -188,7 +188,7 @@ pub fn grant<'repo>(
     reference: &str,
     repo: &'repo git2::Repository,
 ) -> eyre::Result<impl Iterator<Item = Achievement> + 'repo> {
-    grant_with_rules(reference, repo, crate::achievements::builtin_rules())
+    grant_with_rules(reference, repo, crate::rules::builtin_rules())
 }
 
 pub fn grant_with_rules<'repo>(
