@@ -48,33 +48,33 @@ impl RuleFactory {
 pub trait Rule {
     /// The numeric ID of this [Rule]
     ///
-    /// Must be unique per-rule. Either the [id], [human_id], or [pretty_id] may be used to
-    /// identify a [Rule].
+    /// Must be unique per-rule. Either the [id](Self::id), [human_id](Self::human_id), or
+    /// [pretty_id](Self::pretty_id) may be used to identify a [Rule].
     fn id(&self) -> usize;
 
     /// The human ID of this [Rule]
     ///
     /// Example: `longest-commit-subject-line`
     ///
-    /// Must be unique per-rule. Either the [id], [human_id], or [pretty_id] may be used to
-    /// identify a [Rule].
+    /// Must be unique per-rule. Either the [id](Self::id), [human_id](Self::human_id), or
+    /// [pretty_id](Self::pretty_id) may be used to identify a [Rule].
     fn human_id(&self) -> &'static str;
 
     /// The pretty ID of this [Rule]
     ///
-    /// Concatenates the numeric [id] and the human-meaningful [human_id].
+    /// Concatenates the numeric [id](Self::id) and the human-meaningful [human_id](Self::id).
     ///
     /// Example: `H42-whats-the-question`
     ///
-    /// Must be unique per-rule. Either the [id], [human_id], or [pretty_id] may be used to
-    /// identify a [Rule].
+    /// Must be unique per-rule. Either the [id](Self::id), [human_id](Self::human_id), or
+    /// [pretty_id](Self::pretty_id) may be used to identify a [Rule].
     fn pretty_id(&self) -> String {
         format!("H{}-{}", self.id(), self.human_id())
     }
 
     /// Return the name of the [Achievement] that this rule generates
     ///
-    /// The name should generally be humorous, even if the [description] isn't.
+    /// The name should generally be humorous, even if the [description](Self::description) isn't.
     ///
     /// There is expected to be a 1-1 correspondence between [Achievement]s and [Rule]s.
     fn name(&self) -> &'static str;
