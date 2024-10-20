@@ -359,7 +359,7 @@ checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
 name = "herostratus"
-version = "0.1.0-rc3"
+version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "clap",
@@ -368,6 +368,7 @@ dependencies = [
  "directories",
  "eyre",
  "git2",
+ "inventory",
  "lazy_static",
  "predicates",
  "serde",
@@ -402,6 +403,12 @@ dependencies = [
  "equivalent",
  "hashbrown",
 ]
+
+[[package]]
+name = "inventory"
+version = "0.3.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f958d3d68f4167080a18141e10381e7634563984a537f2a49a30fd8e53ac5767"
 
 [[package]]
 name = "is_terminal_polyfill"
