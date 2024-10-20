@@ -2,48 +2,7 @@ use std::time::Instant;
 
 use eyre::WrapErr;
 
-use crate::achievement::{Achievement, Rule};
-
-trait LoggedRule: Rule {
-    /// Wrap Rule::process in a logging helper
-    fn process_log(
-        &mut self,
-        commit: &git2::Commit,
-        repo: &git2::Repository,
-    ) -> Option<Achievement> {
-        let achievement = self.process(commit, repo)?;
-        debug_assert_eq!(
-            achievement.name,
-            self.name(),
-            "Achievement::name and Rule::name are expected to match"
-        );
-        tracing::info!("Generated achievement: {achievement:?}");
-        Some(achievement)
-    }
-
-    /// Wrap Rule::finalize in a logging helper
-    fn finalize_log(&mut self, repo: &git2::Repository) -> Vec<Achievement> {
-        let achievements = self.finalize(repo);
-        if !achievements.is_empty() {
-            tracing::debug!(
-                "Rule '{}' generated {} achievements",
-                self.name(),
-                achievements.len()
-            );
-            for achievement in &achievements {
-                debug_assert_eq!(
-                    achievement.name,
-                    self.name(),
-                    "Achievement::name and Rule::name are expected to match"
-                );
-                tracing::info!("Generated achievement: {achievement:?}");
-            }
-        }
-        achievements
-    }
-}
-
-impl<T: ?Sized + Rule> LoggedRule for T {}
+use crate::achievement::{Achievement, LoggedRule, Rule};
 
 /// An iterator of [Achievement]s
 pub struct Achievements<'repo, Oids>

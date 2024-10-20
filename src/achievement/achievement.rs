@@ -79,3 +79,44 @@ pub trait Rule {
         Vec::new()
     }
 }
+
+/// Wrap achievement granting in logging
+pub trait LoggedRule: Rule {
+    fn log_achievement(&self, achievement: &Achievement) {
+        debug_assert_eq!(
+            achievement.name,
+            self.name(),
+            "Achievement::name and Rule::name are expected to match"
+        );
+        tracing::info!("Generated achievement: {achievement:?}");
+    }
+
+    // TODO: What's the Rust way to override a base class method?
+    fn process_log(
+        &mut self,
+        commit: &git2::Commit,
+        repo: &git2::Repository,
+    ) -> Option<Achievement> {
+        let achievement = self.process(commit, repo)?;
+        self.log_achievement(&achievement);
+        Some(achievement)
+    }
+
+    fn finalize_log(&mut self, repo: &git2::Repository) -> Vec<Achievement> {
+        let achievements = self.finalize(repo);
+        if !achievements.is_empty() {
+            // This isn't the total number of achievements, just the ones granted at the end
+            tracing::debug!(
+                "Rule '{}' generated {} achievements after finalization",
+                self.name(),
+                achievements.len()
+            );
+            for achievement in &achievements {
+                self.log_achievement(achievement);
+            }
+        }
+        achievements
+    }
+}
+
+impl<T: ?Sized + Rule> LoggedRule for T {}
