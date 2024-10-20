@@ -41,7 +41,7 @@ parse_changelog() {
 
     # 0,/pat1/d deletes from line 1 to pat1 inclusive
     # /pat2/Q exits without printing on the first line to match pat2
-    sed "0,/^# Herostratus - $version/d;/^# /Q" "$changelog"
+    sed "0,/^# Herostratus - $version -/d;/^# /Q" "$changelog"
 }
 
 main() {
@@ -87,7 +87,7 @@ main() {
     fi
 
     # This outputs the version header to stdout
-    if ! grep "^# Herostratus - $version" "$changelog"; then
+    if ! grep "^# Herostratus - $version -" "$changelog"; then
         error "Could not find version '$version' in '$changelog'"
         exit 1
     fi
