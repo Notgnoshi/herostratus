@@ -12,15 +12,92 @@ focus on the user impact** rather than the actual changes made.
 <!-- Please add new changelog entries here -->
 
 ## Added
-* Achievement rule numbering. In the future this will be used to allow the user to enable/disable
-  the rules according to their preference.
-* Added the `H2-shortest-subject-line` achievement.
-
 ## Changed
 ## Deprecated
 ## Removed
 ## Fixed
 ## Security
+
+# Herostratus - 0.1.0 - (2024-10-20)
+
+This is Herostratus's first release! It represents the _bare minimum_, and only generates _two_
+different achievement types.
+
+| ID                       | Description                                    |
+|--------------------------|------------------------------------------------|
+| H1-fixup                 | Find fixup! and similar commits                |
+| H2-shortest-subject-line | Find the commit with the shortest subject line |
+
+## Running on an existing checkout
+
+Herostratus provides a test mode to statelessly run on an existing checkout.
+
+```sh
+git clone git@github.com:Notgnoshi/herostratus.git
+cd herostratus
+cargo run -- check $PWD origin/test/fixup
+```
+
+this results in
+
+```sh
+Achievement { name: "I meant to fix that up later, I swear!", commit: 2721748d8fa0b0cc3302b41733d37e30161eabfd }
+Achievement { name: "I meant to fix that up later, I swear!", commit: a987013884fc7dafbe9eb080d7cbc8625408a85f }
+Achievement { name: "I meant to fix that up later, I swear!", commit: 60b480b554dbd5266eec0f2378f72df5170a6702 }
+```
+
+> [!WARNING]
+> This output format will change as Herostratus becomes more usable
+
+[`test/fixup`](https://github.com/Notgnoshi/herostratus/tree/test/fixup) is a branch used for
+integration testing that looks like
+
+```sh
+$ git log --oneline origin/test/fixup
+83f0448 (origin/test/fixup) Placeholder
+2721748 amend! Initial commit
+be52110 Placeholder
+a987013 fixup! Initial commit
+3d6d9bd Placeholder
+60b480b squash! Initial commit
+107bdb3 Initial commit
+```
+
+## Adding a new repository
+
+Assuming users want to track achievements over time, you can also configure Herostratus to run on a
+predefined set of repositories.
+
+```sh
+herostratus add git@github.com:Notgnoshi/herostratus.git test/simple
+herostratus add git@github.com:Notgnoshi/herostratus.git test/fixup
+```
+
+> [!TIP]
+> There are several configuration options for SSH and HTTPS authentication, as well as customizing
+> where the repositories are cloned. See `herostratus --help` and `herostratus add --help` for
+> details.
+
+Herostratus supports the following clone URL protocols
+* SSH in both URL formats
+  * Example: `ssh://git@github.com/Notgnoshi/herostratus.git`
+  * Example: `git@github.com:Notgnoshi/herostratus.git`
+* HTTPS
+* FILE
+  * Example: `file://$HOME/src/herostratus`
+  * **NOTE:** this isn't how you re-use an existing checkout, use `herostratus add --path` for that
+
+## Fetch all configured repositories
+
+```sh
+herostratus fetch-all
+```
+
+## Running on all configured repositories
+
+```sh
+herostratus check-all
+```
 
 # Herostratus - 0.1.0-rc3 - (2024-08-19)
 

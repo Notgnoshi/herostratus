@@ -3,7 +3,7 @@ name = "herostratus"
 description = "**Herostratus** *n.* **1.** An ancient Greek known for seeking fame through crime and destruction. **2.** Also a Git repository achievements engine."
 repository = "https://github.com/Notgnoshi/herostratus"
 license = "MIT"
-version = "0.1.0-rc3"
+version = "0.1.0"
 edition = "2021"
 
 [dependencies]
