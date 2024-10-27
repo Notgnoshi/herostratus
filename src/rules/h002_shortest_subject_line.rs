@@ -1,30 +1,25 @@
 use crate::achievement::{Achievement, Rule, RuleFactory};
 
 /// The shortest subject line in a branch
-#[derive(Default)]
 pub struct ShortestSubjectLine {
+    length_threshold: usize,
     shortest_so_far: Option<(git2::Oid, usize)>,
 }
 
-// As a proof of concept, don't use Default
-fn my_factory() -> Box<dyn Rule> {
-    Box::new(ShortestSubjectLine::default())
+fn shortest_subject_line() -> Box<dyn Rule> {
+    Box::new(ShortestSubjectLine {
+        // TODO: Make this configurable (#58)
+        length_threshold: 10,
+        shortest_so_far: None,
+    })
 }
-inventory::submit!(RuleFactory::new(my_factory));
-// inventory::submit!(RuleFactory::default::<ShortestSubjectLine>());
+inventory::submit!(RuleFactory::new(shortest_subject_line));
 
 fn subject_length(commit: &git2::Commit) -> usize {
     match commit.summary() {
         Some(subject) => subject.len(),
         None => 0,
     }
-}
-
-/// Only consider commits below a certain size to maximize the signal-to-noise ratio for this rule
-#[inline]
-fn short_enough_to_care(length: usize) -> bool {
-    // TODO: There might be some good heuristics using number of words too?
-    length < 10
 }
 
 impl Rule for ShortestSubjectLine {
@@ -35,14 +30,14 @@ impl Rule for ShortestSubjectLine {
         "shortest-subject-line"
     }
     fn name(&self) -> &'static str {
-        "I bet you have the loudest keyboard"
+        "Brevity is the soul of wit"
     }
     fn description(&self) -> &'static str {
         "The shortest subject line"
     }
     fn process(&mut self, commit: &git2::Commit, _repo: &git2::Repository) -> Option<Achievement> {
         let length = subject_length(commit);
-        if short_enough_to_care(length) {
+        if length < self.length_threshold {
             match self.shortest_so_far {
                 Some((_, shortest_length)) => {
                     if length < shortest_length {
@@ -70,13 +65,13 @@ impl Rule for ShortestSubjectLine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::achievement::{grant_with_rules, Rule};
+    use crate::achievement::grant_with_rules;
     use crate::test::fixtures;
 
     #[test]
     fn test_all_above_threshold() {
         let repo = fixtures::repository::with_empty_commits(&["0123456789", "1234567890"]).unwrap();
-        let rules = vec![Box::new(ShortestSubjectLine::default()) as Box<dyn Rule>];
+        let rules = vec![shortest_subject_line()];
         let achievements = grant_with_rules("HEAD", &repo.repo, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert!(achievements.is_empty());
@@ -86,7 +81,7 @@ mod tests {
     fn test_has_short_subject() {
         let repo =
             fixtures::repository::with_empty_commits(&["0123456789", "1234567", "1234"]).unwrap();
-        let rules = vec![Box::new(ShortestSubjectLine::default()) as Box<dyn Rule>];
+        let rules = vec![shortest_subject_line()];
         let achievements = grant_with_rules("HEAD", &repo.repo, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
@@ -103,10 +98,10 @@ mod tests {
         let repo2 =
             fixtures::repository::with_empty_commits(&["1234567890", "2345671", "1234"]).unwrap();
 
-        let rules1 = vec![Box::new(ShortestSubjectLine::default()) as Box<dyn Rule>];
+        let rules1 = vec![shortest_subject_line()];
         // grant_with_rules() consumes the rules Vec, so there _can't_ be any state held between
         // processing any two repositories
-        let rules2 = vec![Box::new(ShortestSubjectLine::default()) as Box<dyn Rule>];
+        let rules2 = vec![shortest_subject_line()];
 
         let achievements1 = grant_with_rules("HEAD", &repo1.repo, rules1).unwrap();
         let achievements2 = grant_with_rules("HEAD", &repo2.repo, rules2).unwrap();
