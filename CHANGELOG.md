@@ -13,11 +13,11 @@ focus on the user impact** rather than the actual changes made.
 
 ## Added
 
-* Added the following rule:
-
-  | ID                      | Description                                   |
-  |-------------------------|-----------------------------------------------|
-  | H3-longest-subject-line | Find the commit with the longest subject line |
+* Added the following rules:
+  | ID                      | Description                                      |
+  |-------------------------|--------------------------------------------------|
+  | H3-longest-subject-line | Find the commit with the longest subject line    |
+  | H4-non-unicode          | Make a commit message containing non UTF-8 bytes |
 
 ## Changed
 ## Deprecated

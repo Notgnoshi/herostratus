@@ -2,6 +2,7 @@
 mod h001_fixup;
 mod h002_shortest_subject_line;
 mod h003_longest_subject_line;
+mod h004_non_unicode;
 
 use crate::achievement::{Rule, RuleFactory};
 
