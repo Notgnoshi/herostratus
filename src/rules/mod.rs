@@ -1,6 +1,7 @@
 //! The achievements builtin to Herostratus
 mod h001_fixup;
 mod h002_shortest_subject_line;
+mod h003_longest_subject_line;
 
 use crate::achievement::{Rule, RuleFactory};
 

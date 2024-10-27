@@ -12,6 +12,13 @@ focus on the user impact** rather than the actual changes made.
 <!-- Please add new changelog entries here -->
 
 ## Added
+
+* Added the following rule:
+
+  | ID                      | Description                                   |
+  |-------------------------|-----------------------------------------------|
+  | H3-longest-subject-line | Find the commit with the longest subject line |
+
 ## Changed
 ## Deprecated
 ## Removed
