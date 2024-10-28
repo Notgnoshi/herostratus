@@ -56,6 +56,19 @@ fn generates_default_config_if_missing() {
 }
 
 #[test]
+fn config_exclude_rules() {
+    let config_toml = "[repositories.herostratus]\n\
+                       path = \"git/Notgnoshi/herostratus\"\n\
+                       url = \"git@github.com:Notgnoshi/herostratus.git\"\n\
+                       [rules]\n\
+                       exclude = [\"H4-non-unicode\"]\n\
+                      ";
+
+    let config = deserialize_config(config_toml).unwrap();
+    assert_eq!(config.rules.unwrap().exclude.unwrap(), ["H4-non-unicode"]);
+}
+
+#[test]
 fn rule_specific_config() {
     let config_toml = "[repositories.herostratus]\n\
                        path = \"git/Notgnoshi/herostratus\"\n\

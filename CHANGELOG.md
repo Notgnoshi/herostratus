@@ -28,6 +28,13 @@ focus on the user impact** rather than the actual changes made.
   length_threshold = 72
   ```
 
+* You can now configure a list of rules to exclude from checking. You can do this like so:
+
+  ```toml
+  [rules]
+  exclude = ["H4-non-unicode"]
+  ```
+
 ## Changed
 ## Deprecated
 ## Removed

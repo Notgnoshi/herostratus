@@ -17,6 +17,10 @@ pub struct Config {
 
 #[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
 pub struct RulesConfig {
+    /// Rules to exclude. Maybe the rule ID (2), human ID (shortest-subject-line), or pretty ID
+    /// (H2-shortest-subject-line).
+    pub exclude: Option<Vec<String>>,
+
     // TODO: There's bound to be some kind of serde voodoo to reduce the copy-pasta and effort it
     // takes to add a configuration for a new rule. Or maybe this is better because it's simple?
     pub h2_shortest_subject_line: Option<H002Config>,
