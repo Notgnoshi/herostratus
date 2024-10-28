@@ -1,6 +1,9 @@
 mod common;
 
+use std::path::Path;
+
 use common::CommandExt;
+use herostratus::git::clone::find_local_repository;
 use predicates::prelude::*;
 use predicates::str;
 
@@ -38,4 +41,22 @@ fn search_current_repo_for_fixup_commits() {
         .and(str::contains("2721748d8fa0b0cc3302b41733d37e30161eabfd"));
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(assertion.eval(&stdout));
+}
+
+#[test]
+fn smoke_test_on_all_own_branches() {
+    let path = Path::new(".");
+    let repo = find_local_repository(path).unwrap();
+
+    let branches = repo.branches(None).unwrap();
+    for branch in branches {
+        let (branch, _local_or_remote) = branch.unwrap();
+        let name = branch.name().unwrap().unwrap();
+
+        let (mut cmd, _temp) = common::herostratus(None);
+        cmd.arg("check").arg(".").arg(name);
+
+        let output = cmd.captured_output().unwrap();
+        assert!(output.status.success());
+    }
 }
