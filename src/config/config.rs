@@ -5,11 +5,26 @@ use std::path::{Path, PathBuf};
 use eyre::WrapErr;
 use serde::{Deserialize, Serialize};
 
+use crate::rules::{H002Config, H003Config};
+
 /// Configuration for each of the repositories that Herostratus processes
 #[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
 pub struct Config {
     // Name -> Config pairs (Use HashMap over Vec for prettiness of TOML)
     pub repositories: HashMap<String, RepositoryConfig>,
+    pub rules: Option<RulesConfig>,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
+pub struct RulesConfig {
+    /// Rules to exclude. Maybe the rule ID (2), human ID (shortest-subject-line), or pretty ID
+    /// (H2-shortest-subject-line).
+    pub exclude: Option<Vec<String>>,
+
+    // TODO: There's bound to be some kind of serde voodoo to reduce the copy-pasta and effort it
+    // takes to add a configuration for a new rule. Or maybe this is better because it's simple?
+    pub h2_shortest_subject_line: Option<H002Config>,
+    pub h3_longest_subject_line: Option<H003Config>,
 }
 
 /// Configuration for cloning, fetching, and processing a repository
@@ -62,10 +77,14 @@ pub fn read_config(data_dir: &Path) -> eyre::Result<Config> {
     } else {
         let contents =
             std::fs::read_to_string(&config_path).wrap_err("Failed to read config file")?;
-        toml::from_str(&contents).wrap_err("Failed to parse config file")?
+        deserialize_config(&contents).wrap_err("Failed to deserialize config file")?
     };
 
     Ok(config)
+}
+
+pub fn deserialize_config(contents: &str) -> eyre::Result<Config> {
+    toml::from_str(contents).wrap_err("Failed to parse TOML")
 }
 
 pub fn serialize_config(config: &Config) -> eyre::Result<String> {

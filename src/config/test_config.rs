@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::config::{
-    config_path, read_config, serialize_config, write_config, Config, RepositoryConfig,
+    config_path, deserialize_config, read_config, serialize_config, write_config, Config,
+    RepositoryConfig,
 };
 use crate::test::fixtures::config::empty;
 
@@ -24,7 +25,10 @@ fn read_write_config() {
         ..Default::default()
     };
     repositories.insert(String::from("herostratus"), config);
-    let config = Config { repositories };
+    let config = Config {
+        repositories,
+        ..Default::default()
+    };
 
     let fixture = empty().unwrap();
     write_config(&fixture.data_dir, &config).unwrap();
@@ -49,4 +53,56 @@ fn generates_default_config_if_missing() {
     let config = read_config(&fixture.data_dir).unwrap();
     let default_config = Config::default();
     assert_eq!(config, default_config);
+}
+
+#[test]
+fn config_exclude_rules() {
+    let config_toml = "[repositories.herostratus]\n\
+                       path = \"git/Notgnoshi/herostratus\"\n\
+                       url = \"git@github.com:Notgnoshi/herostratus.git\"\n\
+                       [rules]\n\
+                       exclude = [\"H4-non-unicode\"]\n\
+                      ";
+
+    let config = deserialize_config(config_toml).unwrap();
+    assert_eq!(config.rules.unwrap().exclude.unwrap(), ["H4-non-unicode"]);
+}
+
+#[test]
+fn rule_specific_config() {
+    let config_toml = "[repositories.herostratus]\n\
+                       path = \"git/Notgnoshi/herostratus\"\n\
+                       url = \"git@github.com:Notgnoshi/herostratus.git\"\n\
+                       [rules]\n\
+                       h2_shortest_subject_line.length_threshold = 80\n\
+                      ";
+
+    let config = deserialize_config(config_toml).unwrap();
+    assert_eq!(
+        config
+            .rules
+            .unwrap()
+            .h2_shortest_subject_line
+            .unwrap()
+            .length_threshold,
+        80
+    );
+
+    let config_toml = "[repositories.herostratus]\n\
+                       path = \"git/Notgnoshi/herostratus\"\n\
+                       url = \"git@github.com:Notgnoshi/herostratus.git\"\n\
+                       [rules.h2_shortest_subject_line]\n\
+                       length_threshold = 80\n\
+                      ";
+
+    let config = deserialize_config(config_toml).unwrap();
+    assert_eq!(
+        config
+            .rules
+            .unwrap()
+            .h2_shortest_subject_line
+            .unwrap()
+            .length_threshold,
+        80
+    );
 }

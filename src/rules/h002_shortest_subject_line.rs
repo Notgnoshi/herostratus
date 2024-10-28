@@ -1,30 +1,39 @@
 use crate::achievement::{Achievement, Rule, RuleFactory};
+use crate::config::RulesConfig;
 
 /// The shortest subject line in a branch
 #[derive(Default)]
 pub struct ShortestSubjectLine {
+    config: H002Config,
     shortest_so_far: Option<(git2::Oid, usize)>,
 }
 
-// As a proof of concept, don't use Default
-fn my_factory() -> Box<dyn Rule> {
-    Box::new(ShortestSubjectLine::default())
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct H002Config {
+    pub length_threshold: usize,
 }
-inventory::submit!(RuleFactory::new(my_factory));
-// inventory::submit!(RuleFactory::default::<ShortestSubjectLine>());
+
+impl Default for H002Config {
+    fn default() -> Self {
+        Self {
+            length_threshold: 10,
+        }
+    }
+}
+
+fn shortest_subject_line(config: &RulesConfig) -> Box<dyn Rule> {
+    Box::new(ShortestSubjectLine {
+        config: config.h2_shortest_subject_line.clone().unwrap_or_default(),
+        shortest_so_far: None,
+    })
+}
+inventory::submit!(RuleFactory::new(shortest_subject_line));
 
 fn subject_length(commit: &git2::Commit) -> usize {
     match commit.summary() {
         Some(subject) => subject.len(),
         None => 0,
     }
-}
-
-/// Only consider commits below a certain size to maximize the signal-to-noise ratio for this rule
-#[inline]
-fn short_enough_to_care(length: usize) -> bool {
-    // TODO: There might be some good heuristics using number of words too?
-    length < 10
 }
 
 impl Rule for ShortestSubjectLine {
@@ -35,14 +44,14 @@ impl Rule for ShortestSubjectLine {
         "shortest-subject-line"
     }
     fn name(&self) -> &'static str {
-        "I bet you have the loudest keyboard"
+        "Brevity is the soul of wit"
     }
     fn description(&self) -> &'static str {
         "The shortest subject line"
     }
     fn process(&mut self, commit: &git2::Commit, _repo: &git2::Repository) -> Option<Achievement> {
         let length = subject_length(commit);
-        if short_enough_to_care(length) {
+        if length < self.config.length_threshold {
             match self.shortest_so_far {
                 Some((_, shortest_length)) => {
                     if length < shortest_length {
@@ -70,13 +79,19 @@ impl Rule for ShortestSubjectLine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::achievement::{grant_with_rules, Rule};
+    use crate::achievement::grant_with_rules;
     use crate::test::fixtures;
 
     #[test]
     fn test_all_above_threshold() {
+        let config = RulesConfig {
+            h2_shortest_subject_line: Some(H002Config {
+                length_threshold: 7,
+            }),
+            ..Default::default()
+        };
         let repo = fixtures::repository::with_empty_commits(&["0123456789", "1234567890"]).unwrap();
-        let rules = vec![Box::new(ShortestSubjectLine::default()) as Box<dyn Rule>];
+        let rules = vec![shortest_subject_line(&config)];
         let achievements = grant_with_rules("HEAD", &repo.repo, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert!(achievements.is_empty());

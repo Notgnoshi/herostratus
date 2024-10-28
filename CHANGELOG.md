@@ -12,6 +12,29 @@ focus on the user impact** rather than the actual changes made.
 <!-- Please add new changelog entries here -->
 
 ## Added
+
+* Added the following rules:
+  | ID                      | Description                                      |
+  |-------------------------|--------------------------------------------------|
+  | H3-longest-subject-line | Find the commit with the longest subject line    |
+  | H4-non-unicode          | Make a commit message containing non UTF-8 bytes |
+
+* You can now configure rules on a per-rule basis. The following rules and options are supported:
+
+  ```toml
+  [rules.h2_shortest_subject_line]
+  length_threshold = 10
+  [rules.h3_longest_subject_line]
+  length_threshold = 72
+  ```
+
+* You can now configure a list of rules to exclude from checking. You can do this like so:
+
+  ```toml
+  [rules]
+  exclude = ["H4-non-unicode"]
+  ```
+
 ## Changed
 ## Deprecated
 ## Removed

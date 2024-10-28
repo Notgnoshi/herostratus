@@ -3,6 +3,7 @@ use std::time::Instant;
 use eyre::WrapErr;
 
 use crate::achievement::{Achievement, LoggedRule, Rule};
+use crate::config::Config;
 
 /// An iterator of [Achievement]s
 pub struct Achievements<'repo, Oids>
@@ -144,11 +145,11 @@ where
 }
 
 pub fn grant<'repo>(
+    config: Option<&Config>,
     reference: &str,
     repo: &'repo git2::Repository,
 ) -> eyre::Result<impl Iterator<Item = Achievement> + 'repo> {
-    // TODO: Eventually I'll want to use &Config to determine what rules to use
-    grant_with_rules(reference, repo, crate::rules::builtin_rules())
+    grant_with_rules(reference, repo, crate::rules::builtin_rules(config))
 }
 
 pub fn grant_with_rules<'repo>(
