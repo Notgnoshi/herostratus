@@ -1,17 +1,27 @@
 use crate::achievement::{Achievement, Rule, RuleFactory};
+use crate::config::RulesConfig;
 
 pub struct LongestSubjectLine {
-    length_threshold: usize,
+    config: H003Config,
     longest_so_far: Option<(git2::Oid, usize)>,
 }
 
-fn longest_subject_line() -> Box<dyn Rule> {
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct H003Config {
+    pub length_threshold: usize,
+}
+
+impl Default for H003Config {
+    fn default() -> Self {
+        Self {
+            length_threshold: 72,
+        }
+    }
+}
+
+fn longest_subject_line(config: &RulesConfig) -> Box<dyn Rule> {
     Box::new(LongestSubjectLine {
-        // I've seen linter rules at 50, 72, and 80 columns. Use 72 chars as the limit, so we know
-        // we're granting this achievement to something egregious.
-        //
-        // TODO: Make this threshold configurable (#58)
-        length_threshold: 72,
+        config: config.h3_longest_subject_line.clone().unwrap_or_default(),
         longest_so_far: None,
     })
 }
@@ -40,7 +50,7 @@ impl Rule for LongestSubjectLine {
 
     fn process(&mut self, commit: &git2::Commit, _repo: &git2::Repository) -> Option<Achievement> {
         let length = subject_length(commit);
-        if length > self.length_threshold {
+        if length > self.config.length_threshold {
             match self.longest_so_far {
                 Some((_, longest_length)) => {
                     if length > longest_length {
@@ -72,8 +82,14 @@ mod tests {
 
     #[test]
     fn test_all_below_threshold() {
+        let config = RulesConfig {
+            h3_longest_subject_line: Some(H003Config {
+                length_threshold: 11,
+            }),
+            ..Default::default()
+        };
         let repo = fixtures::repository::with_empty_commits(&["0123456789", "1234567890"]).unwrap();
-        let rules = vec![longest_subject_line()];
+        let rules = vec![longest_subject_line(&config)];
         let achievements = grant_with_rules("HEAD", &repo.repo, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert!(achievements.is_empty());
@@ -81,22 +97,25 @@ mod tests {
 
     #[test]
     fn test_has_long_subject() {
+        let config = RulesConfig {
+            h3_longest_subject_line: Some(H003Config {
+                length_threshold: 8,
+            }),
+            ..Default::default()
+        };
         let repo = fixtures::repository::with_empty_commits(&[
             "1234",
-            "0123456789012345678901234567890123456789012345678901234567890123456789012345678", // 79
-            "0123456789012345678901234567890123456789012345678901234567890123456789012345",    // 76
+            "1234567890", // 10
+            "123456789",  // 9
         ])
         .unwrap();
-        let rules = vec![longest_subject_line()];
+        let rules = vec![longest_subject_line(&config)];
         let achievements = grant_with_rules("HEAD", &repo.repo, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
 
         let oid = achievements[0].commit;
         let commit = repo.repo.find_commit(oid).unwrap();
-        assert_eq!(
-            commit.summary(),
-            Some("0123456789012345678901234567890123456789012345678901234567890123456789012345678")
-        );
+        assert_eq!(commit.summary(), Some("1234567890"));
     }
 }

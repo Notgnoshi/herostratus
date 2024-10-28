@@ -4,15 +4,32 @@ mod h002_shortest_subject_line;
 mod h003_longest_subject_line;
 mod h004_non_unicode;
 
+pub use h002_shortest_subject_line::H002Config;
+pub use h003_longest_subject_line::H003Config;
+
 use crate::achievement::{Rule, RuleFactory};
+use crate::config::{Config, RulesConfig};
 
 /// Get a new instance of each builtin [Rule]
-pub fn builtin_rules() -> Vec<Box<dyn Rule>> {
+pub fn builtin_rules(config: Option<&Config>) -> Vec<Box<dyn Rule>> {
+    let default_rules_config = RulesConfig::default();
+    let rules_config = match config {
+        Some(Config {
+            repositories: _,
+            rules: Some(r),
+        }) => r,
+        _ => &default_rules_config,
+    };
+
     // Each Rule uses inventory::submit! to register a factory to build themselves with.
     inventory::iter::<RuleFactory>
         .into_iter()
-        .map(|factory| factory.build())
+        .map(|factory| factory.build(rules_config))
         .collect()
+}
+
+pub fn builtin_rules_all() -> Vec<Box<dyn Rule>> {
+    builtin_rules(None)
 }
 
 #[cfg(test)]
@@ -47,7 +64,7 @@ mod tests {
 
     #[test]
     fn no_rules_have_duplicate_metadata() {
-        let rules = builtin_rules();
+        let rules = builtin_rules_all();
 
         let ids: Vec<_> = rules.iter().map(|r| r.id()).collect();
         let human_ids: Vec<_> = rules.iter().map(|r| r.human_id()).collect();
@@ -64,7 +81,7 @@ mod tests {
 
     #[test]
     fn all_rules_have_expected_metadata() {
-        let rules = builtin_rules();
+        let rules = builtin_rules_all();
         // Check that there's actually a few rules registered
         assert!(rules.len() >= 3);
 

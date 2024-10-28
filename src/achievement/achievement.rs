@@ -1,3 +1,5 @@
+use crate::config::RulesConfig;
+
 #[derive(Debug)]
 pub struct Achievement {
     pub name: &'static str,
@@ -9,8 +11,7 @@ pub struct Achievement {
     // TODO: Identify the repository somehow
 }
 
-// TODO: Eventually I'll want to pass the &Config to the factory
-type FactoryFunc = fn() -> Box<dyn Rule>;
+type FactoryFunc = fn(&RulesConfig) -> Box<dyn Rule>;
 
 /// A factory to build [Rule]s
 ///
@@ -32,13 +33,13 @@ impl RuleFactory {
     /// Create a [RuleFactory] that uses [Default] to build your [Rule]
     pub const fn default<R: Rule + Default + 'static>() -> Self {
         RuleFactory {
-            factory: || Box::new(R::default()) as Box<dyn Rule>,
+            factory: |_config_unused_because_default| Box::new(R::default()) as Box<dyn Rule>,
         }
     }
 
     /// Use the factory to build the [Rule]
-    pub fn build(&self) -> Box<dyn Rule> {
-        (self.factory)()
+    pub fn build(&self, config: &RulesConfig) -> Box<dyn Rule> {
+        (self.factory)(config)
     }
 }
 

@@ -14,7 +14,7 @@ pub fn check(args: &CheckArgs) -> eyre::Result<()> {
         args.reference
     );
     let repo = find_local_repository(&args.path)?;
-    let achievements = grant(&args.reference, &repo)?;
+    let achievements = grant(None, &args.reference, &repo)?;
 
     process_achievements(achievements)
 }
@@ -26,15 +26,15 @@ pub fn check_all(args: &CheckAllArgs, config: &Config, data_dir: &Path) -> eyre:
 
     tracing::info!("Checking repositories ...");
     let start = Instant::now();
-    for (name, config) in config.repositories.iter() {
+    for (name, repo_config) in config.repositories.iter() {
         let span = tracing::debug_span!("check", name = name);
         let _enter = span.enter();
-        let repo = find_local_repository(&config.path)?;
-        let reference = config
+        let repo = find_local_repository(&repo_config.path)?;
+        let reference = repo_config
             .branch
             .clone()
             .unwrap_or_else(|| String::from("HEAD"));
-        let achievements = grant(&reference, &repo)?;
+        let achievements = grant(Some(config), &reference, &repo)?;
         process_achievements(achievements)?;
     }
     tracing::info!(
