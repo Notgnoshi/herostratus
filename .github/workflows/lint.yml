@@ -58,19 +58,9 @@ jobs:
               run: cargo build --release --all-targets
             - name: Clippy
               run: cargo clippy --no-deps --release --all-targets
-
-    test:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
-            - name: Setup Rust toolchain
-              uses: dtolnay/rust-toolchain@master
-              with:
-                toolchain: stable
-            - name: Setup Rust cache
-              uses: swatinem/rust-cache@v2
+              # The tests depend on the 'herostratus' binary that 'cargo build' built
             - name: Test
               run: |
-                git fetch
-                cargo test --release --all-targets
-                cargo test --release --all-targets -- --ignored required
+                  git fetch
+                  cargo test --release --all-targets
+                  cargo test --release --all-targets -- --ignored required
