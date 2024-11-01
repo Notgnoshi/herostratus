@@ -22,7 +22,6 @@ clap = { version = "4.5.2", features = ["derive"] }
 color-eyre = "0.6.2"
 ctor = "0.2.7"
 directories = "5.0.1"
-escargot = "0.5.13"
 eyre = "0.6.12"
 git2 = "0.19"
 inventory = "0.3.15"
