@@ -6,7 +6,7 @@ use predicates::str;
 
 #[test]
 fn add_self_and_then_check_all() {
-    let self_dir = format!("file://{}", env!("CARGO_MANIFEST_DIR"));
+    let self_dir = format!("file://{}/..", env!("CARGO_MANIFEST_DIR"));
     let (mut cmd, temp) = common::herostratus(None);
     cmd.arg("add").arg("--skip-clone").arg(self_dir);
 

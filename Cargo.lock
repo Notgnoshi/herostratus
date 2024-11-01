@@ -379,6 +379,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "herostratus-tests"
+version = "0.1.0"
+dependencies = [
+ "assert_cmd",
+ "ctor",
+ "eyre",
+ "git2",
+ "herostratus",
+ "lazy_static",
+ "predicates",
+ "tempfile",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "idna"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
