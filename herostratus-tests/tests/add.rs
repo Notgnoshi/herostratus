@@ -1,12 +1,10 @@
-mod common;
-
-use common::CommandExt;
 use herostratus::config::{config_path, read_config, Config, RepositoryConfig};
+use herostratus_tests::cmd::{herostratus, CommandExt};
 
 #[test]
 #[ignore = "Slow; Performs clone"]
 fn required_clone_herostratus() {
-    let (mut cmd, temp) = common::herostratus(None);
+    let (mut cmd, temp) = herostratus(None);
     let data_dir = temp.as_ref().unwrap().path();
 
     let expected_bare_repo = data_dir
@@ -41,7 +39,7 @@ fn required_clone_herostratus() {
     assert_eq!(repo_config, &expected);
 
     // Adding the same URL again in the same data_dir succeeds
-    let (mut cmd, _temp) = common::herostratus(Some(data_dir));
+    let (mut cmd, _temp) = herostratus(Some(data_dir));
     cmd.arg("add").arg(url);
 
     let output = cmd.captured_output().unwrap();
@@ -55,7 +53,7 @@ fn required_clone_herostratus() {
 #[test]
 #[ignore = "Slow; Performs clone"]
 fn required_clone_herostratus_branch() {
-    let (mut cmd, temp) = common::herostratus(None);
+    let (mut cmd, temp) = herostratus(None);
     let clone_dir = temp
         .as_ref()
         .unwrap()
@@ -99,7 +97,7 @@ fn required_clone_herostratus_branch() {
 #[test]
 #[ignore = "Slow; Performs clone; Requires SSH (not available in CI)"]
 fn clone_herostratus_ssh() {
-    let (mut cmd, temp) = common::herostratus(None);
+    let (mut cmd, temp) = herostratus(None);
     let clone_dir = temp
         .as_ref()
         .unwrap()
@@ -131,9 +129,9 @@ fn clone_herostratus_ssh() {
 
 #[test]
 fn add_the_same_repo_twice() {
-    let (mut cmd1, temp) = common::herostratus(None);
-    let (mut cmd2, _) = common::herostratus(Some(temp.as_ref().unwrap().path()));
-    let (mut cmd3, _) = common::herostratus(Some(temp.as_ref().unwrap().path()));
+    let (mut cmd1, temp) = herostratus(None);
+    let (mut cmd2, _) = herostratus(Some(temp.as_ref().unwrap().path()));
+    let (mut cmd3, _) = herostratus(Some(temp.as_ref().unwrap().path()));
     let data_dir = temp.as_ref().unwrap().path();
     let clone_dir = temp
         .as_ref()
@@ -201,8 +199,8 @@ fn add_the_same_repo_twice() {
 #[test]
 #[ignore = "Slow; Performs clone;"]
 fn required_two_branches_share_one_bare_repo() {
-    let (mut cmd1, temp) = common::herostratus(None);
-    let (mut cmd2, _) = common::herostratus(Some(temp.as_ref().unwrap().path()));
+    let (mut cmd1, temp) = herostratus(None);
+    let (mut cmd2, _) = herostratus(Some(temp.as_ref().unwrap().path()));
 
     let clone_dir = temp
         .as_ref()

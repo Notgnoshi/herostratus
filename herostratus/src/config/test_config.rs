@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use herostratus_tests::fixtures::config::empty;
+
 use crate::config::{
     config_path, deserialize_config, read_config, serialize_config, write_config, Config,
     RepositoryConfig,
 };
-use crate::test::fixtures::config::empty;
 
 #[test]
 fn default_config_toml_contents() {

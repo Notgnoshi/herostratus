@@ -1,3 +1,4 @@
+pub mod cmd;
 pub mod fixtures;
 
 use tracing::Level;

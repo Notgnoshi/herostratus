@@ -1,5 +1,7 @@
+use herostratus_tests::fixtures;
+
 use crate::achievement::{grant_with_rules, Rule};
-use crate::test::fixtures;
+use crate::rules::test_rules::{AlwaysFail, ParticipationTrophy, ParticipationTrophy2};
 
 #[test]
 fn test_no_rules() {
@@ -13,7 +15,7 @@ fn test_no_rules() {
 #[test]
 fn test_iterator_no_matches() {
     let temp_repo = fixtures::repository::simplest().unwrap();
-    let rules = vec![Box::new(fixtures::rule::AlwaysFail) as Box<dyn Rule>];
+    let rules = vec![Box::new(AlwaysFail) as Box<dyn Rule>];
     let achievements = grant_with_rules("HEAD", &temp_repo.repo, rules).unwrap();
     let achievements: Vec<_> = achievements.collect();
     assert!(achievements.is_empty());
@@ -24,8 +26,8 @@ fn test_iterator_all_matches() {
     let temp_repo = fixtures::repository::simplest().unwrap();
 
     let rules = vec![
-        Box::new(fixtures::rule::AlwaysFail) as Box<dyn Rule>,
-        Box::new(fixtures::rule::ParticipationTrophy) as Box<dyn Rule>,
+        Box::new(AlwaysFail) as Box<dyn Rule>,
+        Box::new(ParticipationTrophy) as Box<dyn Rule>,
     ];
     let achievements = grant_with_rules("HEAD", &temp_repo.repo, rules).unwrap();
     let achievements: Vec<_> = achievements.collect();
@@ -36,7 +38,7 @@ fn test_iterator_all_matches() {
 fn test_awards_on_finalize() {
     let temp_repo = fixtures::repository::simplest().unwrap();
 
-    let rules = vec![Box::new(fixtures::rule::ParticipationTrophy2) as Box<dyn Rule>];
+    let rules = vec![Box::new(ParticipationTrophy2) as Box<dyn Rule>];
     let achievements = grant_with_rules("HEAD", &temp_repo.repo, rules).unwrap();
     let achievements: Vec<_> = achievements.collect();
     assert_eq!(achievements.len(), 1);

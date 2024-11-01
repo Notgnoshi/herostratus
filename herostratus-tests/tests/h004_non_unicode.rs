@@ -1,10 +1,8 @@
-mod common;
-
-use common::CommandExt;
+use herostratus_tests::cmd::{herostratus, CommandExt};
 
 #[test]
 fn h004_non_unicode() {
-    let (mut cmd, _temp) = common::herostratus(None);
+    let (mut cmd, _temp) = herostratus(None);
     cmd.arg("check").arg(".").arg("origin/test/non-unicode");
 
     let output = cmd.captured_output().unwrap();

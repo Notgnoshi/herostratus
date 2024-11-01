@@ -1,26 +1,35 @@
-[package]
-name = "herostratus"
+[workspace]
+
+resolver = "2"
+members = [
+    # The main library and application
+    "herostratus",
+    # Integration tests and test fixtures
+    "herostratus-tests",
+]
+default-members = ["herostratus", "herostratus-tests"]
+
+[workspace.package]
 description = "**Herostratus** *n.* **1.** An ancient Greek known for seeking fame through crime and destruction. **2.** Also a Git repository achievements engine."
 repository = "https://github.com/Notgnoshi/herostratus"
 license = "MIT"
 version = "0.1.0"
 edition = "2021"
 
-[dependencies]
+[workspace.dependencies]
+assert_cmd = { version = "2.0.14", features = ["color"] }
 clap = { version = "4.5.2", features = ["derive"] }
 color-eyre = "0.6.2"
+ctor = "0.2.7"
 directories = "5.0.1"
+escargot = "0.5.13"
 eyre = "0.6.12"
 git2 = "0.19"
 inventory = "0.3.15"
+lazy_static = "1.4.0"
+predicates = "3.1.0"
 serde = { version = "1.0.204", features =["derive"] }
+tempfile = "3.10.1"
 toml = "0.8.14"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
-
-[dev-dependencies]
-assert_cmd = { version = "2.0.14", features = ["color"] }
-ctor = "0.2.7"
-lazy_static = "1.4.0"
-predicates = "3.1.0"
-tempfile = "3.10.1"

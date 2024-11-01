@@ -52,11 +52,12 @@ pub fn with_empty_commits(messages: &[&str]) -> eyre::Result<TempRepository> {
     Ok(TempRepository { tempdir, repo })
 }
 
+#[cfg(test)]
 mod tests {
     use git2::{Index, Odb, Repository};
+    use herostratus::git::{rev_parse, rev_walk};
 
     use super::*;
-    use crate::git::{rev_parse, rev_walk};
 
     #[test]
     fn test_in_memory() {
