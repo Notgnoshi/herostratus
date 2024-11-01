@@ -1,4 +1,4 @@
-use crate::achievement::{Achievement, Rule};
+pub use crate::achievement::{Achievement, Rule};
 
 pub struct AlwaysFail;
 impl Rule for AlwaysFail {

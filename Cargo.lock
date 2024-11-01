@@ -368,6 +368,7 @@ dependencies = [
  "directories",
  "eyre",
  "git2",
+ "herostratus-tests",
  "inventory",
  "lazy_static",
  "predicates",

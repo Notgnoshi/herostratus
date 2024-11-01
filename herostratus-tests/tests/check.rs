@@ -1,15 +1,13 @@
-mod common;
-
 use std::path::Path;
 
-use common::CommandExt;
 use herostratus::git::clone::find_local_repository;
+use herostratus_tests::cmd::{herostratus, CommandExt};
 use predicates::prelude::*;
 use predicates::str;
 
 #[test]
 fn search_current_repo_for_test_simple_branch() {
-    let (mut cmd, _temp) = common::herostratus(None);
+    let (mut cmd, _temp) = herostratus(None);
     cmd.arg("check").arg(".").arg("origin/test/simple");
 
     let output = cmd.captured_output().unwrap();
@@ -18,7 +16,7 @@ fn search_current_repo_for_test_simple_branch() {
 
 #[test]
 fn search_current_repo_for_branch_that_does_not_exist() {
-    let (mut cmd, _temp) = common::herostratus(None);
+    let (mut cmd, _temp) = herostratus(None);
     cmd.arg("check")
         .arg(".")
         .arg("origin/test/this-branch-will-never-exist");
@@ -29,7 +27,7 @@ fn search_current_repo_for_branch_that_does_not_exist() {
 
 #[test]
 fn search_current_repo_for_fixup_commits() {
-    let (mut cmd, _temp) = common::herostratus(None);
+    let (mut cmd, _temp) = herostratus(None);
     cmd.arg("check").arg(".").arg("origin/test/fixup");
 
     let output = cmd.captured_output().unwrap();
@@ -53,7 +51,7 @@ fn smoke_test_on_all_own_branches() {
         let (branch, _local_or_remote) = branch.unwrap();
         let name = branch.name().unwrap().unwrap();
 
-        let (mut cmd, _temp) = common::herostratus(None);
+        let (mut cmd, _temp) = herostratus(None);
         cmd.arg("check").arg(".").arg(name);
 
         let output = cmd.captured_output().unwrap();

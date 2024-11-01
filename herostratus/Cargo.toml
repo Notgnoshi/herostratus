@@ -19,6 +19,8 @@ tracing-subscriber.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
+herostratus-tests.path = "../herostratus-tests"
+
 assert_cmd.workspace = true
 ctor.workspace = true
 lazy_static.workspace = true

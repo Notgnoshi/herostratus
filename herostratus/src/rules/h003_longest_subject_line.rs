@@ -76,9 +76,10 @@ impl Rule for LongestSubjectLine {
 
 #[cfg(test)]
 mod tests {
+    use herostratus_tests::fixtures;
+
     use super::*;
     use crate::achievement::grant_with_rules;
-    use crate::test::fixtures;
 
     #[test]
     fn test_all_below_threshold() {

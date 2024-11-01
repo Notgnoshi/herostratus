@@ -3,6 +3,8 @@ mod h001_fixup;
 mod h002_shortest_subject_line;
 mod h003_longest_subject_line;
 mod h004_non_unicode;
+#[cfg(test)]
+pub(crate) mod test_rules;
 
 pub use h002_shortest_subject_line::H002Config;
 pub use h003_longest_subject_line::H003Config;
