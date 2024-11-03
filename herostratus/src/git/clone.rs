@@ -148,7 +148,7 @@ pub fn fetch_remote(
     if before.is_some() && before.as_ref().unwrap().id() == after.id() {
         tracing::debug!("... done. No new commits");
     } else {
-        let commits = crate::git::rev_walk(after.id(), repo)?;
+        let commits = crate::git::rev::walk(after.id(), repo)?;
         let mut new_commits: usize = 0;
         for commit_id in commits {
             if let Some(before) = &before {
@@ -223,4 +223,30 @@ pub fn clone_repository(
         start.elapsed()
     );
     Ok(repo)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_path_from_url() {
+        let url_paths = [
+            (
+                "git@github.com:Notgnoshi/herostratus.git",
+                "Notgnoshi/herostratus.git",
+            ),
+            ("domain:path", "path"),
+            ("ssh://git@example.com:2222/path.git", "path.git"),
+            ("ssh://git@example.com/path.git", "path.git"),
+            ("https://example.com/path", "path"),
+            ("file:///tmp/foo", "tmp/foo"),
+        ];
+
+        for (url, expected) in url_paths {
+            let expected = PathBuf::from(expected);
+            let actual = parse_path_from_url(url).unwrap();
+            assert_eq!(expected, actual);
+        }
+    }
 }
