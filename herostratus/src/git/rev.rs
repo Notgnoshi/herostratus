@@ -13,6 +13,18 @@ pub fn parse(reference: &str, repo: &Repository) -> eyre::Result<Oid> {
     Ok(oid)
 }
 
+pub fn parse2(reference: &str, repo: &gix::Repository) -> eyre::Result<gix::ObjectId> {
+    let object = repo
+        .rev_parse_single(reference)
+        .wrap_err("Failed to rev-parse")?;
+    let oid = object.detach();
+    tracing::debug!(
+        "Resolved {reference:?} to {:?} {oid:?}",
+        object.object()?.kind
+    );
+    Ok(oid)
+}
+
 pub fn walk(
     oid: Oid,
     repo: &Repository,
@@ -22,4 +34,20 @@ pub fn walk(
     revwalk.push(oid)?;
 
     Ok(revwalk.map(|r| r.wrap_err("Failed to yield next rev")))
+}
+
+pub fn walk2(
+    oid: gix::ObjectId,
+    repo: &gix::Repository,
+) -> eyre::Result<impl Iterator<Item = eyre::Result<gix::ObjectId>> + '_> {
+    let walk = repo.rev_walk(Some(oid));
+    let walk = walk.sorting(gix::revision::walk::Sorting::ByCommitTime(
+        gix::traverse::commit::simple::CommitTimeOrder::NewestFirst,
+    ));
+    let walk = walk.all()?;
+
+    Ok(walk.map(|i| match i {
+        Ok(info) => Ok(info.id),
+        Err(e) => Err(e.into()),
+    }))
 }
