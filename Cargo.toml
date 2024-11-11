@@ -4,10 +4,12 @@ resolver = "2"
 members = [
     # The main library and application
     "herostratus",
+    # Generate a commit containing its own hash
+    "herostratus-quine",
     # Integration tests and test fixtures
     "herostratus-tests",
 ]
-default-members = ["herostratus", "herostratus-tests"]
+default-members = ["herostratus", "herostratus-quine", "herostratus-tests"]
 
 [workspace.package]
 description = "**Herostratus** *n.* **1.** An ancient Greek known for seeking fame through crime and destruction. **2.** Also a Git repository achievements engine."
@@ -28,6 +30,7 @@ inventory = "0.3.15"
 lazy_static = "1.4.0"
 predicates = "3.1.0"
 serde = { version = "1.0.204", features =["derive"] }
+sha1 = "0.10.6"
 tempfile = "3.10.1"
 toml = "0.8.14"
 tracing = "0.1.40"
