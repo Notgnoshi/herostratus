@@ -34,12 +34,7 @@ pub fn generate_initial_commit(
 
     let hash_placeholder = "X".repeat(prefix_length as usize);
 
-    let message = format!(
-        "Quine: {hash_placeholder}\n\
-        \n\
-        This commit was lovingly brute-forced to contain is own hash prefix\n\
-        by herostratus-quine."
-    );
+    let message = format!("Quine: {hash_placeholder}");
     let oid = make_empty_commit(repo, &who, &message)?;
     let commit = repo.find_commit(oid)?;
     Ok(commit)

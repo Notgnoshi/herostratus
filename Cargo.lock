@@ -434,6 +434,7 @@ dependencies = [
  "clap",
  "color-eyre",
  "eyre",
+ "generic-array",
  "git2",
  "sha1",
  "tracing",

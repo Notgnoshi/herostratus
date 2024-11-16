@@ -25,6 +25,7 @@ color-eyre = "0.6.2"
 ctor = "0.2.7"
 directories = "5.0.1"
 eyre = "0.6.12"
+generic-array = "0.14"  # need compat with sha1
 git2 = "0.19"
 inventory = "0.3.15"
 lazy_static = "1.4.0"
