@@ -1,20 +1,44 @@
 # User contributed rules
-**Status:** In consideration
 
-The method for consuming user-provided rules depends on the language used in the primary
-implementation. I'm leaning towards either Rust or Python. Python would be far easier to implement
-user-contributed rules, but my language preference is Rust.
+# Status
 
-* Plugins:
-    * If in Rust, this could be dylibs. This gets challenging because of the lack of a stable ABI.
-      There are many approaches to providing dylib plugins, which is a pretty interesting topic for
-      me personally, but would be quite a lot of work.
-    * If in Python, this could be similar to
-      <https://jorisroovers.com/gitlint/latest/rules/user_defined_rules/> where you import a
-      `herostratus.rules.AchievementRule` interface, and then implement it.
-* Consume executables that take the commits from `stdin`, and write the achievements (in JSON?) to
-  `stdout`
-    * Require the scripts consume a stream of commits? Or a single commit? Probably a single commit,
-      so that herostratus can provide them the contents of `git show`.
-    * There should be a way to tell herostratus that it shouldn't provide the full diff output to
-      the script
+**PROPOSAL**
+
+# Goal
+
+Enable users to run their own rules
+
+# Approaches
+
+## Force users to fork the project
+
+Don't provide a mechanism for users to add their own rules. Force them to fork the project, and
+write their own rules.
+
+## Make it easy for users to contribute their own rules
+
+Make it easy enough to contribute new rules, that users feel they can do so. This may require
+maintaining a set of default and non-default rules. It may also require toning down the
+[contribution standards](../../CONTRIBUTING.md)
+
+## Wrap scripts
+
+Define a `stdin`/`stdout` JSON API, and let users write their own achievement generation tools.
+
+## Plugins
+
+### dylib
+
+Challenging because Rust doesn't provide a stable ABI, even between invocations of the same compiler
+version (due to type layout randomization).
+
+### WASM
+
+WASM seems like it's the plugin mechanism of choice in Rust land. I personally find it awkward,
+because it's offloading the stable ABI concerns from the language and OS to the
+users. But it seems easier than dylibs.
+
+# Proposal
+
+*If* I get around to implementing user-contrib rules before I burn out, WASM plugins seem like the
+way to go.
