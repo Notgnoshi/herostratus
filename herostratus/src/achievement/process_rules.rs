@@ -24,7 +24,7 @@ where
     num_achievements_generated: u64,
 }
 
-impl<'repo, Oids> Achievements<'repo, Oids>
+impl<Oids> Achievements<'_, Oids>
 where
     Oids: Iterator<Item = git2::Oid>,
 {
@@ -78,7 +78,7 @@ where
     }
 }
 
-impl<'repo, Oids> Iterator for Achievements<'repo, Oids>
+impl<Oids> Iterator for Achievements<'_, Oids>
 where
     Oids: Iterator<Item = git2::Oid>,
 {
