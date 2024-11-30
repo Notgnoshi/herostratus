@@ -118,8 +118,13 @@ fn fetch_options(config: &crate::config::RepositoryConfig) -> git2::FetchOptions
 pub fn fetch_remote(
     config: &crate::config::RepositoryConfig,
     repo: &git2::Repository,
-) -> eyre::Result<()> {
+) -> eyre::Result<usize> {
     let mut remote = repo.find_remote("origin")?;
+    assert_eq!(
+        remote.url().unwrap_or_default(),
+        config.url.as_str(),
+        "RepositoryConfig and remote 'origin' don't agree on the URL"
+    );
     let reference_name = config.branch.as_deref().unwrap_or("HEAD");
     // If this is the first time this reference is being fetched, fetch it like
     //     git fetch origin branch:branch
@@ -145,11 +150,11 @@ pub fn fetch_remote(
     let reference = repo.resolve_reference_from_short_name(reference_name)?;
     let after = reference.peel_to_commit()?;
 
+    let mut new_commits: usize = 0;
     if before.is_some() && before.as_ref().unwrap().id() == after.id() {
         tracing::debug!("... done. No new commits");
     } else {
         let commits = crate::git::rev::walk(after.id(), repo)?;
-        let mut new_commits: usize = 0;
         for commit_id in commits {
             if let Some(before) = &before {
                 if commit_id? == before.id() {
@@ -161,7 +166,7 @@ pub fn fetch_remote(
         tracing::debug!("... done. {new_commits} new commits");
     }
 
-    Ok(())
+    Ok(new_commits)
 }
 
 pub fn clone_repository(
