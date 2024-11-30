@@ -5,7 +5,19 @@ pub struct TempRepository<R = git2::Repository> {
     pub repo: R,
 }
 
-pub fn add_empty_commit(repo: &git2::Repository, message: &str) -> eyre::Result<()> {
+impl<R> TempRepository<R> {
+    pub fn forget(self) -> R {
+        let repo = self.repo;
+        // consumes the TempDir without deleting it
+        let _path = self.tempdir.into_path();
+        repo
+    }
+}
+
+pub fn add_empty_commit<'r>(
+    repo: &'r git2::Repository,
+    message: &str,
+) -> eyre::Result<git2::Commit<'r>> {
     let mut index = repo.index()?;
     let head = repo.find_reference("HEAD")?;
     let parent = head.peel_to_commit().ok();
@@ -29,29 +41,40 @@ pub fn add_empty_commit(repo: &git2::Repository, message: &str) -> eyre::Result<
         &tree,
         &parents,
     )?;
-    tracing::debug!("Created commit {oid:?} with message {message:?}");
+    let commit = repo.find_commit(oid)?;
+    tracing::debug!(
+        "Created commit {oid:?} with message {message:?} in repo {}",
+        repo.path().display()
+    );
 
-    Ok(())
+    Ok(commit)
 }
 
-pub fn add_empty_commit2(repo: &gix::Repository, message: &str) -> eyre::Result<()> {
-    let mut head = repo.head()?;
-    let head_oid = head.peel_to_object_in_place().ok();
-    let parents = if let Some(ref parent) = head_oid {
+pub fn add_empty_commit2<'r>(
+    repo: &'r gix::Repository,
+    message: &str,
+) -> eyre::Result<gix::Commit<'r>> {
+    let head = repo.head_commit().ok();
+    let parents = if let Some(ref parent) = head {
         vec![parent.id()]
     } else {
         Vec::new()
     };
-    let tree = if let Some(ref tree) = head_oid {
-        tree.id().detach()
+    let head = repo.head_tree_id().ok();
+    let tree = if let Some(ref tree) = head {
+        tree.detach()
     } else {
         gix::ObjectId::empty_tree(gix::hash::Kind::Sha1)
     };
 
     let id = repo.commit("HEAD", message, tree, parents)?;
-    tracing::debug!("Created commit {:?} with message {message:?}", id);
+    let commit = repo.find_commit(id)?;
+    tracing::debug!(
+        "Created commit {id:?} with message {message:?} in repo {}",
+        repo.path().display()
+    );
 
-    Ok(())
+    Ok(commit)
 }
 
 pub fn simplest() -> eyre::Result<TempRepository> {
@@ -87,12 +110,66 @@ pub fn with_empty_commits2(messages: &[&str]) -> eyre::Result<TempRepository<gix
     Ok(TempRepository { tempdir, repo })
 }
 
+pub fn upstream_downstream() -> eyre::Result<(TempRepository, TempRepository)> {
+    let upstream = with_empty_commits(&[])?;
+    let downstream = with_empty_commits(&[])?;
+    tracing::debug!(
+        "Setting {} as upstream remote of {}",
+        upstream.tempdir.path().display(),
+        downstream.tempdir.path().display()
+    );
+    downstream.repo.remote_set_url(
+        "origin",
+        &format!("file://{}", upstream.tempdir.path().display()),
+    )?;
+
+    Ok((upstream, downstream))
+}
+
+pub fn upstream_downstream2() -> eyre::Result<(
+    TempRepository<gix::Repository>,
+    TempRepository<gix::Repository>,
+)> {
+    let upstream = with_empty_commits2(&[])?;
+    let mut downstream = with_empty_commits2(&[])?;
+    tracing::debug!(
+        "Setting {} as upstream remote of {}",
+        upstream.tempdir.path().display(),
+        downstream.tempdir.path().display()
+    );
+    // TODO: I can't figure out how to use gix to add a named remote, or how to change the name of
+    // a new remote created from a URL. Since this is a test fixture, just shell out to Git and
+    // move on.
+    let status = std::process::Command::new("git")
+        .arg("-C")
+        .arg(downstream.tempdir.path())
+        .arg("remote")
+        .arg("add")
+        .arg("origin")
+        .arg(format!("file://{}", upstream.tempdir.path().display()))
+        .status()?;
+    assert!(status.success());
+    // BUG: Gotta re-discover the repository for gix to find the new remote ...
+    downstream.repo = gix::discover(downstream.tempdir.path())?;
+    assert!(downstream.repo.find_remote("origin").is_ok());
+    Ok((upstream, downstream))
+}
+
 #[cfg(test)]
 mod tests {
     use git2::{Index, Odb, Repository};
     use herostratus::git;
 
     use super::*;
+
+    #[test]
+    fn test_forget() {
+        let temp = simplest().unwrap();
+        let repo = temp.forget();
+        assert!(repo.path().exists());
+        std::fs::remove_dir_all(repo.path()).unwrap();
+        assert!(!repo.path().exists());
+    }
 
     #[test]
     fn test_in_memory() {
