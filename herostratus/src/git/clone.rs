@@ -2,10 +2,21 @@ use std::path::{Path, PathBuf};
 
 use eyre::WrapErr;
 
-pub fn find_local_repository(path: &Path) -> eyre::Result<git2::Repository> {
+pub fn find_local_repository<P: AsRef<Path> + std::fmt::Debug>(
+    path: P,
+) -> eyre::Result<git2::Repository> {
     tracing::debug!("Searching local path {path:?} for a Git repository");
     let repo = git2::Repository::discover(path)?;
     tracing::debug!("Found local git repository at {:?}", repo.path());
+    Ok(repo)
+}
+
+pub fn find_local_repository2<P: AsRef<Path> + std::fmt::Debug>(
+    path: P,
+) -> eyre::Result<gix::Repository> {
+    tracing::debug!("Searching local path {path:?} for a Git repository");
+    let repo = gix::discover(path)?;
+    tracing::debug!("Found local Git repository at {:?}", repo.path());
     Ok(repo)
 }
 
@@ -169,6 +180,62 @@ pub fn fetch_remote(
     Ok(new_commits)
 }
 
+pub fn fetch_remote2(
+    config: &crate::config::RepositoryConfig,
+    repo: &gix::Repository,
+) -> eyre::Result<usize> {
+    let remote = repo.find_remote("origin")?;
+    assert_eq!(
+        remote
+            .url(gix::remote::Direction::Fetch)
+            .unwrap()
+            .to_bstring(),
+        config.url.as_str(),
+        "RepositoryConfig and remote 'origin' don't agree on the URL"
+    );
+    let reference_name = config.branch.as_deref().unwrap_or("HEAD");
+    // TODO: Fetch just the specified branch, not all of them
+    // // If this is the first time this reference is being fetched, fetch it like
+    // //     git fetch origin branch:branch
+    // // which updates the local branch to match the remote
+    // let fetch_reference_name = if reference_name != "HEAD" {
+    //     format!("{reference_name}:{reference_name}")
+    // } else {
+    //     reference_name.to_string()
+    // };
+
+    let before = repo.rev_parse_single(reference_name).ok();
+
+    // TODO: Need to figure out how to override HTTPS/SSH default details. Is this actually
+    // important? In what scenarios is a user going to try to run Herostratus on a repository they
+    // can't 'git clone'?
+    let connection = remote.connect(gix::remote::Direction::Fetch)?;
+    let options = gix::remote::ref_map::Options::default();
+    let prepare = connection.prepare_fetch(gix::progress::Discard, options)?;
+    let interrupt = std::sync::atomic::AtomicBool::new(false);
+    let _outcome = prepare.receive(gix::progress::Discard, &interrupt)?;
+
+    let after = repo.rev_parse_single(reference_name)?;
+
+    let mut new_commits: usize = 0;
+    if before.is_some() && before.as_ref().unwrap().detach() == after.detach() {
+        tracing::debug!("... done. No new commits");
+    } else {
+        let commits = crate::git::rev::walk2(after.detach(), repo)?;
+        for commit_id in commits {
+            if let Some(before) = &before {
+                if commit_id? == before.detach() {
+                    break;
+                }
+            }
+            new_commits += 1;
+        }
+        tracing::debug!("... done. {new_commits} new commits");
+    }
+
+    Ok(new_commits)
+}
+
 pub fn clone_repository(
     config: &crate::config::RepositoryConfig,
     force: bool,
@@ -232,7 +299,18 @@ pub fn clone_repository(
 
 #[cfg(test)]
 mod tests {
+    use herostratus_tests::fixtures;
+
     use super::*;
+
+    #[test]
+    #[cfg_attr(feature = "ci", ignore = "Requires .gitconfig not available in CI")]
+    fn test_find_local_repository() {
+        let temp_repo = fixtures::repository::simplest2().unwrap();
+
+        let repo = find_local_repository2(temp_repo.tempdir.path()).unwrap();
+        assert_eq!(repo.path(), temp_repo.repo.path());
+    }
 
     #[test]
     fn test_parse_path_from_url() {
@@ -253,5 +331,103 @@ mod tests {
             let actual = parse_path_from_url(url).unwrap();
             assert_eq!(expected, actual);
         }
+    }
+
+    #[test]
+    #[cfg_attr(not(feature = "ci"), ignore = "Slow; performs fetch")]
+    fn required_fetch_remote() {
+        // this is a workspace crate, so its tests are *not* run from the workspace root, rather
+        // from the workspace member.
+        let this = find_local_repository("..").unwrap();
+        // NOTE: There's awkard duplication between the RepositoryConfig, and the repository
+        // remotes. This is because the same RepositoryConfig is used to clone the repository as is
+        // used to fetch.
+        let remote = this.find_remote("origin").unwrap();
+        let config = crate::config::RepositoryConfig {
+            branch: Some("main".to_string()),
+            url: remote.url().unwrap().to_string(),
+            ..Default::default()
+        };
+        fetch_remote(&config, &this).unwrap(); // assert that fetching doesn't fail
+
+        let this = find_local_repository2("..").unwrap();
+        fetch_remote2(&config, &this).unwrap(); // assert that fetching doesn't fail
+    }
+
+    #[test]
+    #[cfg_attr(not(feature = "ci"), ignore = "Slow; performs fetch")]
+    fn test_fetch_remote_branch_doesnt_exist() {
+        let this = find_local_repository("..").unwrap();
+        let remote = this.find_remote("origin").unwrap();
+        let config = crate::config::RepositoryConfig {
+            branch: Some("THIS_BRANCH_DOESNT_EXIST".to_string()),
+            url: remote.url().unwrap().to_string(),
+            ..Default::default()
+        };
+        let result = fetch_remote(&config, &this);
+        assert!(result.is_err());
+
+        let this = find_local_repository2("..").unwrap();
+        let result = fetch_remote2(&config, &this);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_fast_fetch_single_ref() {
+        let (upstream, downstream) = fixtures::repository::upstream_downstream().unwrap();
+        // TODO
+    }
+
+    #[test]
+    fn test_fetch_remote_branch_creates_or_updates_local_branch() {
+        let (upstream, downstream) = fixtures::repository::upstream_downstream().unwrap();
+        // TODO
+    }
+
+    #[test]
+    fn test_fetch_remote_branch_that_doesnt_exist_locally() {
+        let (upstream, downstream) = fixtures::repository::upstream_downstream().unwrap();
+        let upstream_commit =
+            fixtures::repository::add_empty_commit(&upstream.repo, "First upstream commit")
+                .unwrap();
+        fixtures::repository::add_empty_commit(&downstream.repo, "First downstream commit")
+            .unwrap();
+
+        let remote = downstream.repo.find_remote("origin").unwrap();
+        let config = crate::config::RepositoryConfig {
+            branch: Some("HEAD".to_string()),
+            url: remote.url().unwrap().to_string(),
+            ..Default::default()
+        };
+        let result = downstream.repo.find_commit(upstream_commit.id());
+        assert!(result.is_err()); // can't find the upstream commit until you fetch
+        fetch_remote(&config, &downstream.repo).unwrap();
+        let result = downstream.repo.find_commit(upstream_commit.id());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_fetch_remote_branch_that_doesnt_exist_locally2() {
+        let (upstream, downstream) = fixtures::repository::upstream_downstream2().unwrap();
+        let upstream_commit =
+            fixtures::repository::add_empty_commit2(&upstream.repo, "First upstream commit")
+                .unwrap();
+        fixtures::repository::add_empty_commit2(&downstream.repo, "First downstream commit")
+            .unwrap();
+
+        let remote = downstream.repo.find_remote("origin").unwrap();
+        let config = crate::config::RepositoryConfig {
+            branch: Some("HEAD".to_string()),
+            url: remote
+                .url(gix::remote::Direction::Fetch)
+                .unwrap()
+                .to_string(),
+            ..Default::default()
+        };
+        let result = downstream.repo.find_commit(upstream_commit.id());
+        assert!(result.is_err()); // can't find the upstream commit until you fetch
+        fetch_remote2(&config, &downstream.repo).unwrap();
+        let result = downstream.repo.find_commit(upstream_commit.id());
+        assert!(result.is_ok());
     }
 }
