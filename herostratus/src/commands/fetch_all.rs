@@ -5,9 +5,10 @@ use crate::cli::FetchAllArgs;
 use crate::config::Config;
 use crate::git::clone::{clone_repository, fetch_remote, find_local_repository};
 
-pub fn fetch_all(_args: &FetchAllArgs, config: &Config, _data_dir: &Path) -> eyre::Result<()> {
+pub fn fetch_all(_args: &FetchAllArgs, config: &Config, _data_dir: &Path) -> eyre::Result<usize> {
     tracing::info!("Fetching repositories ...");
     let start = Instant::now();
+    let mut fetched_commits = 0;
     for (name, config) in config.repositories.iter() {
         let span = tracing::debug_span!("fetch", name = name);
         let _enter = span.enter();
@@ -27,7 +28,7 @@ pub fn fetch_all(_args: &FetchAllArgs, config: &Config, _data_dir: &Path) -> eyr
         };
 
         if !skip_fetch {
-            fetch_remote(config, &repo)?
+            fetched_commits += fetch_remote(config, &repo)?
         }
     }
     tracing::info!(
@@ -36,5 +37,5 @@ pub fn fetch_all(_args: &FetchAllArgs, config: &Config, _data_dir: &Path) -> eyr
         start.elapsed()
     );
 
-    Ok(())
+    Ok(fetched_commits)
 }

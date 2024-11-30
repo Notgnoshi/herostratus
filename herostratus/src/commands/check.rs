@@ -21,7 +21,7 @@ pub fn check(args: &CheckArgs) -> eyre::Result<()> {
 
 pub fn check_all(args: &CheckAllArgs, config: &Config, data_dir: &Path) -> eyre::Result<()> {
     if !args.no_fetch {
-        crate::commands::fetch_all(&args.into(), config, data_dir)?
+        let _fetched = crate::commands::fetch_all(&args.into(), config, data_dir)?;
     }
 
     tracing::info!("Checking repositories ...");
