@@ -55,7 +55,7 @@ pub fn with_empty_commits(messages: &[&str]) -> eyre::Result<TempRepository> {
 #[cfg(test)]
 mod tests {
     use git2::{Index, Odb, Repository};
-    use herostratus::git::{rev_parse, rev_walk};
+    use herostratus::git;
 
     use super::*;
 
@@ -79,8 +79,8 @@ mod tests {
     fn test_new_repository() {
         let temp_repo = simplest().unwrap();
 
-        let rev = rev_parse("HEAD", &temp_repo.repo).unwrap();
-        let commits: Vec<_> = rev_walk(rev, &temp_repo.repo)
+        let rev = git::rev::parse("HEAD", &temp_repo.repo).unwrap();
+        let commits: Vec<_> = git::rev::walk(rev, &temp_repo.repo)
             .unwrap()
             .map(|oid| temp_repo.repo.find_commit(oid.unwrap()).unwrap())
             .collect();

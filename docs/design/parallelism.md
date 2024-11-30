@@ -1,7 +1,12 @@
 # Parallelism
-**Status:** In consideration
 
-One of my complains with <https://github.com/someteam/acha> is how slow and resource heavy it is.
+# Status
+
+**DRAFT**
+
+# Goal
+
+One of my complaints with <https://github.com/someteam/acha> is how slow and resource heavy it is.
 And also that it's unmaintained and difficult to get running.
 
 In _theory_ it shouldn't be expensive to process all of the commits on a given branch (typically the
@@ -11,6 +16,13 @@ This problem is embarassingly parallel though, so in addition to an efficient im
 parallelism should also be a good way to speed it up.
 
 However, there are several approaches to parallelism, and the right choice depends on ???
+
+# Constraints
+
+My expectation is that achievement processing is likely I/O constrained, and thus I'd want to spool
+up more tasks than cores.
+
+# Approaches
 
 ## Repository level parallelism
 Each repository is processed in serial, but multiple repositories can be processed at once.
@@ -69,7 +81,7 @@ flowchart TD
     r3 -.-> achievements
 ```
 
-## The approach to use
+# Proposal
 
 I think I'll start by doing things in serial (repository level parallelism) so see if processing the
 rules is too expensive (after caching).

@@ -1,11 +1,12 @@
 # Data storage
-**Status:** In consideration
 
-## Use cases
+# Use cases
 
 There are four things that need to be stored
 
-### 1. Remember which repositories/branches to process
+## 1. Remember which repositories/branches to process
+
+**IMPLEMENTED**
 
 **Why?**
 * Enables running Herostratus as a scheduled job
@@ -23,7 +24,9 @@ Things that need to be stored:
 * Commit filtering
 * Mailmap settings
 
-### 2. Remember which commits/rules have been processed for each repository/branch
+## 2. Remember which commits/rules have been processed for each repository/branch
+
+**DRAFT**
 
 **Why?** Performance improvement. It can take quite long to process large-ish repositories like
 Linux and Git.
@@ -39,7 +42,12 @@ From an edge-case and "purity" perspective, option #3 is the worst. But from a s
 common-case perspective, it's the best (least data storage, simplest, easiest to understand, easiest
 to implement).
 
-### 3. Granted Achievements
+**NOTE:** Some rules (like "longest commit message") require either rejecting the cache, or caching
+rule-specific data.
+
+## 3. Granted Achievements
+
+**DRAFT**
 
 **Why?**
 * Avoid granting duplicates
@@ -47,14 +55,18 @@ to implement).
   top).
 * Enable easier integration implementations
 
-### 4. Mapping from each possible Herostratus achievement to their corresponding GitLab achievement IDs
+## 4. Mapping from each possible Herostratus achievement to their corresponding GitLab achievement IDs
+
+**DRAFT**
 
 **Why?** When you create a GitLab achievement, it returns an ID for each created achievement. So you
 need to store them, so that you can grant them to users. And Herostratus (at least the GitLab
 integration part) will need to store them, so that it can map between Herostratus achievements and
 GitLab achievements.
 
-## Design
+# Design
+
+**IMPLEMENTED**
 
 Use CLI subcommands to separate stateful from stateless operations in ways that's intuitive to the
 user.
