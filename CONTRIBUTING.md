@@ -11,8 +11,9 @@ This is a silly project to gamify things that shouldn't be gamified.
 * It should be easyish to add new rules
 * Its target runtime environment is modern Linux x86_64
 * It should provide optional integrations:
-    * It should provide an integration with [GitLab achievements](https://docs.gitlab.com/ee/user/profile/achievements.html)
-    * It could provide an integration with GitHub
+  * It should provide an integration with
+    [GitLab achievements](https://docs.gitlab.com/ee/user/profile/achievements.html)
+  * It could provide an integration with GitHub
 
 ## Releases
 
@@ -20,6 +21,7 @@ Releases are automated by the CI/CD pipeline. They are triggered by bumping the 
 the [Cargo.toml](Cargo.toml).
 
 The process is:
+
 1. Submit a PR making the release
    1. Bump the version number in `Cargo.toml`
    2. Add a new entry to the `CHANGELOG.md`
@@ -47,8 +49,8 @@ Logs are great. Spammy logs are less great.
 * The default log level for users is INFO. INFO should not be spammy
 * Prefer logs that are useful for troubleshooting, both from a developer perspective and a user one
 
-  E.g., prefer `"failed to process repository '{repo}' because: '{e:?}'"` over `"Failed to process
-  repository"`
+  E.g., prefer `"failed to process repository '{repo}' because: '{e:?}'"` over
+  `"Failed to process repository"`
 
 ## Git
 
@@ -69,6 +71,7 @@ export GITLINT_CONFIG="$PWD/.github/gitlint/gitlint.ini"
 export GITLINT_EXTRA_PATH="$PWD/.github/gitlint"
 gitlint --commits main..HEAD
 ```
+
 You can invoke gitlint through the CLI, your editor, or as a commit hook.
 
 **I don't desire a perfect history. Just a good one.**

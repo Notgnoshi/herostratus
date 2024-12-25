@@ -9,15 +9,15 @@ These changelog entries will automatically be added to the project release notes
 focus on the user impact** rather than the actual changes made.
 
 # Herostratus - Unreleased - (YYYY-MM-DD)
+
 <!-- Please add new changelog entries here -->
 
 ## Added
 
-* Added the following rules:
-  | ID                      | Description                                      |
-  |-------------------------|--------------------------------------------------|
-  | H3-longest-subject-line | Find the commit with the longest subject line    |
-  | H4-non-unicode          | Make a commit message containing non UTF-8 bytes |
+* | Added the following rules:                  | ID                                            | Description |
+  | ------------------------------------------- | --------------------------------------------- | ----------- |
+  | H3-longest-subject-line                     | Find the commit with the longest subject line |             |
+  | a commit message containing non UTF-8 bytes |                                               |             |
 
 * You can now configure rules on a per-rule basis. The following rules and options are supported:
 
@@ -36,9 +36,13 @@ focus on the user impact** rather than the actual changes made.
   ```
 
 ## Changed
+
 ## Deprecated
+
 ## Removed
+
 ## Fixed
+
 ## Security
 
 # Herostratus - 0.1.0 - (2024-10-20)
@@ -47,7 +51,7 @@ This is Herostratus's first release! It represents the _bare minimum_, and only 
 different achievement types.
 
 | ID                       | Description                                    |
-|--------------------------|------------------------------------------------|
+| ------------------------ | ---------------------------------------------- |
 | H1-fixup                 | Find fixup! and similar commits                |
 | H2-shortest-subject-line | Find the commit with the shortest subject line |
 
@@ -69,8 +73,7 @@ Achievement { name: "I meant to fix that up later, I swear!", commit: a987013884
 Achievement { name: "I meant to fix that up later, I swear!", commit: 60b480b554dbd5266eec0f2378f72df5170a6702 }
 ```
 
-> [!WARNING]
-> This output format will change as Herostratus becomes more usable
+> [!WARNING] This output format will change as Herostratus becomes more usable
 
 [`test/fixup`](https://github.com/Notgnoshi/herostratus/tree/test/fixup) is a branch used for
 integration testing that looks like
@@ -96,12 +99,12 @@ herostratus add git@github.com:Notgnoshi/herostratus.git test/simple
 herostratus add git@github.com:Notgnoshi/herostratus.git test/fixup
 ```
 
-> [!TIP]
-> There are several configuration options for SSH and HTTPS authentication, as well as customizing
-> where the repositories are cloned. See `herostratus --help` and `herostratus add --help` for
-> details.
+> [!TIP] There are several configuration options for SSH and HTTPS authentication, as well as
+> customizing where the repositories are cloned. See `herostratus --help` and
+> `herostratus add --help` for details.
 
 Herostratus supports the following clone URL protocols
+
 * SSH in both URL formats
   * Example: `ssh://git@github.com/Notgnoshi/herostratus.git`
   * Example: `git@github.com:Notgnoshi/herostratus.git`
@@ -172,6 +175,7 @@ herostratus check-all
 # Herostratus - 0.1.0-rc2 - (2024-07-14)
 
 ## Changed
+
 The Herostratus CLI interface has been changed to use subcommands:
 
 * `herostratus check <path> [reference]` - statelessly check the repository at the given path
@@ -192,10 +196,12 @@ Not all subcommands are implemented, and the ones that are implemented need to b
 * `check-all` -- needs better error / edge case handling
 
 # Herostratus - 0.1.0-rc1 - (2024-04-07)
+
 This is the first release of Herostratus! This release is largely centered around project
 bootstrapping; Herostratus isn't quite ready to use yet.
 
 ## Added
+
 * Cargo project bootstrapping. You can run Herostratus with
 
   ```sh

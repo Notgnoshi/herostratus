@@ -1,5 +1,4 @@
 [workspace]
-
 resolver = "2"
 members = [
     # The main library and application
@@ -10,11 +9,11 @@ members = [
 default-members = ["herostratus", "herostratus-tests"]
 
 [workspace.package]
-description = "**Herostratus** *n.* **1.** An ancient Greek known for seeking fame through crime and destruction. **2.** Also a Git repository achievements engine."
-repository = "https://github.com/Notgnoshi/herostratus"
-license = "MIT"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+repository = "https://github.com/Notgnoshi/herostratus"
+description = "**Herostratus** *n.* **1.** An ancient Greek known for seeking fame through crime and destruction. **2.** Also a Git repository achievements engine."
 
 [workspace.dependencies]
 assert_cmd = { version = "2.0.14", features = ["color"] }
@@ -27,7 +26,7 @@ git2 = "0.19"
 inventory = "0.3.15"
 lazy_static = "1.4.0"
 predicates = "3.1.0"
-serde = { version = "1.0.204", features =["derive"] }
+serde = { version = "1.0.204", features = ["derive"] }
 tempfile = "3.10.1"
 toml = "0.8.14"
 tracing = "0.1.40"

@@ -7,6 +7,7 @@
 # Scope
 
 This document answers the following questions
+
 * What data does an achievement contain or reference?
 * What inputs are required for a Rule engine?
 
@@ -60,27 +61,29 @@ rule-specific data to the cache.
 ## Rule variants
 
 1. Context-free. E.g., swear in a commit message
-    1. Commit message
-    2. Commit message + diff
-    3. Commit message + diff + submodule
+   1. Commit message
+   2. Commit message + diff
+   3. Commit message + diff + submodule
 2. Contextual
-    1. User aware. E.g., be the most prolific contributor
-    2. Commit history aware. E.g., revert a previous commit within 30min, or revert the same commit
-       multiple times
+   1. User aware. E.g., be the most prolific contributor
+   2. Commit history aware. E.g., revert a previous commit within 30min, or revert the same commit
+      multiple times
 
 ## Rule configuration
 
 There might be global configuration shared between rules like
+
 * Exclude commits from these users
 * Exclude commit messages matching these hashes or regexes
 
 But there will also be rule-specific configuration like
+
 * When calculating the shortest subject line, exclude any subject lines longer than 10 characters
 
 ## Rule inputs
 
 * The repository
-    * Any submodules of the repository
+  * Any submodules of the repository
 * The reference being processed
 * The `&Config`
 * The commit itself

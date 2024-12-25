@@ -25,6 +25,7 @@ up more tasks than cores.
 # Approaches
 
 ## Repository level parallelism
+
 Each repository is processed in serial, but multiple repositories can be processed at once.
 
 **con:** The CLI tool I'm thinking of building would only process a single repository at once. The
@@ -43,6 +44,7 @@ flowchart TD
 ```
 
 ## Split the commits on the default branch into batches
+
 **con:** Nondeterministic results if I care about which commit triggers an achievement. Although
 maybe every achievement has levels, and it's okay to have multiple instances.
 
@@ -66,6 +68,7 @@ flowchart TD
 ```
 
 ## Process the commits serially, but the rules in parallel
+
 **con:** Processing a slow rule could block progress for the other workers. Mitigation could be to
 order the rules by their cost, and try to ensure that each worker has an even load.
 
