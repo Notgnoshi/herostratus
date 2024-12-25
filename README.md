@@ -2,6 +2,7 @@
 
 ![lint workflow](https://github.com/Notgnoshi/herostratus/actions/workflows/lint.yml/badge.svg?event=push)
 ![release workflow](https://github.com/Notgnoshi/herostratus/actions/workflows/release.yml/badge.svg?event=push)
+![code coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/Notgnoshi/b20aa388c90ca92aba6aa37ec55a7f12/raw/herostratus-coverage.json)
 
 **Herostratus** _n._ **1.** An [ancient Greek](https://en.wikipedia.org/wiki/Herostratus) known for
 seeking fame through crime and destruction. **2.** A Git repository achievements engine.

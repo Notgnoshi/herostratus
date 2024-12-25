@@ -14,6 +14,8 @@ jobs:
         steps:
             - uses: actions/checkout@v4
               with:
+                # https://github.com/Notgnoshi/herostratus/settings/secrets/actions
+                # https://github.com/settings/personal-access-tokens
                 token: ${{ secrets.HEROSTRATUS_RELEASE_TOKEN }}
             - name: Validate SemVer Version
               shell: bash  # Explicitly setting the shell sets errexit and pipefail flags
