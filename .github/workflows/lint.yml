@@ -97,7 +97,7 @@ jobs:
                 gistID: b20aa388c90ca92aba6aa37ec55a7f12
                 filename: herostratus-coverage.json
                 label: Code Coverage
-                message: "${{ env.COVERAGE_PERCENT }}%"
+                message: ${{ env.COVERAGE_PERCENT }}
                 valColorRange: ${{ env.COVERAGE_PERCENT }}
                 minColorRange: 60
                 maxColorRange: 95
