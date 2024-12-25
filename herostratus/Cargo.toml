@@ -6,6 +6,10 @@ license.workspace = true
 repository.workspace = true
 description.workspace = true
 
+[features]
+# Set by the CI pipeline using --all-features. Used to conditionally enable/disable tests
+ci = []
+
 [dependencies]
 clap.workspace = true
 color-eyre.workspace = true

@@ -55,12 +55,10 @@ jobs:
             - name: Setup Rust cache
               uses: swatinem/rust-cache@v2
             - name: Build
-              run: cargo build --release --all-targets
+              run: cargo build --release --all-targets --all-features
             - name: Clippy
-              run: cargo clippy --no-deps --release --all-targets
-              # The tests depend on the 'herostratus' binary that 'cargo build' built
+              run: cargo clippy --no-deps --release --all-targets --all-features
             - name: Test
               run: |
                   git fetch
-                  cargo test --release --all-targets
-                  cargo test --release --all-targets -- --ignored required
+                  cargo test --release --all-targets --all-features
