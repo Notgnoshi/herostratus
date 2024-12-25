@@ -3,7 +3,7 @@ resolver = "2"
 members = [
     # The main library and application
     "herostratus",
-    # Integration tests and test fixtures
+    # Test fixtures
     "herostratus-tests",
 ]
 default-members = ["herostratus", "herostratus-tests"]
