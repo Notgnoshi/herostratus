@@ -54,6 +54,10 @@ jobs:
                 components: clippy
             - name: Setup Rust cache
               uses: swatinem/rust-cache@v2
+            - name: Setup nextest
+              uses: taiki-e/install-action@v2
+              with:
+                tool: cargo-nextest
             - name: Build
               run: cargo build --release --all-targets --all-features
             - name: Clippy
@@ -61,4 +65,4 @@ jobs:
             - name: Test
               run: |
                   git fetch
-                  cargo test --release --all-targets --all-features
+                  cargo nextest run --release --all-targets --all-features
