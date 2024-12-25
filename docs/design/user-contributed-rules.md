@@ -35,10 +35,10 @@ version (due to type layout randomization).
 ### WASM
 
 WASM seems like it's the plugin mechanism of choice in Rust land. I personally find it awkward,
-because it's offloading the stable ABI concerns from the language and OS to the
-users. But it seems easier than dylibs.
+because it's offloading the stable ABI concerns from the language and OS to the users. But it seems
+easier than dylibs.
 
 # Proposal
 
-*If* I get around to implementing user-contrib rules before I burn out, WASM plugins seem like the
+_If_ I get around to implementing user-contrib rules before I burn out, WASM plugins seem like the
 way to go.

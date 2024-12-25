@@ -9,12 +9,14 @@ There are four things that need to be stored
 **IMPLEMENTED**
 
 **Why?**
+
 * Enables running Herostratus as a scheduled job
 * Simplifies the CLI invocation(s)
 
 User preference would probably be a TOML config file rather than stuffing it in a database.
 
 Things that need to be stored:
+
 * Path to checkout (either a bare repo that Herostratus cloned, or some other path)
 * Reference to process
 * Remote URL to fetch
@@ -32,6 +34,7 @@ Things that need to be stored:
 Linux and Git.
 
 Strategies:
+
 1. For each commit, store which rules have been run on them
 2. Maintain a mapping of `Set<RuleId>` -> `Set<CommitHash>`, where after processing, the mapping
    contains only one `Set<RuleId>` of every possible rule, and it maps to all processed commits.
@@ -50,6 +53,7 @@ rule-specific data.
 **DRAFT**
 
 **Why?**
+
 * Avoid granting duplicates
 * Enable easier access to Herostratus data by the user (enable them to build whatever they want on
   top).
@@ -72,7 +76,7 @@ Use CLI subcommands to separate stateful from stateless operations in ways that'
 user.
 
 | Command                                  | Stateful? | Notes                                                                  |
-|------------------------------------------|-----------|------------------------------------------------------------------------|
+| ---------------------------------------- | --------- | ---------------------------------------------------------------------- |
 | `herostratus [check] <path> [reference]` | stateless | For testing. Process the repository at the given path.                 |
 | `herostratus add <URL/PATH> [branch]`    | stateful  | Add the given repository to the config so that it can be checked later |
 | `herostratus check-all`                  | stateful  | Fetch and check all configured repositories                            |

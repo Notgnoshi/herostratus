@@ -55,12 +55,49 @@ jobs:
             - name: Setup Rust cache
               uses: swatinem/rust-cache@v2
             - name: Build
-              run: cargo build --release --all-targets
+              run: cargo build --all-targets --all-features
             - name: Clippy
-              run: cargo clippy --no-deps --release --all-targets
-              # The tests depend on the 'herostratus' binary that 'cargo build' built
+              run: cargo clippy --no-deps --all-targets --all-features
+
+    test:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - name: Setup Rust toolchain
+              uses: dtolnay/rust-toolchain@master
+              with:
+                toolchain: stable
+                components: llvm-tools-preview
+            - name: Setup Rust cache
+              uses: swatinem/rust-cache@v2
+            - name: Setup nextest
+              uses: taiki-e/install-action@v2
+              with:
+                tool: cargo-nextest,cargo-llvm-cov
             - name: Test
               run: |
                   git fetch
-                  cargo test --release --all-targets
-                  cargo test --release --all-targets -- --ignored required
+                  cargo llvm-cov --no-report nextest --all-targets --all-features
+                  cargo llvm-cov report --cobertura --output-path coverage.xml
+                  head coverage.xml
+                  RATE="$(grep -o -m 1 -P '(?<=line-rate=").*?(?=")' coverage.xml | head -1)"
+                  echo "RATE=$RATE"
+                  PERCENT="$(echo "($RATE * 100)/1" | bc)"
+                  echo "PERCENT=$PERCENT"
+                  echo "COVERAGE_PERCENT=$PERCENT" >> $GITHUB_ENV
+            - name: Update coverage badge
+              uses: schneegans/dynamic-badges-action@v1.7.0
+              if: github.ref_name == github.event.repository.default_branch
+              with:
+                # https://github.com/Notgnoshi/herostratus/settings/secrets/actions
+                # https://github.com/settings/personal-access-tokens
+                # https://gist.github.com/Notgnoshi/b20aa388c90ca92aba6aa37ec55a7f12
+                # https://github.com/marketplace/actions/dynamic-badges
+                auth: ${{ secrets.HEROSTRATUS_COVERAGE_GIST_TOKEN }}
+                gistID: b20aa388c90ca92aba6aa37ec55a7f12
+                filename: herostratus-coverage.json
+                label: Code Coverage
+                message: "${{ env.COVERAGE_PERCENT }}%"
+                valColorRange: ${{ env.COVERAGE_PERCENT }}
+                minColorRange: 60
+                maxColorRange: 95

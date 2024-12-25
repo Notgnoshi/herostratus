@@ -7,10 +7,11 @@
 # Repository sources
 
 The primary CLI tool should be able to process repositories in the following forms:
+
 1. Existing on-disk worktrees
 2. Existing on-disk bare repositories
 3. HTTP, HTTPS, SSH remote clone URLs
-    1. These should be cloned into something like `~/.cache/herostratus/git/`
+   1. These should be cloned into something like `~/.cache/herostratus/git/`
 
 It should not require the branch be checked out.
 
