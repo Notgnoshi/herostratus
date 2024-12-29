@@ -37,6 +37,11 @@ impl TempRepository<gix::Repository> {
 }
 
 pub fn add_empty_commit(repo: &Repository, message: &str) -> eyre::Result<()> {
+    let time = Time::new(1711656630, -500);
+    add_empty_commit_time(repo, message, time)
+}
+
+pub fn add_empty_commit_time(repo: &Repository, message: &str, time: Time) -> eyre::Result<()> {
     let mut index = repo.index()?;
     let head = repo.find_reference("HEAD")?;
     let parent = head.peel_to_commit().ok();
@@ -49,7 +54,6 @@ pub fn add_empty_commit(repo: &Repository, message: &str) -> eyre::Result<()> {
     let oid = index.write_tree()?;
     let tree = repo.find_tree(oid)?;
 
-    let time = Time::new(1711656630, -500);
     let signature = Signature::new("Herostratus", "Herostratus@example.com", &time)?;
 
     let oid = repo.commit(
