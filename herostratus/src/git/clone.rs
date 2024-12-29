@@ -2,18 +2,24 @@ use std::path::{Path, PathBuf};
 
 use eyre::WrapErr;
 
-pub fn find_local_repository(path: &Path) -> eyre::Result<git2::Repository> {
+pub fn find_local_repository<P: AsRef<Path> + std::fmt::Debug>(
+    path: P,
+) -> eyre::Result<git2::Repository> {
     tracing::debug!("Searching local path {path:?} for a Git repository");
     let repo = git2::Repository::discover(path)?;
     tracing::debug!("Found local git repository at {:?}", repo.path());
     Ok(repo)
 }
 
-// ssh://git@example.com/path.git           => path.git
-// git@github.com:Notgnoshi/herostratus.git => Notgnoshi/herostratus.git
-// https://example.com/foo                  => foo
-// domain:path                              => path
-pub fn parse_path_from_url(url: &str) -> eyre::Result<PathBuf> {
+/// Parse a mostly-unique filesystem path from a clone URL
+///
+/// ```text
+/// ssh://git@example.com/path.git           => path.git
+/// git@github.com:Notgnoshi/herostratus.git => Notgnoshi/herostratus.git
+/// https://example.com/foo                  => foo
+/// domain:path                              => path
+/// ```
+fn parse_path_from_url(url: &str) -> eyre::Result<PathBuf> {
     let known_remote_protocols = [
         "ssh://", "git://", "http://", "https://", "ftp://", "ftps://", "file://",
     ];
@@ -41,12 +47,14 @@ pub fn parse_path_from_url(url: &str) -> eyre::Result<PathBuf> {
     Ok(PathBuf::from(&url[idx + 1..]))
 }
 
+/// Get the path to clone the given URL into in the application data directory
 pub fn get_clone_path(data_dir: &Path, url: &str) -> eyre::Result<PathBuf> {
     let clone_path = parse_path_from_url(url).wrap_err("Failed to parse clone path from URL")?;
     let clone_path = data_dir.join("git").join(clone_path);
     Ok(clone_path)
 }
 
+/// Remove the contents of the given directory, though not the directory itself
 fn remove_dir_contents<P: AsRef<Path>>(path: P) -> std::io::Result<()> {
     for entry in std::fs::read_dir(path)? {
         let entry = entry?;
@@ -115,7 +123,14 @@ fn fetch_options(config: &crate::config::RepositoryConfig) -> git2::FetchOptions
     options
 }
 
-pub fn fetch_remote(
+/// Update the local branch to match the remote's
+///
+/// Returns the number of new commits fetched. Creates the local branch if it does not exist. If a
+/// non-HEAD reference is given, do a "fast" fetch of *just* the specified reference, as opposed to
+/// all references from the remote.
+///
+/// TODO: Probably doesn't work on tags?
+pub fn pull_branch(
     config: &crate::config::RepositoryConfig,
     repo: &git2::Repository,
 ) -> eyre::Result<()> {
@@ -164,6 +179,16 @@ pub fn fetch_remote(
     Ok(())
 }
 
+/// Clone the given repository
+///
+/// If the repository already exists on-disk, then if
+/// * `force == false`, rather than cloning, update the reference from the given config
+/// * `force == true`, delete the existing repository and re-clone
+///
+/// If there's an existing repository on-disk with a different clone URL (even if it's just HTTPS
+/// vs SSH) then fail.
+///
+/// If a branch has been specified, then clone *just* that branch.
 pub fn clone_repository(
     config: &crate::config::RepositoryConfig,
     force: bool,
@@ -191,7 +216,7 @@ pub fn clone_repository(
             let existing_url = remote.url().unwrap_or("THIS_STRING_WONT_MATCH");
             if existing_url == config.url {
                 tracing::info!("... URLs match. Using existing repository and fetching");
-                fetch_remote(config, &existing_repo)?;
+                pull_branch(config, &existing_repo)?;
 
                 drop(remote);
                 return Ok(existing_repo);

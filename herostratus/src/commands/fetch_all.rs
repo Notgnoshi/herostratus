@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use crate::cli::FetchAllArgs;
 use crate::config::Config;
-use crate::git::clone::{clone_repository, fetch_remote, find_local_repository};
+use crate::git::clone::{clone_repository, find_local_repository, pull_branch};
 
 pub fn fetch_all(_args: &FetchAllArgs, config: &Config, _data_dir: &Path) -> eyre::Result<()> {
     tracing::info!("Fetching repositories ...");
@@ -27,7 +27,7 @@ pub fn fetch_all(_args: &FetchAllArgs, config: &Config, _data_dir: &Path) -> eyr
         };
 
         if !skip_fetch {
-            fetch_remote(config, &repo)?
+            pull_branch(config, &repo)?
         }
     }
     tracing::info!(
