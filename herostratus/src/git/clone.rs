@@ -11,6 +11,15 @@ pub fn find_local_repository<P: AsRef<Path> + std::fmt::Debug>(
     Ok(repo)
 }
 
+pub fn find_local_repository_gix<P: AsRef<Path> + std::fmt::Debug>(
+    path: P,
+) -> eyre::Result<gix::Repository> {
+    tracing::debug!("Searching local path {path:?} for a Git repository");
+    let repo = gix::discover(path)?;
+    tracing::debug!("Found local git repository at {:?}", repo.path());
+    Ok(repo)
+}
+
 /// Parse a mostly-unique filesystem path from a clone URL
 ///
 /// ```text
@@ -252,7 +261,19 @@ pub fn clone_repository(
 
 #[cfg(test)]
 mod tests {
+    use herostratus_tests::fixtures;
+
     use super::*;
+
+    #[test]
+    fn test_find_local_repository() {
+        let temp_repo = fixtures::repository::simplest().unwrap();
+        let repo = find_local_repository(temp_repo.tempdir.path()).unwrap();
+        assert_eq!(repo.path(), temp_repo.tempdir.path().join(".git"));
+
+        let repo = find_local_repository_gix(temp_repo.tempdir.path()).unwrap();
+        assert_eq!(repo.path(), temp_repo.tempdir.path().join(".git"));
+    }
 
     #[test]
     fn test_parse_path_from_url() {
