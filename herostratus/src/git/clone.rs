@@ -133,7 +133,7 @@ fn fetch_options(config: &crate::config::RepositoryConfig) -> git2::FetchOptions
 pub fn pull_branch(
     config: &crate::config::RepositoryConfig,
     repo: &git2::Repository,
-) -> eyre::Result<()> {
+) -> eyre::Result<usize> {
     let mut remote = repo.find_remote("origin")?;
     let reference_name = config.branch.as_deref().unwrap_or("HEAD");
     // If this is the first time this reference is being fetched, fetch it like
@@ -160,11 +160,11 @@ pub fn pull_branch(
     let reference = repo.resolve_reference_from_short_name(reference_name)?;
     let after = reference.peel_to_commit()?;
 
+    let mut new_commits: usize = 0;
     if before.is_some() && before.as_ref().unwrap().id() == after.id() {
         tracing::debug!("... done. No new commits");
     } else {
         let commits = crate::git::rev::walk(after.id(), repo)?;
-        let mut new_commits: usize = 0;
         for commit_id in commits {
             if let Some(before) = &before {
                 if commit_id? == before.id() {
@@ -176,7 +176,7 @@ pub fn pull_branch(
         tracing::debug!("... done. {new_commits} new commits");
     }
 
-    Ok(())
+    Ok(new_commits)
 }
 
 /// Clone the given repository
