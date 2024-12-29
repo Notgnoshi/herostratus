@@ -36,12 +36,16 @@ impl TempRepository<gix::Repository> {
     }
 }
 
-pub fn add_empty_commit(repo: &Repository, message: &str) -> eyre::Result<()> {
+pub fn add_empty_commit<'r>(repo: &'r Repository, message: &str) -> eyre::Result<git2::Commit<'r>> {
     let time = Time::new(1711656630, -500);
     add_empty_commit_time(repo, message, time)
 }
 
-pub fn add_empty_commit_time(repo: &Repository, message: &str, time: Time) -> eyre::Result<()> {
+pub fn add_empty_commit_time<'r>(
+    repo: &'r Repository,
+    message: &str,
+    time: Time,
+) -> eyre::Result<git2::Commit<'r>> {
     let mut index = repo.index()?;
     let head = repo.find_reference("HEAD")?;
     let parent = head.peel_to_commit().ok();
@@ -64,9 +68,13 @@ pub fn add_empty_commit_time(repo: &Repository, message: &str, time: Time) -> ey
         &tree,
         &parents,
     )?;
-    tracing::debug!("Created commit {oid:?}");
+    let commit = repo.find_commit(oid)?;
+    tracing::debug!(
+        "Created commit {oid:?} with message{message:?} in repo {:?}",
+        repo.path()
+    );
 
-    Ok(())
+    Ok(commit)
 }
 
 pub fn simplest() -> eyre::Result<TempRepository> {
