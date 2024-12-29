@@ -2,7 +2,6 @@ use herostratus::config::{config_path, read_config, Config, RepositoryConfig};
 use herostratus_tests::cmd::{herostratus, CommandExt};
 
 #[test]
-#[cfg_attr(not(feature = "ci"), ignore = "Slow; Performs clone")]
 fn test_clone_herostratus() {
     let (mut cmd, temp) = herostratus(None);
     let data_dir = temp.as_ref().unwrap().path();
@@ -51,7 +50,6 @@ fn test_clone_herostratus() {
 }
 
 #[test]
-#[cfg_attr(not(feature = "ci"), ignore = "Slow; Performs clone")]
 fn test_clone_herostratus_branch() {
     let (mut cmd, temp) = herostratus(None);
     let clone_dir = temp
@@ -95,7 +93,7 @@ fn test_clone_herostratus_branch() {
 }
 
 #[test]
-#[ignore = "Slow; Performs clone; Requires SSH (not available in CI)"]
+#[cfg_attr(feature = "ci", ignore = "Requires SSH (not available in CI)")]
 fn clone_herostratus_ssh() {
     let (mut cmd, temp) = herostratus(None);
     let clone_dir = temp
@@ -197,7 +195,6 @@ fn add_the_same_repo_twice() {
 }
 
 #[test]
-#[cfg_attr(not(feature = "ci"), ignore = "Slow; Performs clone")]
 fn test_two_branches_share_one_bare_repo() {
     let (mut cmd1, temp) = herostratus(None);
     let (mut cmd2, _) = herostratus(Some(temp.as_ref().unwrap().path()));
