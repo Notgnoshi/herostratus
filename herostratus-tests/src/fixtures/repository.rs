@@ -94,6 +94,23 @@ pub fn with_empty_commits(messages: &[&str]) -> eyre::Result<TempRepository> {
     Ok(TempRepository { tempdir, repo })
 }
 
+/// Return a pair of empty [TempRepository]s with the upstream configured as the "origin" remote of
+/// the downstream
+pub fn upstream_downstream() -> eyre::Result<(TempRepository, TempRepository)> {
+    let upstream = with_empty_commits(&[])?;
+    let downstream = with_empty_commits(&[])?;
+    tracing::debug!(
+        "Setting {:?} as upstream remote of {:?}",
+        upstream.tempdir.path(),
+        downstream.tempdir.path()
+    );
+    downstream.repo.remote_set_url(
+        "origin",
+        &format!("file://{}", upstream.tempdir.path().display()),
+    )?;
+    Ok((upstream, downstream))
+}
+
 #[cfg(test)]
 mod tests {
     use git2::{Index, Odb, Repository};
