@@ -1,9 +1,39 @@
 use git2::{Repository, Signature, Time};
 use tempfile::{tempdir, TempDir};
 
-pub struct TempRepository {
+pub struct TempRepository<R = git2::Repository> {
     pub tempdir: TempDir,
-    pub repo: Repository,
+    pub repo: R,
+}
+
+impl<R> TempRepository<R> {
+    /// Consume the TempDir without deleting the on-disk repository
+    ///
+    /// You probably don't want to use this in the final state of a test, but it can be useful for
+    /// troubleshooting when things aren't working as you think they should.
+    pub fn forget(self) -> R {
+        let repo = self.repo;
+        // consumes the TempDir without deleting it
+        let _path = self.tempdir.into_path();
+        repo
+    }
+}
+
+impl TempRepository<git2::Repository> {
+    pub fn git2(&self) -> git2::Repository {
+        git2::Repository::discover(self.tempdir.path()).unwrap()
+    }
+    pub fn gix(&self) -> gix::Repository {
+        gix::discover(self.tempdir.path()).unwrap()
+    }
+}
+impl TempRepository<gix::Repository> {
+    pub fn git2(&self) -> git2::Repository {
+        git2::Repository::discover(self.tempdir.path()).unwrap()
+    }
+    pub fn gix(&self) -> gix::Repository {
+        self.repo.clone()
+    }
 }
 
 pub fn add_empty_commit(repo: &Repository, message: &str) -> eyre::Result<()> {
@@ -58,6 +88,16 @@ mod tests {
     use herostratus::git;
 
     use super::*;
+
+    #[test]
+    fn test_forget() {
+        let temp = simplest().unwrap();
+        let repo = temp.forget();
+
+        assert!(repo.path().exists());
+        std::fs::remove_dir_all(repo.path()).unwrap();
+        assert!(!repo.path().exists());
+    }
 
     #[test]
     fn test_in_memory() {
