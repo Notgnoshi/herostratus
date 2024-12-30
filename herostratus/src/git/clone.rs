@@ -478,4 +478,32 @@ mod tests {
         // branch
         assert_eq!(fetched_commits, 5);
     }
+
+    #[test]
+    fn test_force_clone() {
+        let upstream = fixtures::repository::simplest().unwrap();
+        let tempdir = tempfile::tempdir().unwrap();
+        let downstream_dir = tempdir.path().join("downstream");
+        std::fs::create_dir_all(&downstream_dir).unwrap();
+        // Something's already using the clone directory
+        let sentinel = downstream_dir.join("sentinel.txt");
+        std::fs::File::create(&sentinel).unwrap();
+        assert!(sentinel.exists());
+
+        let config = crate::config::RepositoryConfig {
+            branch: None, // HEAD
+            url: format!("file://{}", upstream.tempdir.path().display()),
+            path: downstream_dir,
+            ..Default::default()
+        };
+        let force = false;
+        let result = clone_repository(&config, force);
+        assert!(result.is_err());
+        assert!(sentinel.exists());
+
+        let force = true;
+        let result = clone_repository(&config, force);
+        assert!(result.is_ok());
+        assert!(!sentinel.exists());
+    }
 }
