@@ -38,7 +38,7 @@ pub fn builtin_rules(config: Option<&Config>) -> Vec<Box<dyn Rule>> {
                 || rule.human_id() == exclude
                 || &pretty_id == exclude
             {
-                tracing::info!("Excluding rule: {pretty_id}");
+                tracing::info!("Excluding rule: {pretty_id} due to exclusion rule {exclude:?}");
                 continue 'outer;
             }
         }
@@ -129,13 +129,34 @@ mod tests {
     }
 
     #[test]
+    fn rule_metadata_characteristics() {
+        let rules = builtin_rules_all();
+
+        for rule in &rules {
+            // Names start with capitals (if they start with an alphabetic character)
+            let first = rule.name().chars().next().unwrap();
+            assert!((first.is_alphabetic() && first.is_uppercase()) || first.is_numeric());
+
+            // Names are allowed to be a single word, but descriptions are not
+            let words = rule.description().split_whitespace();
+            assert!(words.count() > 2);
+
+            // Human IDs are lower-alphabetic-only, separated by hyphens
+            let words = rule.human_id().split('-');
+            for word in words {
+                assert!(word.chars().all(|c| c.is_alphabetic()));
+                assert!(word.chars().all(|c| c.is_lowercase()));
+            }
+        }
+    }
+
+    #[test]
     fn exclude_rules() {
         let config = RulesConfig {
             exclude: Some(vec![
-                "1".to_string(),
-                "H2".to_string(),
-                "longest-subject-line".to_string(),
-                "H4-non-unicode".to_string(),
+                "H2".to_string(),                   // H2, short pretty id
+                "longest-subject-line".to_string(), // H3, human id
+                "H4-non-unicode".to_string(),       // H4, pretty id
             ]),
             ..Default::default()
         };
@@ -143,9 +164,20 @@ mod tests {
             rules: Some(config),
             ..Default::default()
         };
+
+        // Rules 1 through 4 are included by default
+        let all_rules = builtin_rules_all();
+        let all_ids: Vec<_> = all_rules.iter().map(|r| r.id()).collect();
+        assert!(all_ids.contains(&1));
+        assert!(all_ids.contains(&2));
+        assert!(all_ids.contains(&3));
+        assert!(all_ids.contains(&4));
+
         let rules = builtin_rules(Some(&config));
         let ids: Vec<_> = rules.iter().map(|r| r.id()).collect();
-        assert!(!ids.contains(&1));
+
+        // let at least one rule through, so we can test that we're not excluding everything
+        assert!(ids.contains(&1));
         assert!(!ids.contains(&2));
         assert!(!ids.contains(&3));
         assert!(!ids.contains(&4));

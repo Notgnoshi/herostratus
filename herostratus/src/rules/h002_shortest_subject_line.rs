@@ -101,7 +101,8 @@ mod tests {
     #[test]
     fn test_has_short_subject() {
         let repo =
-            fixtures::repository::with_empty_commits(&["0123456789", "1234567", "1234"]).unwrap();
+            fixtures::repository::with_empty_commits(&["0123456789", "1234", "1234567", "12345"])
+                .unwrap();
         let rules = vec![Box::new(ShortestSubjectLine::default()) as Box<dyn Rule>];
         let achievements = grant_with_rules("HEAD", &repo.repo, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();

@@ -167,11 +167,24 @@ pub fn pull_branch(
     // If the fetch was successful, resolving the reference should succeed, even if this was the
     // first fetch ever for this reference.
     let reference = repo.resolve_reference_from_short_name(reference_name)?;
+    // BUG: The fetch doesn't update the local branch (unless it creates the branch), so this
+    // 'after' remains unchanged after fetching. Can use Reference::set_target to update the commit
+    // the reference points to, but to do that, we need to find the target of the remote reference.
+    //
+    // TODO: This doesn't work, possibly because fetch is unfinished? (TODO: Read about FETCH_HEAD;
+    // the .git/refs/ only has heads/ and not remotes/ - there's nowhere else where the remote
+    // upstream target of the reference is tracked).
+    //
+    // let remote_reference = repo.find_reference(&format!("origin/{reference_name}"))?;
     let after = reference.peel_to_commit()?;
 
     let mut new_commits: usize = 0;
     if before.is_some() && before.as_ref().unwrap().id() == after.id() {
-        tracing::debug!("... done. No new commits");
+        tracing::debug!(
+            "... done. {:?} -> {:?} No new commits",
+            before.as_ref().unwrap().id(),
+            after.id()
+        );
     } else {
         let commits = crate::git::rev::walk(after.id(), repo)?;
         for commit_id in commits {
@@ -182,7 +195,11 @@ pub fn pull_branch(
             }
             new_commits += 1;
         }
-        tracing::debug!("... done. {new_commits} new commits");
+        tracing::debug!(
+            "... done. {:?} -> {:?} {new_commits} new commits",
+            before,
+            after.id()
+        );
     }
 
     Ok(new_commits)
@@ -412,5 +429,81 @@ mod tests {
             .repo
             .find_branch("branch2", git2::BranchType::Remote);
         assert!(result.is_err());
+    }
+
+    #[test]
+    #[ignore = "XFAIL: Reproduces pull_branch bug"]
+    fn test_number_of_fetched_commits_update_existing() {
+        let (upstream, downstream) = fixtures::repository::upstream_downstream().unwrap();
+        fixtures::repository::switch_branch(&upstream.repo, "branch1").unwrap();
+        fixtures::repository::switch_branch(&downstream.repo, "branch1").unwrap();
+
+        fixtures::repository::add_empty_commit(&upstream.repo, "commit 1 on branch1").unwrap();
+        fixtures::repository::add_empty_commit(&upstream.repo, "commit 2 on branch1").unwrap();
+        fixtures::repository::add_empty_commit(&upstream.repo, "commit 3 on branch1").unwrap();
+        fixtures::repository::add_empty_commit(&upstream.repo, "commit 4 on branch1").unwrap();
+
+        let downstream = downstream.forget();
+        let remote = downstream.find_remote("origin").unwrap();
+        let config = crate::config::RepositoryConfig {
+            branch: Some("branch1".to_string()),
+            url: remote.url().unwrap().to_string(),
+            ..Default::default()
+        };
+
+        let fetched_commits = pull_branch(&config, &downstream).unwrap();
+        assert_eq!(fetched_commits, 4);
+    }
+
+    #[test]
+    fn test_number_of_fetched_commits_create_new() {
+        let (upstream, downstream) = fixtures::repository::upstream_downstream().unwrap();
+        // This branch doesn't exist in the downstream repo
+        fixtures::repository::switch_branch(&upstream.repo, "branch1").unwrap();
+
+        fixtures::repository::add_empty_commit(&upstream.repo, "commit 1 on branch1").unwrap();
+        fixtures::repository::add_empty_commit(&upstream.repo, "commit 2 on branch1").unwrap();
+        fixtures::repository::add_empty_commit(&upstream.repo, "commit 3 on branch1").unwrap();
+        fixtures::repository::add_empty_commit(&upstream.repo, "commit 4 on branch1").unwrap();
+
+        let remote = downstream.repo.find_remote("origin").unwrap();
+        let config = crate::config::RepositoryConfig {
+            branch: Some("branch1".to_string()),
+            url: remote.url().unwrap().to_string(),
+            ..Default::default()
+        };
+
+        let fetched_commits = pull_branch(&config, &downstream.repo).unwrap();
+        // The 4 new commits on the branch1 branch, as well as the single commit on the master
+        // branch
+        assert_eq!(fetched_commits, 5);
+    }
+
+    #[test]
+    fn test_force_clone() {
+        let upstream = fixtures::repository::simplest().unwrap();
+        let tempdir = tempfile::tempdir().unwrap();
+        let downstream_dir = tempdir.path().join("downstream");
+        std::fs::create_dir_all(&downstream_dir).unwrap();
+        // Something's already using the clone directory
+        let sentinel = downstream_dir.join("sentinel.txt");
+        std::fs::File::create(&sentinel).unwrap();
+        assert!(sentinel.exists());
+
+        let config = crate::config::RepositoryConfig {
+            branch: None, // HEAD
+            url: format!("file://{}", upstream.tempdir.path().display()),
+            path: downstream_dir,
+            ..Default::default()
+        };
+        let force = false;
+        let result = clone_repository(&config, force);
+        assert!(result.is_err());
+        assert!(sentinel.exists());
+
+        let force = true;
+        let result = clone_repository(&config, force);
+        assert!(result.is_ok());
+        assert!(!sentinel.exists());
     }
 }
