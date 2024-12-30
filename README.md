@@ -58,9 +58,31 @@ Achievement { name: "I meant to fix that up later, I swear!", commit: 60b480b554
 The usual `cargo build` and `cargo test`. There are a few integration tests that take too long to
 run every time. These can be run with `cargo test -- --ignored`.
 
+### cargo-nextest
+
+I recommend using [cargo-nextest](https://nexte.st/) for running the tests. It's not strictly
+necessary, but does give a better experience than `cargo test`.
+
+```sh
+cargo nextest run
+```
+
+### Mutation testing
+
+Using [cargo-mutants](https://mutants.rs/) for mutation testing is phenomenally easy, and even
+though Herostratus has pretty good test coverage, `cargo-mutants` did highlight a few bugs, and
+several gaps in tests.
+
+```sh
+cargo mutants --in-place --package herostratus
+```
+
+While not every issue it points out is worth fixing, it is sometimes a useful tool.
+
 ### Test Branches
 
-There are orphan test branches in this repository used for integration tests.
+There are [orphan test branches](https://github.com/Notgnoshi/herostratus/branches/all?query=test)
+in this repository used for integration tests.
 
 For example, the `test/simple` branch was created like this:
 
