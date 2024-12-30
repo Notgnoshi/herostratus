@@ -2,18 +2,33 @@ use std::path::{Path, PathBuf};
 
 use eyre::WrapErr;
 
-pub fn find_local_repository(path: &Path) -> eyre::Result<git2::Repository> {
+pub fn find_local_repository<P: AsRef<Path> + std::fmt::Debug>(
+    path: P,
+) -> eyre::Result<git2::Repository> {
     tracing::debug!("Searching local path {path:?} for a Git repository");
     let repo = git2::Repository::discover(path)?;
     tracing::debug!("Found local git repository at {:?}", repo.path());
     Ok(repo)
 }
 
-// ssh://git@example.com/path.git           => path.git
-// git@github.com:Notgnoshi/herostratus.git => Notgnoshi/herostratus.git
-// https://example.com/foo                  => foo
-// domain:path                              => path
-pub fn parse_path_from_url(url: &str) -> eyre::Result<PathBuf> {
+pub fn find_local_repository_gix<P: AsRef<Path> + std::fmt::Debug>(
+    path: P,
+) -> eyre::Result<gix::Repository> {
+    tracing::debug!("Searching local path {path:?} for a Git repository");
+    let repo = gix::discover(path)?;
+    tracing::debug!("Found local git repository at {:?}", repo.path());
+    Ok(repo)
+}
+
+/// Parse a mostly-unique filesystem path from a clone URL
+///
+/// ```text
+/// ssh://git@example.com/path.git           => path.git
+/// git@github.com:Notgnoshi/herostratus.git => Notgnoshi/herostratus.git
+/// https://example.com/foo                  => foo
+/// domain:path                              => path
+/// ```
+fn parse_path_from_url(url: &str) -> eyre::Result<PathBuf> {
     let known_remote_protocols = [
         "ssh://", "git://", "http://", "https://", "ftp://", "ftps://", "file://",
     ];
@@ -41,12 +56,14 @@ pub fn parse_path_from_url(url: &str) -> eyre::Result<PathBuf> {
     Ok(PathBuf::from(&url[idx + 1..]))
 }
 
+/// Get the path to clone the given URL into in the application data directory
 pub fn get_clone_path(data_dir: &Path, url: &str) -> eyre::Result<PathBuf> {
     let clone_path = parse_path_from_url(url).wrap_err("Failed to parse clone path from URL")?;
     let clone_path = data_dir.join("git").join(clone_path);
     Ok(clone_path)
 }
 
+/// Remove the contents of the given directory, though not the directory itself
 fn remove_dir_contents<P: AsRef<Path>>(path: P) -> std::io::Result<()> {
     for entry in std::fs::read_dir(path)? {
         let entry = entry?;
@@ -115,10 +132,17 @@ fn fetch_options(config: &crate::config::RepositoryConfig) -> git2::FetchOptions
     options
 }
 
-pub fn fetch_remote(
+/// Update the local branch to match the remote's
+///
+/// Returns the number of new commits fetched. Creates the local branch if it does not exist. If a
+/// non-HEAD reference is given, do a "fast" fetch of *just* the specified reference, as opposed to
+/// all references from the remote.
+///
+/// TODO: Probably doesn't work on tags?
+pub fn pull_branch(
     config: &crate::config::RepositoryConfig,
     repo: &git2::Repository,
-) -> eyre::Result<()> {
+) -> eyre::Result<usize> {
     let mut remote = repo.find_remote("origin")?;
     let reference_name = config.branch.as_deref().unwrap_or("HEAD");
     // If this is the first time this reference is being fetched, fetch it like
@@ -145,11 +169,11 @@ pub fn fetch_remote(
     let reference = repo.resolve_reference_from_short_name(reference_name)?;
     let after = reference.peel_to_commit()?;
 
+    let mut new_commits: usize = 0;
     if before.is_some() && before.as_ref().unwrap().id() == after.id() {
         tracing::debug!("... done. No new commits");
     } else {
         let commits = crate::git::rev::walk(after.id(), repo)?;
-        let mut new_commits: usize = 0;
         for commit_id in commits {
             if let Some(before) = &before {
                 if commit_id? == before.id() {
@@ -161,9 +185,19 @@ pub fn fetch_remote(
         tracing::debug!("... done. {new_commits} new commits");
     }
 
-    Ok(())
+    Ok(new_commits)
 }
 
+/// Clone the given repository
+///
+/// If the repository already exists on-disk, then if
+/// * `force == false`, rather than cloning, update the reference from the given config
+/// * `force == true`, delete the existing repository and re-clone
+///
+/// If there's an existing repository on-disk with a different clone URL (even if it's just HTTPS
+/// vs SSH) then fail.
+///
+/// If a branch has been specified, then clone *just* that branch.
 pub fn clone_repository(
     config: &crate::config::RepositoryConfig,
     force: bool,
@@ -191,7 +225,7 @@ pub fn clone_repository(
             let existing_url = remote.url().unwrap_or("THIS_STRING_WONT_MATCH");
             if existing_url == config.url {
                 tracing::info!("... URLs match. Using existing repository and fetching");
-                fetch_remote(config, &existing_repo)?;
+                pull_branch(config, &existing_repo)?;
 
                 drop(remote);
                 return Ok(existing_repo);
@@ -227,7 +261,19 @@ pub fn clone_repository(
 
 #[cfg(test)]
 mod tests {
+    use herostratus_tests::fixtures;
+
     use super::*;
+
+    #[test]
+    fn test_find_local_repository() {
+        let temp_repo = fixtures::repository::simplest().unwrap();
+        let repo = find_local_repository(temp_repo.tempdir.path()).unwrap();
+        assert_eq!(repo.path(), temp_repo.tempdir.path().join(".git"));
+
+        let repo = find_local_repository_gix(temp_repo.tempdir.path()).unwrap();
+        assert_eq!(repo.path(), temp_repo.tempdir.path().join(".git"));
+    }
 
     #[test]
     fn test_parse_path_from_url() {
@@ -248,5 +294,123 @@ mod tests {
             let actual = parse_path_from_url(url).unwrap();
             assert_eq!(expected, actual);
         }
+    }
+
+    #[test]
+    fn test_pull_herostratus_own_remote() {
+        // This is a Cargo workspace project, so the tests aren't run from the repository root,
+        // they're run from the workspace root.
+        let this_repo = find_local_repository("..").unwrap();
+        // Fetching requires a RepositoryConfig, so populate it with whatever the developer has
+        // cloned Herostratus with
+        let remote = this_repo.find_remote("origin").unwrap();
+        let config = crate::config::RepositoryConfig {
+            branch: Some("main".to_string()),
+            url: remote.url().unwrap().to_string(),
+            ..Default::default()
+        };
+
+        // Assert that fetching doesn't fail. That's about all we can do against a GitHub remote
+        pull_branch(&config, &this_repo).unwrap();
+    }
+
+    #[test]
+    fn test_pull_branch_that_doesnt_exist_on_the_remote() {
+        let this_repo = find_local_repository("..").unwrap();
+        let remote = this_repo.find_remote("origin").unwrap();
+        let config = crate::config::RepositoryConfig {
+            branch: Some("THIS_BRANCH_DOESNT_EXIST".to_string()),
+            url: remote.url().unwrap().to_string(),
+            ..Default::default()
+        };
+        let result = pull_branch(&config, &this_repo);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_pull_remote_branch_that_doesnt_exist_locally() {
+        let (upstream, downstream) = fixtures::repository::upstream_downstream_empty().unwrap();
+        let upstream_commit =
+            fixtures::repository::add_empty_commit(&upstream.repo, "First upstream commit")
+                .unwrap();
+        let _downstream_commit =
+            fixtures::repository::add_empty_commit(&downstream.repo, "First downstream commit")
+                .unwrap();
+
+        let remote = downstream.repo.find_remote("origin").unwrap();
+        let config = crate::config::RepositoryConfig {
+            branch: None, // HEAD
+            url: remote.url().unwrap().to_string(),
+            ..Default::default()
+        };
+
+        // Try to find the upstream commit in the downstream repository. Can't find it, because the
+        // remote hasn't been fetched from yet.
+        let result = downstream.repo.find_commit(upstream_commit.id());
+        assert!(result.is_err());
+
+        // Now after fetching, it can be found
+        pull_branch(&config, &downstream.repo).unwrap();
+        let result = downstream.repo.find_commit(upstream_commit.id());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_pulling_creates_a_local_branch() {
+        let (upstream, downstream) = fixtures::repository::upstream_downstream().unwrap();
+        fixtures::repository::switch_branch(&upstream.repo, "branch1").unwrap();
+        fixtures::repository::add_empty_commit(&upstream.repo, "commit on branch1").unwrap();
+
+        let remote = downstream.repo.find_remote("origin").unwrap();
+        let config = crate::config::RepositoryConfig {
+            branch: Some("branch1".to_string()),
+            url: remote.url().unwrap().to_string(),
+            ..Default::default()
+        };
+
+        let result = pull_branch(&config, &downstream.repo);
+        assert!(result.is_ok());
+
+        // branch1 exists as a local branch, not just a remote one
+        let result = downstream
+            .repo
+            .find_branch("branch1", git2::BranchType::Local);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_fast_fetch_single_reference() {
+        let (upstream, downstream) = fixtures::repository::upstream_downstream().unwrap();
+        fixtures::repository::switch_branch(&upstream.repo, "branch1").unwrap();
+        fixtures::repository::switch_branch(&upstream.repo, "branch2").unwrap();
+
+        fixtures::repository::switch_branch(&upstream.repo, "branch1").unwrap();
+        fixtures::repository::add_empty_commit(&upstream.repo, "commit on branch1").unwrap();
+
+        let remote = downstream.repo.find_remote("origin").unwrap();
+        let config = crate::config::RepositoryConfig {
+            branch: Some("branch1".to_string()),
+            url: remote.url().unwrap().to_string(),
+            ..Default::default()
+        };
+
+        let result = pull_branch(&config, &downstream.repo);
+        assert!(result.is_ok());
+
+        // We find the branch1 that was fetched
+        let result = downstream
+            .repo
+            .find_branch("branch1", git2::BranchType::Local);
+        assert!(result.is_ok());
+
+        // But not the branch2 that wasn't fetched
+        let result = downstream
+            .repo
+            .find_branch("branch2", git2::BranchType::Local);
+        assert!(result.is_err());
+        let result = downstream
+            .repo
+            .find_branch("branch2", git2::BranchType::Remote);
+        assert!(result.is_err());
     }
 }

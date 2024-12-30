@@ -3,14 +3,14 @@ use std::time::Instant;
 
 use crate::cli::FetchAllArgs;
 use crate::config::Config;
-use crate::git::clone::{clone_repository, fetch_remote, find_local_repository};
+use crate::git::clone::{clone_repository, find_local_repository, pull_branch};
 
-pub fn fetch_all(_args: &FetchAllArgs, config: &Config, _data_dir: &Path) -> eyre::Result<()> {
+pub fn fetch_all(_args: &FetchAllArgs, config: &Config, _data_dir: &Path) -> eyre::Result<usize> {
     tracing::info!("Fetching repositories ...");
     let start = Instant::now();
+    let mut fetched_commits = 0;
     for (name, config) in config.repositories.iter() {
-        let span = tracing::debug_span!("fetch", name = name);
-        let _enter = span.enter();
+        let _span = tracing::debug_span!("fetch", name = name).entered();
         let mut skip_fetch = false;
         let repo = match find_local_repository(&config.path) {
             Ok(repo) => repo,
@@ -27,7 +27,7 @@ pub fn fetch_all(_args: &FetchAllArgs, config: &Config, _data_dir: &Path) -> eyr
         };
 
         if !skip_fetch {
-            fetch_remote(config, &repo)?
+            fetched_commits += pull_branch(config, &repo)?;
         }
     }
     tracing::info!(
@@ -36,5 +36,5 @@ pub fn fetch_all(_args: &FetchAllArgs, config: &Config, _data_dir: &Path) -> eyr
         start.elapsed()
     );
 
-    Ok(())
+    Ok(fetched_commits)
 }

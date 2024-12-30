@@ -21,14 +21,13 @@ pub fn check(args: &CheckArgs) -> eyre::Result<()> {
 
 pub fn check_all(args: &CheckAllArgs, config: &Config, data_dir: &Path) -> eyre::Result<()> {
     if !args.no_fetch {
-        crate::commands::fetch_all(&args.into(), config, data_dir)?
+        let _newly_fetched = crate::commands::fetch_all(&args.into(), config, data_dir)?;
     }
 
     tracing::info!("Checking repositories ...");
     let start = Instant::now();
     for (name, repo_config) in config.repositories.iter() {
-        let span = tracing::debug_span!("check", name = name);
-        let _enter = span.enter();
+        let _span = tracing::debug_span!("check", name = name).entered();
         let repo = find_local_repository(&repo_config.path)?;
         let reference = repo_config
             .branch
