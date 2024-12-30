@@ -14,10 +14,12 @@ focus on the user impact** rather than the actual changes made.
 
 ## Added
 
-* | Added the following rules:                  | ID                                            | Description |
-  | ------------------------------------------- | --------------------------------------------- | ----------- |
-  | H3-longest-subject-line                     | Find the commit with the longest subject line |             |
-  | a commit message containing non UTF-8 bytes |                                               |             |
+* Added the following rules:
+
+  | ID                      | Description                                   |
+  | ----------------------- | --------------------------------------------- |
+  | H3-longest-subject-line | Find the commit with the longest subject line |
+  | H4-non-unicode          | a commit message containing non UTF-8 bytes   |
 
 * You can now configure rules on a per-rule basis. The following rules and options are supported:
 
