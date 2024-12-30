@@ -9,6 +9,6 @@ pub struct DataDir {
 
 pub fn empty() -> eyre::Result<DataDir> {
     let tempdir = tempdir()?;
-    let data_dir = tempdir.path().to_path_buf();
+    let data_dir = tempdir.path().join("herostratus");
     Ok(DataDir { tempdir, data_dir })
 }
