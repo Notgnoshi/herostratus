@@ -129,6 +129,28 @@ mod tests {
     }
 
     #[test]
+    fn rule_metadata_characteristics() {
+        let rules = builtin_rules_all();
+
+        for rule in &rules {
+            // Names start with capitals (if they start with an alphabetic character)
+            let first = rule.name().chars().next().unwrap();
+            assert!((first.is_alphabetic() && first.is_uppercase()) || first.is_numeric());
+
+            // Names are allowed to be a single word, but descriptions are not
+            let words = rule.description().split_whitespace();
+            assert!(words.count() > 2);
+
+            // Human IDs are lower-alphabetic-only, separated by hyphens
+            let words = rule.human_id().split('-');
+            for word in words {
+                assert!(word.chars().all(|c| c.is_alphabetic()));
+                assert!(word.chars().all(|c| c.is_lowercase()));
+            }
+        }
+    }
+
+    #[test]
     fn exclude_rules() {
         let config = RulesConfig {
             exclude: Some(vec![
