@@ -86,7 +86,7 @@ pub fn with_empty_commits(messages: &[&str]) -> eyre::Result<TempRepository> {
     let tempdir = Builder::new().prefix("tmp-").suffix(".git").tempdir()?;
     tracing::debug!("Creating repo fixture in '{}'", tempdir.path().display());
 
-    let repo = Repository::init(tempdir.path())?;
+    let repo = Repository::init_bare(tempdir.path())?;
 
     for message in messages {
         add_empty_commit(&repo, message)?;
@@ -125,22 +125,6 @@ pub fn switch_branch(repo: &git2::Repository, branch_name: &str) -> eyre::Result
         "Switching to branch {branch_name:?} in repo {:?}",
         repo.path()
     );
-    // NOTE: gix can create a branch, but can't (yet?) switch to it in the working tree
-    //
-    // See: https://github.com/GitoxideLabs/gitoxide/discussions/879
-    // See: https://github.com/GitoxideLabs/gitoxide/issues/301 (maybe it _is_ supported?)
-
-    if repo.find_reference(branch_name).is_err() {
-        tracing::debug!(
-            "Failed to find {branch_name:?} in repo {:?} ... creating",
-            repo.path()
-        );
-        let head = repo.head()?;
-        let head = head.peel_to_commit()?;
-        // If the branch exists, replace it. If it doesn't exist, make it.
-        let _branch = repo.branch(branch_name, &head, true)?;
-    }
-
     repo.set_head(format!("refs/heads/{branch_name}").as_str())?;
 
     Ok(())
@@ -220,5 +204,12 @@ mod tests {
             .map(|b| b.unwrap().0.name().unwrap().unwrap().to_string())
             .collect();
         assert_eq!(branches, ["branch1", "branch2", "master"]);
+    }
+
+    #[test]
+    fn test_repository_has_default_branch() {
+        let temp_repo = simplest().unwrap();
+        let head = temp_repo.repo.head().unwrap();
+        assert_eq!(head.name().unwrap(), "refs/heads/master");
     }
 }
