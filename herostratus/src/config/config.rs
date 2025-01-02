@@ -31,6 +31,7 @@ pub struct RulesConfig {
 #[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
 pub struct RepositoryConfig {
     pub path: PathBuf,
+    // TODO: It might simplify a few things if this branch becomes required
     pub branch: Option<String>,
     pub url: String,
 

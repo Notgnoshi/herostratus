@@ -205,6 +205,45 @@ pub fn pull_branch(
     Ok(new_commits)
 }
 
+pub fn pull_branch_gix(
+    config: &crate::config::RepositoryConfig,
+    repo: &gix::Repository,
+) -> eyre::Result<usize> {
+    // TODO: Handle non-origin remotes (#71)
+    let remote = repo.find_remote("origin")?;
+    debug_assert_eq!(
+        remote
+            .url(gix::remote::Direction::Fetch)
+            .unwrap()
+            .to_bstring(),
+        config.url.as_str(),
+        "RepositoryConfig and 'origin' fetch URL don't match"
+    );
+    let ref_name = config.branch.as_deref().unwrap_or("HEAD");
+    tracing::info!("Pulling {ref_name:?} from remote {:?}", config.url);
+    // If this is None, then the reference doesn't exist locally (yet), and this is the first time
+    // we're pulling it.
+    let before = repo.rev_parse_single(ref_name).ok();
+
+    // TODO: HTTPS/SSH auth
+    let connection = remote.connect(gix::remote::Direction::Fetch)?;
+    let options = gix::remote::ref_map::Options::default();
+    // TODO: Handle fetch progress nicely?
+    let prepare = connection.prepare_fetch(gix::progress::Discard, options)?;
+    let interrupt = std::sync::atomic::AtomicBool::new(false);
+    let _outcome = prepare.receive(gix::progress::Discard, &interrupt)?;
+
+    // gix doesn't support pull, because pull = fetch+merge|rebase. But since Herostratus only
+    // needs to work with bare repositories, there isn't even a worktree to checkout. So "pull" is
+    // actually just fetch and then update local ref to the remote ref.
+    //
+    // But if fetching HEAD, we need to figure out which local ref to update to which remote ref.
+    //
+    // After *that* we can compare before..after to calculate the number of changed commits.
+
+    Ok(0)
+}
+
 /// Clone the given repository
 ///
 /// If the repository already exists on-disk, then if
@@ -317,18 +356,21 @@ mod tests {
     fn test_pull_herostratus_own_remote() {
         // This is a Cargo workspace project, so the tests aren't run from the repository root,
         // they're run from the workspace root.
-        let this_repo = find_local_repository("..").unwrap();
+        let this_repo = find_local_repository_gix("..").unwrap();
         // Fetching requires a RepositoryConfig, so populate it with whatever the developer has
         // cloned Herostratus with
         let remote = this_repo.find_remote("origin").unwrap();
         let config = crate::config::RepositoryConfig {
             branch: Some("main".to_string()),
-            url: remote.url().unwrap().to_string(),
+            url: remote
+                .url(gix::remote::Direction::Fetch)
+                .unwrap()
+                .to_string(),
             ..Default::default()
         };
 
         // Assert that fetching doesn't fail. That's about all we can do against a GitHub remote
-        pull_branch(&config, &this_repo).unwrap();
+        pull_branch_gix(&config, &this_repo).unwrap();
     }
 
     #[test]
@@ -361,13 +403,15 @@ mod tests {
             ..Default::default()
         };
 
+        let gix_repo = downstream.gix();
+
         // Try to find the upstream commit in the downstream repository. Can't find it, because the
         // remote hasn't been fetched from yet.
         let result = downstream.repo.find_commit(upstream_commit.id());
         assert!(result.is_err());
 
         // Now after fetching, it can be found
-        pull_branch(&config, &downstream.repo).unwrap();
+        pull_branch_gix(&config, &gix_repo).unwrap();
         let result = downstream.repo.find_commit(upstream_commit.id());
         assert!(result.is_ok());
     }
