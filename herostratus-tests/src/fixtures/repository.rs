@@ -108,6 +108,9 @@ pub fn upstream_downstream_empty() -> eyre::Result<(TempRepository, TempReposito
         "origin",
         &format!("file://{}", upstream.tempdir.path().display()),
     )?;
+    downstream
+        .repo
+        .remote_add_fetch("origin", "+refs/heads/*:refs/remotes/origin/*")?;
     Ok((upstream, downstream))
 }
 
