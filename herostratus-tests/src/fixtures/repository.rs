@@ -1,5 +1,5 @@
 use git2::{Repository, Signature, Time};
-use tempfile::{tempdir, TempDir};
+use tempfile::{TempDir, tempdir};
 
 pub struct TempRepository<R = git2::Repository> {
     pub tempdir: TempDir,

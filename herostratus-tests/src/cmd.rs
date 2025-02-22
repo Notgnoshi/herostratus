@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::process::Output;
 
 use assert_cmd::Command;
-use tempfile::{tempdir, TempDir};
+use tempfile::{TempDir, tempdir};
 
 lazy_static::lazy_static! {
     static ref HEROSTRATUS: PathBuf = assert_cmd::cargo::cargo_bin("herostratus");

@@ -2,8 +2,8 @@ pub mod cmd;
 pub mod fixtures;
 
 use tracing::Level;
-use tracing_subscriber::fmt::writer::TestWriter;
 use tracing_subscriber::EnvFilter;
+use tracing_subscriber::fmt::writer::TestWriter;
 
 #[ctor::ctor]
 fn setup_test_logging() {

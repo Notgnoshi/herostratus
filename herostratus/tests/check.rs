@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use herostratus::git::clone::find_local_repository;
-use herostratus_tests::cmd::{herostratus, CommandExt};
+use herostratus_tests::cmd::{CommandExt, herostratus};
 use predicates::prelude::*;
 use predicates::str;
 

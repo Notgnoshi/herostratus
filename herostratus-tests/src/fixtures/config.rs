@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use tempfile::{tempdir, TempDir};
+use tempfile::{TempDir, tempdir};
 
 pub struct DataDir {
     pub tempdir: TempDir,

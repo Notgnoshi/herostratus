@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::time::Instant;
 
-use crate::achievement::{grant, Achievement};
+use crate::achievement::{Achievement, grant};
 use crate::cli::{CheckAllArgs, CheckArgs};
 use crate::config::Config;
 use crate::git::clone::find_local_repository;

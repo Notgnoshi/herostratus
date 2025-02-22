@@ -1,5 +1,5 @@
-use herostratus::config::{config_path, read_config, Config, RepositoryConfig};
-use herostratus_tests::cmd::{herostratus, CommandExt};
+use herostratus::config::{Config, RepositoryConfig, config_path, read_config};
+use herostratus_tests::cmd::{CommandExt, herostratus};
 
 #[test]
 fn test_clone_herostratus() {

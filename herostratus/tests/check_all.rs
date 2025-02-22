@@ -1,4 +1,4 @@
-use herostratus_tests::cmd::{herostratus, CommandExt};
+use herostratus_tests::cmd::{CommandExt, herostratus};
 use predicates::prelude::*;
 use predicates::str;
 
