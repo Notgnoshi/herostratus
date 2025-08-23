@@ -18,7 +18,7 @@ description = "**Herostratus** *n.* **1.** An ancient Greek known for seeking fa
 
 [workspace.dependencies]
 assert_cmd = { version = "2.0.17", features = ["color"] }
-clap = { version = "4.5.2", features = ["derive"] }
+clap = { version = "4.5.45", features = ["derive"] }
 color-eyre = "0.6.2"
 ctor = "0.2.7"
 directories = "5.0.1"
