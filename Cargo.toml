@@ -20,7 +20,7 @@ description = "**Herostratus** *n.* **1.** An ancient Greek known for seeking fa
 assert_cmd = { version = "2.0.17", features = ["color"] }
 clap = { version = "4.5.45", features = ["derive"] }
 color-eyre = "0.6.5"
-ctor = "0.2.7"
+ctor = "0.5.0"
 directories = "5.0.1"
 eyre = "0.6.12"
 git2 = "0.19"
