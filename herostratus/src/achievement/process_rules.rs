@@ -127,7 +127,7 @@ pub fn process_rules<Oids>(
     oids: Oids,
     repo: &git2::Repository,
     rules: Vec<Box<dyn Rule>>,
-) -> Achievements<Oids>
+) -> Achievements<'_, Oids>
 where
     Oids: Iterator<Item = git2::Oid>,
 {

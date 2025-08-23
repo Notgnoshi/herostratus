@@ -115,7 +115,7 @@ fn clone_credentials(
     }
 }
 
-fn fetch_options(config: &crate::config::RepositoryConfig) -> git2::FetchOptions {
+fn fetch_options(config: &crate::config::RepositoryConfig) -> git2::FetchOptions<'_> {
     let mut callbacks = git2::RemoteCallbacks::new();
     callbacks.credentials(|_url, username_from_url, _allowed_typed| {
         match clone_credentials(config, username_from_url) {
@@ -188,10 +188,10 @@ pub fn pull_branch(
     } else {
         let commits = crate::git::rev::walk(after.id(), repo)?;
         for commit_id in commits {
-            if let Some(before) = &before {
-                if commit_id? == before.id() {
-                    break;
-                }
+            if let Some(before) = &before
+                && commit_id? == before.id()
+            {
+                break;
             }
             new_commits += 1;
         }
