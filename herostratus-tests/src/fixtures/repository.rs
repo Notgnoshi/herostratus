@@ -14,7 +14,7 @@ impl<R> TempRepository<R> {
     pub fn forget(self) -> R {
         let repo = self.repo;
         // consumes the TempDir without deleting it
-        let _path = self.tempdir.into_path();
+        let _path = self.tempdir.keep();
         repo
     }
 }
