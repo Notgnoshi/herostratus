@@ -23,7 +23,7 @@ color-eyre = "0.6.5"
 ctor = "0.5.0"
 directories = "6.0.0"
 eyre = "0.6.12"
-git2 = "0.19"
+git2 = "0.20.2"
 gix = { version = "0.67.0", features = ["blob-diff", "blocking-network-client", "credentials", "excludes", "index", "mailmap", "revision", "tracing", "tree-editor"] }
 inventory = "0.3.15"
 lazy_static = "1.4.0"
