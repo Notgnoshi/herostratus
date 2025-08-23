@@ -17,7 +17,7 @@ rust-version = "1.89"
 description = "**Herostratus** *n.* **1.** An ancient Greek known for seeking fame through crime and destruction. **2.** Also a Git repository achievements engine."
 
 [workspace.dependencies]
-assert_cmd = { version = "2.0.14", features = ["color"] }
+assert_cmd = { version = "2.0.17", features = ["color"] }
 clap = { version = "4.5.2", features = ["derive"] }
 color-eyre = "0.6.2"
 ctor = "0.2.7"
