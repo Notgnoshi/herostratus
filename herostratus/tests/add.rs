@@ -17,7 +17,7 @@ fn test_clone_herostratus() {
     assert!(!data_dir.join("git").exists());
     assert!(!config_path(data_dir).exists());
 
-    let output = cmd.captured_output().unwrap();
+    let output = cmd.captured_output();
     assert!(output.status.success());
     assert!(expected_bare_repo.exists());
 
@@ -41,7 +41,7 @@ fn test_clone_herostratus() {
     let (mut cmd, _temp) = herostratus(Some(data_dir));
     cmd.arg("add").arg(url);
 
-    let output = cmd.captured_output().unwrap();
+    let output = cmd.captured_output();
     assert!(output.status.success());
 
     // And it didn't add a second repository to the config
@@ -66,7 +66,7 @@ fn test_clone_herostratus_branch() {
     assert!(!clone_dir.exists());
     assert!(!config_path(temp.as_ref().unwrap().path()).exists());
 
-    let output = cmd.captured_output().unwrap();
+    let output = cmd.captured_output();
     assert!(output.status.success());
     assert!(clone_dir.exists());
 
@@ -110,7 +110,7 @@ fn clone_herostratus_ssh() {
     assert!(!clone_dir.exists());
     assert!(!config_path(temp.as_ref().unwrap().path()).exists());
 
-    let output = cmd.captured_output().unwrap();
+    let output = cmd.captured_output();
     assert!(output.status.success());
     assert!(clone_dir.exists());
 
@@ -142,7 +142,7 @@ fn add_the_same_repo_twice() {
     let url1 = "git@github.com:Notgnoshi/herostratus.git";
     cmd1.arg("add").arg(url1).arg("--skip-clone");
 
-    let output1 = cmd1.captured_output().unwrap();
+    let output1 = cmd1.captured_output();
     assert!(output1.status.success());
 
     let contents = std::fs::read_to_string(config_path(data_dir)).unwrap();
@@ -157,7 +157,7 @@ fn add_the_same_repo_twice() {
 
     let url2 = "https://github.com/Notgnoshi/herostratus.git";
     cmd2.arg("add").arg(url2).arg("--skip-clone");
-    let output2 = cmd2.captured_output().unwrap();
+    let output2 = cmd2.captured_output();
     assert!(output2.status.success());
 
     // The URL gets replaced, because the name didn't change
@@ -182,7 +182,7 @@ fn add_the_same_repo_twice() {
         .arg("--skip-clone")
         .arg("--name")
         .arg("unique-name");
-    let output3 = cmd3.captured_output().unwrap();
+    let output3 = cmd3.captured_output();
     assert!(output3.status.success());
 
     let actual_config = read_config(data_dir).unwrap();
@@ -214,7 +214,7 @@ fn test_two_branches_share_one_bare_repo() {
         .arg("herostratus-1")
         .arg("test/simple");
 
-    let output1 = cmd1.captured_output().unwrap();
+    let output1 = cmd1.captured_output();
     assert!(output1.status.success());
 
     let contents = std::fs::read_to_string(config_path(temp.as_ref().unwrap().path())).unwrap();
@@ -234,7 +234,7 @@ fn test_two_branches_share_one_bare_repo() {
         .arg("--name")
         .arg("herostratus-2");
 
-    let output2 = cmd2.captured_output().unwrap();
+    let output2 = cmd2.captured_output();
     assert!(output2.status.success());
 
     // NOTE: The TOML file doesn't preserve order or comments, so parse the config file, and

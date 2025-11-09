@@ -5,7 +5,7 @@ fn h004_non_unicode() {
     let (mut cmd, _temp) = herostratus(None);
     cmd.arg("check").arg(".").arg("origin/test/non-unicode");
 
-    let output = cmd.captured_output().unwrap();
+    let output = cmd.captured_output();
     assert!(output.status.success());
 
     // TODO: This will be a fragile test, but it *feels* like the right way to assert that the
