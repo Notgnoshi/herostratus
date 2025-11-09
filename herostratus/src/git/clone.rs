@@ -434,7 +434,7 @@ mod tests {
     #[test]
     #[ignore = "XFAIL: Reproduces pull_branch bug"]
     fn test_number_of_fetched_commits_update_existing() {
-        let (upstream, downstream) = fixtures::repository::upstream_downstream().unwrap();
+        let (upstream, mut downstream) = fixtures::repository::upstream_downstream().unwrap();
         fixtures::repository::switch_branch(&upstream.repo, "branch1").unwrap();
         fixtures::repository::switch_branch(&downstream.repo, "branch1").unwrap();
 
@@ -443,15 +443,15 @@ mod tests {
         fixtures::repository::add_empty_commit(&upstream.repo, "commit 3 on branch1").unwrap();
         fixtures::repository::add_empty_commit(&upstream.repo, "commit 4 on branch1").unwrap();
 
-        let downstream = downstream.forget();
-        let remote = downstream.find_remote("origin").unwrap();
+        downstream.forget();
+        let remote = downstream.repo.find_remote("origin").unwrap();
         let config = crate::config::RepositoryConfig {
             branch: Some("branch1".to_string()),
             url: remote.url().unwrap().to_string(),
             ..Default::default()
         };
 
-        let fetched_commits = pull_branch(&config, &downstream).unwrap();
+        let fetched_commits = pull_branch(&config, &downstream.repo).unwrap();
         assert_eq!(fetched_commits, 4);
     }
 

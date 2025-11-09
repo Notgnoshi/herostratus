@@ -1,5 +1,5 @@
 use git2::{Repository, Signature, Time};
-use tempfile::{TempDir, tempdir};
+use tempfile::{Builder, TempDir};
 
 pub struct TempRepository<R = git2::Repository> {
     pub tempdir: TempDir,
@@ -11,11 +11,12 @@ impl<R> TempRepository<R> {
     ///
     /// You probably don't want to use this in the final state of a test, but it can be useful for
     /// troubleshooting when things aren't working as you think they should.
-    pub fn forget(self) -> R {
-        let repo = self.repo;
-        // consumes the TempDir without deleting it
-        let _path = self.tempdir.keep();
-        repo
+    pub fn forget(&mut self) {
+        self.tempdir.disable_cleanup(true)
+    }
+
+    pub fn remember(&mut self) {
+        self.tempdir.disable_cleanup(false)
     }
 }
 
@@ -82,7 +83,7 @@ pub fn simplest() -> eyre::Result<TempRepository> {
 }
 
 pub fn with_empty_commits(messages: &[&str]) -> eyre::Result<TempRepository> {
-    let tempdir = tempdir()?;
+    let tempdir = Builder::new().prefix("tmp-").suffix(".git").tempdir()?;
     tracing::debug!("Creating repo fixture in '{}'", tempdir.path().display());
 
     let repo = Repository::init(tempdir.path())?;
@@ -151,12 +152,23 @@ mod tests {
 
     #[test]
     fn test_forget() {
-        let temp = simplest().unwrap();
-        let repo = temp.forget();
+        let mut temp = simplest().unwrap();
+        temp.forget();
 
-        assert!(repo.path().exists());
-        std::fs::remove_dir_all(repo.path()).unwrap();
-        assert!(!repo.path().exists());
+        assert!(temp.repo.path().exists());
+        let path = temp.tempdir.path().to_path_buf();
+        drop(temp);
+
+        assert!(path.exists());
+        std::fs::remove_dir_all(&path).unwrap();
+        assert!(!path.exists());
+
+        let mut temp = simplest().unwrap();
+        temp.forget();
+        temp.remember();
+        let path = temp.tempdir.path().to_path_buf();
+        drop(temp);
+        assert!(!path.exists());
     }
 
     #[test]
