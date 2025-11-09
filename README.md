@@ -33,7 +33,8 @@ $ herostratus add git@github.com:Notgnoshi/herostratus.git test/simple
 $ herostratus add git@github.com:Notgnoshi/herostratus.git test/fixup
 ```
 
-> [!TIP] You may find the `--data-dir`, `--get-data-dir`, `--config-file`, and `--get-config`
+> [!TIP]
+> You may find the `--data-dir`, `--get-data-dir`, `--config-file`, and `--get-config`
 > options useful when setting up Herostratus to run on one more more repository over time.
 
 After this, you can use the `fetch-all` and `check-all` subcommands to update and check the cloned
@@ -49,7 +50,8 @@ Achievement { name: "I meant to fix that up later, I swear!", commit: a987013884
 Achievement { name: "I meant to fix that up later, I swear!", commit: 60b480b554dbd5266eec0f2378f72df5170a6702 }
 ```
 
-> [!WARNING] This output format will change as Herostratus becomes more usable
+> [!WARNING]
+> This output format will change as Herostratus becomes more usable
 
 ## Development
 

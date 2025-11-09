@@ -10,7 +10,7 @@ fn search_current_repo_for_test_simple_branch() {
     let (mut cmd, _temp) = herostratus(None);
     cmd.arg("check").arg(".").arg("origin/test/simple");
 
-    let output = cmd.captured_output().unwrap();
+    let output = cmd.captured_output();
     assert!(output.status.success());
 }
 
@@ -21,7 +21,7 @@ fn search_current_repo_for_branch_that_does_not_exist() {
         .arg(".")
         .arg("origin/test/this-branch-will-never-exist");
 
-    let output = cmd.captured_output().unwrap();
+    let output = cmd.captured_output();
     assert!(!output.status.success());
 }
 
@@ -30,7 +30,7 @@ fn search_current_repo_for_fixup_commits() {
     let (mut cmd, _temp) = herostratus(None);
     cmd.arg("check").arg(".").arg("origin/test/fixup");
 
-    let output = cmd.captured_output().unwrap();
+    let output = cmd.captured_output();
     assert!(output.status.success());
 
     // These are the three fixup! commits in the test/fixup branch
@@ -54,7 +54,7 @@ fn smoke_test_on_all_own_branches() {
         let (mut cmd, _temp) = herostratus(None);
         cmd.arg("check").arg(".").arg(name);
 
-        let output = cmd.captured_output().unwrap();
+        let output = cmd.captured_output();
         assert!(output.status.success());
     }
 }

@@ -3,6 +3,12 @@ use std::path::PathBuf;
 #[derive(Debug, clap::Parser)]
 #[clap(about, verbatim_doc_comment, version)]
 pub struct Args {
+    /// Force colored output
+    ///
+    /// Otherwise, color will be used if stdout is a terminal.
+    #[clap(long)]
+    pub color: bool,
+
     /// Set the application log level
     ///
     /// You can also set the value of the HEROSTRATUS_LOG environment variable like so

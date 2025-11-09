@@ -8,13 +8,13 @@ fn add_self_and_then_check_all() {
     let (mut cmd, temp) = herostratus(None);
     cmd.arg("add").arg("--skip-clone").arg(self_dir);
 
-    let output = cmd.captured_output().unwrap();
+    let output = cmd.captured_output();
     assert!(output.status.success());
 
     let (mut cmd, _) = herostratus(Some(temp.as_ref().unwrap().path()));
     // If 'add' skips the clone, using 'fetch-all' or 'check-all' without '--no-fetch' will clone
     cmd.arg("check-all");
-    let output = cmd.captured_output().unwrap();
+    let output = cmd.captured_output();
     assert!(output.status.success());
 
     // who knows how many achievements 'HEAD' will have?
