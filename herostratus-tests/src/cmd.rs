@@ -21,7 +21,10 @@ pub fn herostratus(data_dir: Option<&Path>) -> (assert_cmd::Command, Option<Temp
     };
 
     let mut cmd = assert_cmd::Command::new(&*HEROSTRATUS);
-    cmd.arg("--log-level=DEBUG").arg("--data-dir").arg(path);
+    cmd.arg("--color")
+        .arg("--log-level=DEBUG")
+        .arg("--data-dir")
+        .arg(path);
 
     (cmd, tempdir)
 }

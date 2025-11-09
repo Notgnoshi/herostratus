@@ -5,12 +5,12 @@ use eyre::WrapErr;
 use tracing_subscriber::EnvFilter;
 
 fn main() -> eyre::Result<()> {
-    let use_color = std::io::stdout().is_terminal();
+    let args = herostratus::cli::Args::parse();
+    let use_color = std::io::stdout().is_terminal() || args.color;
     if use_color {
         color_eyre::install()?;
     }
 
-    let args = herostratus::cli::Args::parse();
     let proj_dir = directories::ProjectDirs::from("com", "Notgnoshi", "Herostratus").ok_or(
         eyre::eyre!("Failed to determine Herostratus data directory"),
     )?;
