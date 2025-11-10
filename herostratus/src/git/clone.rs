@@ -414,6 +414,31 @@ pub fn pull_branch_gix(
 /// vs SSH) then fail.
 ///
 /// If a branch has been specified, then clone *just* that branch.
+#[tracing::instrument(level = "debug", skip_all, fields(url = %config.url))]
+pub fn clone_repository_gix(
+    config: &crate::config::RepositoryConfig,
+    force: bool,
+) -> eyre::Result<gix::Repository> {
+    let start = std::time::Instant::now();
+    tracing::info!(
+        "Cloning {:?} (ref={}) to {} ...",
+        config.url,
+        config.branch.as_deref().unwrap_or("HEAD"),
+        config.path.display()
+    );
+    todo!()
+}
+
+/// Clone the given repository
+///
+/// If the repository already exists on-disk, then if
+/// * `force == false`, rather than cloning, update the reference from the given config
+/// * `force == true`, delete the existing repository and re-clone
+///
+/// If there's an existing repository on-disk with a different clone URL (even if it's just HTTPS
+/// vs SSH) then fail.
+///
+/// If a branch has been specified, then clone *just* that branch.
 pub fn clone_repository(
     config: &crate::config::RepositoryConfig,
     force: bool,
