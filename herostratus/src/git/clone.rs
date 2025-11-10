@@ -355,6 +355,7 @@ fn count_commits_between(
 /// tree to consider either.
 ///
 /// Returns the number of commits pulled.
+#[tracing::instrument(level = "debug", skip_all, fields(url = %config.url))]
 pub fn pull_branch_gix(
     config: &crate::config::RepositoryConfig,
     repo: &gix::Repository,
