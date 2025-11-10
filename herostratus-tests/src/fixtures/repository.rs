@@ -42,6 +42,7 @@ pub fn add_empty_commit<'r>(repo: &'r Repository, message: &str) -> eyre::Result
     add_empty_commit_time(repo, message, time)
 }
 
+#[tracing::instrument(level="debug", skip_all, fields(path = %repo.path().display()))]
 pub fn add_empty_commit_time<'r>(
     repo: &'r Repository,
     message: &str,
@@ -70,10 +71,7 @@ pub fn add_empty_commit_time<'r>(
         &parents,
     )?;
     let commit = repo.find_commit(oid)?;
-    tracing::debug!(
-        "Created commit {oid:?} with message {message:?} in repo {:?}",
-        repo.path()
-    );
+    tracing::debug!("Created commit {oid:?} with message {message:?}");
 
     Ok(commit)
 }
@@ -120,11 +118,9 @@ pub fn upstream_downstream() -> eyre::Result<(TempRepository, TempRepository)> {
 }
 
 /// Switch to the specified branch, creating it at the current HEAD if necessary
+#[tracing::instrument(level = "debug", skip_all, fields(path = %repo.path().display()))]
 pub fn switch_branch(repo: &git2::Repository, branch_name: &str) -> eyre::Result<()> {
-    tracing::debug!(
-        "Switching to branch {branch_name:?} in repo {:?}",
-        repo.path()
-    );
+    tracing::debug!("Switching to branch {branch_name:?}");
     repo.set_head(format!("refs/heads/{branch_name}").as_str())?;
 
     Ok(())
