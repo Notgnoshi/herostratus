@@ -59,11 +59,11 @@ mod test {
     #[test]
     fn test_rev_parse_and_walk() {
         let temp_repo = fixtures::repository::simplest().unwrap();
-        let time = git2::Time::new(1711656631, -500);
+        let time = 1711656631;
         fixtures::repository::add_empty_commit_time(&temp_repo.repo, "commit2", time).unwrap();
-        let time = git2::Time::new(1711656633, -500);
+        let time = 1711656633;
         fixtures::repository::add_empty_commit_time(&temp_repo.repo, "commit3", time).unwrap();
-        let time = git2::Time::new(1711656632, -500);
+        let time = 1711656632;
         fixtures::repository::add_empty_commit_time(&temp_repo.repo, "commit4", time).unwrap();
 
         // git2 variants
@@ -84,7 +84,7 @@ mod test {
 
         // gix variants
         {
-            let repo = temp_repo.gix();
+            let repo = temp_repo.repo;
 
             let rev = parse_gix("HEAD", &repo).unwrap();
             let commits: Vec<_> = walk_gix(rev, &repo)
