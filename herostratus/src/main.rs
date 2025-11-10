@@ -28,6 +28,7 @@ fn main() -> eyre::Result<()> {
         .from_env_lossy();
     tracing_subscriber::fmt()
         .with_env_filter(filter)
+        .with_target(false)
         .with_ansi(use_color)
         .with_writer(std::io::stderr)
         .init();
