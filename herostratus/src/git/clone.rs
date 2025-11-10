@@ -209,10 +209,11 @@ pub fn pull_branch(
 /// After fetching, update the local repository to match the remote for the fetched references.
 fn update_local_repo(
     repo: &gix::Repository,
+    local_ref_name: &str,
     remote_ref_map: &gix::remote::fetch::RefMap,
 ) -> eyre::Result<()> {
     for remote_ref in &remote_ref_map.remote_refs {
-        sync_remote_ref(repo, remote_ref)?;
+        sync_remote_ref(repo, local_ref_name, remote_ref)?;
     }
 
     Ok(())
@@ -292,6 +293,7 @@ fn sync_remote_dirref(
 /// Update the local HEAD to match the remote HEAD
 fn sync_remote_ref(
     repo: &gix::Repository,
+    local_ref_name: &str,
     remote_ref: &gix::protocol::handshake::Ref,
 ) -> eyre::Result<()> {
     match remote_ref {
@@ -300,7 +302,11 @@ fn sync_remote_ref(
             target,
             object,
             ..
-        } => sync_remote_symref(repo, full_ref_name.as_ref(), target.as_ref(), *object)?,
+        } => {
+            if full_ref_name.ends_with(local_ref_name.as_bytes()) || full_ref_name == "HEAD" {
+                sync_remote_symref(repo, full_ref_name.as_ref(), target.as_ref(), *object)?;
+            }
+        }
         gix::protocol::handshake::Ref::Peeled {
             full_ref_name,
             object,
@@ -309,7 +315,11 @@ fn sync_remote_ref(
         | gix::protocol::handshake::Ref::Direct {
             full_ref_name,
             object,
-        } => sync_remote_dirref(repo, full_ref_name.as_ref(), *object)?,
+        } => {
+            if full_ref_name.ends_with(local_ref_name.as_bytes()) {
+                sync_remote_dirref(repo, full_ref_name.as_ref(), *object)?;
+            }
+        }
         gix::protocol::handshake::Ref::Unborn {
             full_ref_name,
             target,
@@ -371,8 +381,9 @@ pub fn pull_branch_gix(
         refspecs.push(&branch_refspec);
     }
     let ref_name = config.branch.as_deref().unwrap_or("HEAD");
-    let remote = remote.with_refspecs(refspecs, gix::remote::Direction::Fetch)?;
+    let remote = remote.with_refspecs(&refspecs, gix::remote::Direction::Fetch)?;
     tracing::info!("Pulling {ref_name:?} from remote {:?}", config.url);
+    tracing::debug!("refspecs: {refspecs:?}");
     // If this is None, then the reference doesn't exist locally (yet), and this is the first time
     // we're pulling it.
     let before = repo.rev_parse_single(ref_name).ok();
@@ -385,7 +396,7 @@ pub fn pull_branch_gix(
     let interrupt = std::sync::atomic::AtomicBool::new(false);
     let outcome = prepare.receive(gix::progress::Discard, &interrupt)?;
 
-    update_local_repo(repo, &outcome.ref_map)?;
+    update_local_repo(repo, ref_name, &outcome.ref_map)?;
     let after = repo.rev_parse_single(ref_name)?;
 
     let num_fetched_commits = count_commits_between(repo, before, after)?;
@@ -663,14 +674,12 @@ mod tests {
             url: remote.url().unwrap().to_string(),
             ..Default::default()
         };
+        let repo = downstream.gix();
 
-        let result = pull_branch(&config, &downstream.repo);
+        let result = pull_branch_gix(&config, &repo);
         assert!(result.is_ok());
 
-        // branch1 exists as a local branch, not just a remote one
-        let result = downstream
-            .repo
-            .find_branch("branch1", git2::BranchType::Local);
+        let result = repo.find_reference("branch1");
         assert!(result.is_ok());
     }
 
@@ -679,9 +688,17 @@ mod tests {
         let (upstream, downstream) = fixtures::repository::upstream_downstream().unwrap();
         fixtures::repository::switch_branch(&upstream.repo, "branch1").unwrap();
         fixtures::repository::switch_branch(&upstream.repo, "branch2").unwrap();
+        let commit2 =
+            fixtures::repository::add_empty_commit(&upstream.repo, "commit on branch2").unwrap();
 
         fixtures::repository::switch_branch(&upstream.repo, "branch1").unwrap();
         fixtures::repository::add_empty_commit(&upstream.repo, "commit on branch1").unwrap();
+
+        let upstream = upstream.gix();
+        let result = upstream.find_reference("branch1");
+        assert!(result.is_ok());
+        let result = upstream.find_reference("branch2");
+        assert!(result.is_ok());
 
         let remote = downstream.repo.find_remote("origin").unwrap();
         let config = crate::config::RepositoryConfig {
@@ -690,23 +707,21 @@ mod tests {
             ..Default::default()
         };
 
-        let result = pull_branch(&config, &downstream.repo);
+        let repo = downstream.gix();
+
+        let result = pull_branch_gix(&config, &repo);
         assert!(result.is_ok());
 
         // We find the branch1 that was fetched
-        let result = downstream
-            .repo
-            .find_branch("branch1", git2::BranchType::Local);
+        let result = repo.find_reference("branch1");
         assert!(result.is_ok());
 
-        // But not the branch2 that wasn't fetched
-        let result = downstream
-            .repo
-            .find_branch("branch2", git2::BranchType::Local);
+        // But branch2 wasn't fetched
+        let result = repo.find_reference("branch2");
         assert!(result.is_err());
-        let result = downstream
-            .repo
-            .find_branch("branch2", git2::BranchType::Remote);
+
+        // And the commit on branch2 wasn't fetched
+        let result = downstream.repo.find_commit(commit2.id());
         assert!(result.is_err());
     }
 
