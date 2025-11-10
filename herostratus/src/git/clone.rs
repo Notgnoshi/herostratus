@@ -726,12 +726,134 @@ mod tests {
     }
 
     #[test]
-    fn test_force_clone() {
+    fn test_clone_file_url() {
         let upstream = fixtures::repository::simplest().unwrap();
+        let commit1 = fixtures::repository::add_empty_commit(&upstream.repo, "commit1").unwrap();
+        let tempdir = tempfile::tempdir().unwrap();
+        let downstream_dir = tempdir.path().join("downstream");
+
+        let config = crate::config::RepositoryConfig {
+            branch: None, // HEAD
+            url: format!("file://{}", upstream.tempdir.path().display()),
+            path: downstream_dir.clone(),
+            ..Default::default()
+        };
+        let force = false;
+        let downstream = clone_repository(&config, force).unwrap();
+
+        let result = downstream.find_commit(commit1.id());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_clone_fast_fetch_single_branch() {
+        let upstream = fixtures::repository::simplest().unwrap();
+        fixtures::repository::switch_branch(&upstream.repo, "branch1").unwrap();
+        let commit1 = fixtures::repository::add_empty_commit(&upstream.repo, "commit1").unwrap();
+        fixtures::repository::switch_branch(&upstream.repo, "branch2").unwrap();
+        let commit2 = fixtures::repository::add_empty_commit(&upstream.repo, "commit2").unwrap();
+        let tempdir = tempfile::tempdir().unwrap();
+        let downstream_dir = tempdir.path().join("downstream");
+
+        let config = crate::config::RepositoryConfig {
+            branch: Some("branch1".to_string()),
+            url: format!("file://{}", upstream.tempdir.path().display()),
+            path: downstream_dir.clone(),
+            ..Default::default()
+        };
+        let force = false;
+        let downstream = clone_repository(&config, force).unwrap();
+
+        let result = downstream.find_commit(commit1.id());
+        assert!(result.is_ok());
+
+        let result = downstream.find_commit(commit2.id());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_clone_https_url() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let downstream_dir = tempdir.path().join("downstream");
+
+        let config = crate::config::RepositoryConfig {
+            branch: Some("test/fixup".into()), // A small branch that's cheaper to fetch than the default
+            url: "https://github.com/Notgnoshi/herostratus.git".to_string(),
+            path: downstream_dir.clone(),
+            ..Default::default()
+        };
+        let force = false;
+        let _downstream = clone_repository(&config, force).unwrap();
+    }
+
+    #[test]
+    #[cfg_attr(feature = "ci", ignore = "Requires SSH (not available in CI)")]
+    fn test_clone_ssh_alternative_url() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let downstream_dir = tempdir.path().join("downstream");
+
+        let config = crate::config::RepositoryConfig {
+            branch: Some("test/fixup".into()), // A small branch that's cheaper to fetch than the default
+            url: "git@github.com:Notgnoshi/herostratus.git".to_string(),
+            path: downstream_dir.clone(),
+            ..Default::default()
+        };
+        let force = false;
+        let _downstream = clone_repository(&config, force).unwrap();
+    }
+
+    #[test]
+    #[cfg_attr(feature = "ci", ignore = "Requires SSH (not available in CI)")]
+    fn test_clone_ssh_url() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let downstream_dir = tempdir.path().join("downstream");
+
+        let config = crate::config::RepositoryConfig {
+            branch: Some("test/fixup".into()), // A small branch that's cheaper to fetch than the default
+            // TODO: git:// protocol times out without cloning anything
+            url: "ssh://git@github.com/Notgnoshi/herostratus.git".to_string(),
+            path: downstream_dir.clone(),
+            ..Default::default()
+        };
+        let force = false;
+        let _downstream = clone_repository(&config, force).unwrap();
+    }
+
+    #[test]
+    fn test_clone_directory_already_exists() {
+        let upstream = fixtures::repository::simplest().unwrap();
+
         let tempdir = tempfile::tempdir().unwrap();
         let downstream_dir = tempdir.path().join("downstream");
         std::fs::create_dir_all(&downstream_dir).unwrap();
-        // Something's already using the clone directory
+
+        let config = crate::config::RepositoryConfig {
+            branch: None, // HEAD
+            url: format!("file://{}", upstream.tempdir.path().display()),
+            path: downstream_dir.clone(),
+            ..Default::default()
+        };
+        let force = false;
+        let result = clone_repository(&config, force);
+        assert!(result.is_err());
+
+        // Create a sentinel file to test whether the directory was deleted, or the clone was just
+        // created on top of the existing contents.
+        let sentinel = downstream_dir.join("sentinel.txt");
+        std::fs::File::create(&sentinel).unwrap();
+        assert!(sentinel.exists());
+
+        let force = true;
+        let result = clone_repository(&config, force);
+        assert!(result.is_ok());
+        assert!(!sentinel.exists());
+    }
+
+    #[test]
+    fn test_clone_already_cloned_does_a_fetch() {
+        let upstream = fixtures::repository::simplest().unwrap();
+        let tempdir = tempfile::tempdir().unwrap();
+        let downstream_dir = tempdir.path().join("downstream");
         let sentinel = downstream_dir.join("sentinel.txt");
         std::fs::File::create(&sentinel).unwrap();
         assert!(sentinel.exists());
@@ -739,17 +861,22 @@ mod tests {
         let config = crate::config::RepositoryConfig {
             branch: None, // HEAD
             url: format!("file://{}", upstream.tempdir.path().display()),
-            path: downstream_dir,
+            path: downstream_dir.clone(),
             ..Default::default()
         };
-        let force = false;
-        let result = clone_repository(&config, force);
-        assert!(result.is_err());
-        assert!(sentinel.exists());
 
-        let force = true;
-        let result = clone_repository(&config, force);
+        let force = false;
+        let _downstream = clone_repository(&config, force).unwrap();
+
+        // Now add a new commit to the upstream so we can test that another clone does a fetch
+        // instead of failing.
+        let new_commit =
+            fixtures::repository::add_empty_commit(&upstream.repo, "new commit").unwrap();
+
+        let downstream = clone_repository(&config, force).unwrap();
+        let result = downstream.find_commit(new_commit.id());
         assert!(result.is_ok());
-        assert!(!sentinel.exists());
+        // The repo wasn't cleared out and re-cloned; the sentinel file still exists
+        assert!(sentinel.exists());
     }
 }
