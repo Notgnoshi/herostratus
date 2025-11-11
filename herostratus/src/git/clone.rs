@@ -426,7 +426,71 @@ pub fn clone_repository_gix(
         config.branch.as_deref().unwrap_or("HEAD"),
         config.path.display()
     );
-    todo!()
+
+    if config.path.exists() {
+        tracing::warn!("{} already exists ...", config.path.display());
+        if force {
+            tracing::info!("Deleting and overwriting {} ...", config.path.display());
+            remove_dir_contents(&config.path).wrap_err(format!(
+                "Failed to clone {:?} to {}",
+                config.url,
+                config.path.display()
+            ))?;
+            // Proceed to clone as normal
+        } else {
+            // Check the existing checkout's remote URL; if it matches, do a pull instead of a clone
+            let existing_repo = gix::discover(&config.path)?;
+            let remote = existing_repo.find_remote("origin")?;
+            let existing_url = remote
+                .url(gix::remote::Direction::Fetch)
+                .ok_or(eyre::eyre!("Failed to find remote.origin.url"))?;
+            if existing_url.to_string() == config.url {
+                tracing::info!("... URLs match; using existing checkout and pulling");
+                pull_branch_gix(config, &existing_repo)?;
+                return Ok(existing_repo);
+            }
+            eyre::bail!(
+                "{} already exists with a different remote URL: {existing_url:?}",
+                config.path.display()
+            );
+        }
+    }
+
+    let url = gix::Url::from_bytes(gix::bstr::BString::from(config.url.as_bytes()).as_ref())?;
+    let create_opts = gix::create::Options {
+        destination_must_be_empty: true,
+        ..Default::default()
+    };
+    let open_opts = gix::open::Options::default();
+    let prepare = gix::clone::PrepareFetch::new(
+        url,
+        &config.path,
+        gix::create::Kind::Bare,
+        create_opts,
+        open_opts,
+    )?;
+    let branch = config.branch.clone();
+
+    // Configure the remote with the right refspecs for fetching just the configure branch and the
+    // remote's HEAD.
+    let mut prepare = prepare.configure_remote(move |mut remote| {
+        // Can't be a Vec<String>; has to be a Vec<&str> ...
+        let mut refspecs = vec!["+HEAD:refs/remotes/origin/HEAD"];
+        let branch_refspec;
+        if let Some(branch) = &branch {
+            branch_refspec = format!("+refs/heads/{branch}:refs/heads/{branch}");
+            refspecs.push(&branch_refspec);
+        }
+        // By default, gix will set the default wildcard refspec, which would fetch everything. But
+        // we want to only fetch what the user configured.
+        remote.replace_refspecs(&refspecs, gix::remote::Direction::Fetch)?;
+        Ok(remote)
+    });
+    let interrupt = std::sync::atomic::AtomicBool::new(false);
+    let (repo, _outcome) = prepare.fetch_only(gix::progress::Discard, &interrupt)?;
+    let elapsed = start.elapsed();
+    tracing::info!("... Finished cloning {:?} after {elapsed:.2?}", config.url);
+    Ok(repo)
 }
 
 /// Clone the given repository
@@ -767,12 +831,16 @@ mod tests {
 
     #[test]
     fn test_clone_fast_fetch_single_branch() {
-        let upstream = fixtures::repository::simplest().unwrap();
+        let mut upstream = fixtures::repository::simplest().unwrap();
+        upstream.forget();
+
         fixtures::repository::set_default_branch(&upstream.repo, "branch1").unwrap();
         let commit1 = fixtures::repository::add_empty_commit(&upstream.repo, "commit1").unwrap();
         fixtures::repository::set_default_branch(&upstream.repo, "branch2").unwrap();
         let commit2 = fixtures::repository::add_empty_commit(&upstream.repo, "commit2").unwrap();
-        let tempdir = tempfile::tempdir().unwrap();
+        fixtures::repository::set_default_branch(&upstream.repo, "branch1").unwrap();
+        let mut tempdir = tempfile::tempdir().unwrap();
+        tempdir.disable_cleanup(true);
         let downstream_dir = tempdir.path().join("downstream");
 
         let config = crate::config::RepositoryConfig {
@@ -874,10 +942,6 @@ mod tests {
         let upstream = fixtures::repository::simplest().unwrap();
         let tempdir = tempfile::tempdir().unwrap();
         let downstream_dir = tempdir.path().join("downstream");
-        std::fs::create_dir_all(&downstream_dir).unwrap();
-        let sentinel = downstream_dir.join("sentinel.txt");
-        std::fs::File::create(&sentinel).unwrap();
-        assert!(sentinel.exists());
 
         let config = crate::config::RepositoryConfig {
             branch: None, // HEAD
@@ -888,6 +952,10 @@ mod tests {
 
         let force = false;
         let _downstream = clone_repository_gix(&config, force).unwrap();
+        // Create a sentinel file to test whether the directory was deleted
+        let sentinel = downstream_dir.join("sentinel.txt");
+        std::fs::File::create(&sentinel).unwrap();
+        assert!(sentinel.exists());
 
         // Now add a new commit to the upstream so we can test that another clone does a fetch
         // instead of failing.
