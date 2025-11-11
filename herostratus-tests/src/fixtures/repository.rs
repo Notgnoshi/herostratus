@@ -19,12 +19,6 @@ impl TempRepository {
     }
 }
 
-impl TempRepository {
-    pub fn git2(&self) -> git2::Repository {
-        git2::Repository::discover(self.tempdir.path()).unwrap()
-    }
-}
-
 pub fn add_empty_commit<'r>(repo: &'r gix::Repository, message: &str) -> eyre::Result<gix::Id<'r>> {
     let time = 1711656630;
     add_empty_commit_time(repo, message, time)
@@ -189,22 +183,6 @@ mod tests {
         let path = temp.tempdir.path().to_path_buf();
         drop(temp);
         assert!(!path.exists());
-    }
-
-    #[test]
-    fn test_in_memory() {
-        let odb = git2::Odb::new().unwrap();
-        let repo = git2::Repository::from_odb(odb).unwrap();
-
-        // This fails with in-memory Repository / Odb's
-        assert!(repo.index().is_err());
-
-        let mut index = git2::Index::new().unwrap();
-        repo.set_index(&mut index).unwrap();
-        let mut index = repo.index().unwrap();
-
-        // This fails with in-memory Repository / Odb's
-        assert!(index.write_tree().is_err());
     }
 
     #[test]

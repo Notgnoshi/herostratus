@@ -2,15 +2,6 @@ use std::path::{Path, PathBuf};
 
 use eyre::WrapErr;
 
-pub fn find_local_repository<P: AsRef<Path> + std::fmt::Debug>(
-    path: P,
-) -> eyre::Result<git2::Repository> {
-    tracing::debug!("Searching local path {path:?} for a Git repository");
-    let repo = git2::Repository::discover(path)?;
-    tracing::debug!("Found local git repository at {:?}", repo.path());
-    Ok(repo)
-}
-
 pub fn find_local_repository_gix<P: AsRef<Path> + std::fmt::Debug>(
     path: P,
 ) -> eyre::Result<gix::Repository> {
@@ -382,9 +373,6 @@ mod tests {
     #[test]
     fn test_find_local_repository() {
         let temp_repo = fixtures::repository::simplest().unwrap();
-        let repo = find_local_repository(temp_repo.tempdir.path()).unwrap();
-        assert_eq!(repo.path(), temp_repo.tempdir.path());
-
         let repo = find_local_repository_gix(temp_repo.tempdir.path()).unwrap();
         assert_eq!(repo.path(), temp_repo.tempdir.path());
     }
