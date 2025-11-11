@@ -14,12 +14,26 @@ focus on the user impact** rather than the actual changes made.
 
 ## Added
 
+## Changed
+
+## Deprecated
+
+## Removed
+
+## Fixed
+
+## Security
+
+# Herostratus - 0.2.0 - (2025-11-11)
+
+## Added
+
 * Added the following rules:
 
   | ID                      | Description                                   |
   | ----------------------- | --------------------------------------------- |
   | H3-longest-subject-line | Find the commit with the longest subject line |
-  | H4-non-unicode          | a commit message containing non UTF-8 bytes   |
+  | H4-non-unicode          | A commit message containing non UTF-8 bytes   |
 
 * You can now configure rules on a per-rule basis. The following rules and options are supported:
 
@@ -39,13 +53,8 @@ focus on the user impact** rather than the actual changes made.
 
 ## Changed
 
-## Deprecated
-
-## Removed
-
-## Fixed
-
-## Security
+* Internal refactoring to switch out the `git2` crate with `gix`.
+* Upgrade to Rust 2024 edition and MSRV of 1.89
 
 # Herostratus - 0.1.0 - (2024-10-20)
 

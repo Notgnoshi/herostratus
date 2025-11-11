@@ -1,18 +1,6 @@
 use eyre::WrapErr;
 
-pub fn parse(reference: &str, repo: &git2::Repository) -> eyre::Result<git2::Oid> {
-    let object = repo
-        .revparse_single(reference)
-        .wrap_err("Failed to rev-parse")?;
-    let oid = object.id();
-    tracing::debug!(
-        "Resolved {reference:?} to {:?} {oid:?}",
-        object.kind().unwrap_or(git2::ObjectType::Any)
-    );
-    Ok(oid)
-}
-
-pub fn parse_gix(reference: &str, repo: &gix::Repository) -> eyre::Result<gix::ObjectId> {
+pub fn parse(reference: &str, repo: &gix::Repository) -> eyre::Result<gix::ObjectId> {
     let object = repo
         .rev_parse_single(reference)
         .wrap_err("Failed to rev-parse")?;
@@ -25,17 +13,6 @@ pub fn parse_gix(reference: &str, repo: &gix::Repository) -> eyre::Result<gix::O
 }
 
 pub fn walk(
-    oid: git2::Oid,
-    repo: &git2::Repository,
-) -> eyre::Result<impl Iterator<Item = eyre::Result<git2::Oid>> + '_> {
-    let mut revwalk = repo.revwalk().wrap_err("Could not walk repository")?;
-    revwalk.set_sorting(git2::Sort::TIME | git2::Sort::TOPOLOGICAL)?;
-    revwalk.push(oid)?;
-
-    Ok(revwalk.map(|r| r.wrap_err("Failed to yield next rev")))
-}
-
-pub fn walk_gix(
     oid: gix::ObjectId,
     repo: &gix::Repository,
 ) -> eyre::Result<impl Iterator<Item = eyre::Result<gix::ObjectId>> + '_> {
@@ -66,39 +43,20 @@ mod test {
         let time = 1711656632;
         fixtures::repository::add_empty_commit_time(&temp_repo.repo, "commit4", time).unwrap();
 
-        // git2 variants
-        {
-            let repo = temp_repo.git2();
+        let repo = temp_repo.repo;
 
-            let rev = parse("HEAD", &repo).unwrap();
-            let commits: Vec<_> = walk(rev, &repo)
-                .unwrap()
-                .map(|oid| repo.find_commit(oid.unwrap()).unwrap())
-                .collect();
-            assert_eq!(commits.len(), 4);
-            assert_eq!(commits[0].summary().unwrap(), "commit4");
-            assert_eq!(commits[1].summary().unwrap(), "commit3");
-            assert_eq!(commits[2].summary().unwrap(), "commit2");
-            assert_eq!(commits[3].summary().unwrap(), "Initial commit");
-        }
-
-        // gix variants
-        {
-            let repo = temp_repo.repo;
-
-            let rev = parse_gix("HEAD", &repo).unwrap();
-            let commits: Vec<_> = walk_gix(rev, &repo)
-                .unwrap()
-                .map(|oid| repo.find_commit(oid.unwrap()).unwrap())
-                .collect();
-            assert_eq!(commits.len(), 4);
-            assert_eq!(commits[0].message().unwrap().summary().as_ref(), "commit4");
-            assert_eq!(commits[1].message().unwrap().summary().as_ref(), "commit3");
-            assert_eq!(commits[2].message().unwrap().summary().as_ref(), "commit2");
-            assert_eq!(
-                commits[3].message().unwrap().summary().as_ref(),
-                "Initial commit"
-            );
-        }
+        let rev = parse("HEAD", &repo).unwrap();
+        let commits: Vec<_> = walk(rev, &repo)
+            .unwrap()
+            .map(|oid| repo.find_commit(oid.unwrap()).unwrap())
+            .collect();
+        assert_eq!(commits.len(), 4);
+        assert_eq!(commits[0].message().unwrap().summary().as_ref(), "commit4");
+        assert_eq!(commits[1].message().unwrap().summary().as_ref(), "commit3");
+        assert_eq!(commits[2].message().unwrap().summary().as_ref(), "commit2");
+        assert_eq!(
+            commits[3].message().unwrap().summary().as_ref(),
+            "Initial commit"
+        );
     }
 }

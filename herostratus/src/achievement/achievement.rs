@@ -3,10 +3,7 @@ use crate::config::RulesConfig;
 #[derive(Debug)]
 pub struct Achievement {
     pub name: &'static str,
-    // TODO: Should this be the git2::Commit instead of the Oid? That'd enable easier serialization
-    // of the actual commit message and author details, but it'd also introduce an awkward
-    // lifetime.
-    pub commit: git2::Oid,
+    pub commit: gix::ObjectId,
     // TODO: Add the user (how to accommodate mailmaps?)
     // TODO: Identify the repository somehow
 }
@@ -90,26 +87,26 @@ pub trait Rule {
     /// * The shortest subject line
     fn description(&self) -> &'static str;
 
-    /// Grant the given [git2::Commit] this rule's [Achievement]
-    fn grant(&self, commit: &git2::Commit, _repo: &git2::Repository) -> Achievement {
+    /// Grant the given [gix::Commit] this rule's [Achievement]
+    fn grant(&self, commit: &gix::Commit, _repo: &gix::Repository) -> Achievement {
         Achievement {
             name: self.name(),
-            commit: commit.id(),
+            commit: commit.id,
         }
     }
 
-    /// Process the given [git2::Commit] to generate an [Achievement]
+    /// Process the given [gix::Commit] to generate an [Achievement]
     ///
     /// Notice that this method takes `&mut self`. This is to allow the `Rule` to accumulate state
     /// during commit processing. At the end of processing, [finalize](Self::finalize) will be
     /// called, to generate any achievements from the accumulated state.
-    fn process(&mut self, commit: &git2::Commit, repo: &git2::Repository) -> Option<Achievement>;
+    fn process(&mut self, commit: &gix::Commit, repo: &gix::Repository) -> Option<Achievement>;
 
     /// Called when finished processing all commits
     ///
     /// This exists to enable rules that accumulate state (like calculating the shortest commit
     /// message) to generate achievements once all commits have been visited.
-    fn finalize(&mut self, _repo: &git2::Repository) -> Vec<Achievement> {
+    fn finalize(&mut self, _repo: &gix::Repository) -> Vec<Achievement> {
         Vec::new()
     }
 }
@@ -125,18 +122,13 @@ pub trait LoggedRule: Rule {
         tracing::info!("Generated achievement: {achievement:?}");
     }
 
-    // TODO: What's the Rust way to override a base class method?
-    fn process_log(
-        &mut self,
-        commit: &git2::Commit,
-        repo: &git2::Repository,
-    ) -> Option<Achievement> {
+    fn process_log(&mut self, commit: &gix::Commit, repo: &gix::Repository) -> Option<Achievement> {
         let achievement = self.process(commit, repo)?;
         self.log_achievement(&achievement);
         Some(achievement)
     }
 
-    fn finalize_log(&mut self, repo: &git2::Repository) -> Vec<Achievement> {
+    fn finalize_log(&mut self, repo: &gix::Repository) -> Vec<Achievement> {
         let achievements = self.finalize(repo);
         if !achievements.is_empty() {
             // This isn't the total number of achievements, just the ones granted at the end

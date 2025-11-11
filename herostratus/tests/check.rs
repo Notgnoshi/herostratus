@@ -41,15 +41,23 @@ fn search_current_repo_for_fixup_commits() {
     assert!(assertion.eval(&stdout));
 }
 
+/// Run check on all local **and** remote branches in the herostratus repository
+///
+/// The application should not crash nor exit with an error on any branch.
 #[test]
 fn smoke_test_on_all_own_branches() {
+    use std::os::unix::ffi::OsStringExt;
+
     let path = Path::new(".");
     let repo = find_local_repository(path).unwrap();
 
-    let branches = repo.branches(None).unwrap();
-    for branch in branches {
-        let (branch, _local_or_remote) = branch.unwrap();
-        let name = branch.name().unwrap().unwrap();
+    let references = repo.references().unwrap();
+    let local_branches = references.local_branches().unwrap();
+    let remote_branches = references.remote_branches().unwrap();
+    let branches = local_branches.chain(remote_branches);
+    for reference in branches {
+        let reference = reference.unwrap();
+        let name = std::ffi::OsString::from_vec(reference.name().as_bstr().to_vec());
 
         let (mut cmd, _temp) = herostratus(None);
         cmd.arg("check").arg(".").arg(name);

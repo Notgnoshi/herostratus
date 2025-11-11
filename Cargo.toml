@@ -9,7 +9,7 @@ members = [
 default-members = ["herostratus", "herostratus-tests"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/Notgnoshi/herostratus"
@@ -23,7 +23,6 @@ color-eyre = "0.6.5"
 ctor = "0.5.0"
 directories = "6.0.0"
 eyre = "0.6.12"
-git2 = "0.20.2"
 gix = { version = "0.73.0", features = ["blob-diff", "blocking-network-client", "credentials", "excludes", "index", "mailmap", "revision", "tracing", "tree-editor", "blocking-http-transport-reqwest-rust-tls"] }
 inventory = "0.3.21"
 predicates = "3.1.3"
