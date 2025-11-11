@@ -18,14 +18,17 @@ impl Rule for NonUnicode {
         "Make a commit message containing a non UTF-8 byte"
     }
 
-    fn process(&mut self, commit: &git2::Commit, repo: &git2::Repository) -> Option<Achievement> {
-        if commit.message_raw().is_none() {
+    fn process(&mut self, commit: &gix::Commit, repo: &gix::Repository) -> Option<Achievement> {
+        let bytes = commit.message_raw_sloppy();
+        let msg = str::from_utf8(bytes);
+        if msg.is_err() {
             return Some(self.grant(commit, repo));
         }
         None
     }
 }
 
+// TODO: I think this is possible with gitoxide?
 // NOTE: It's not possible to create a commit containing non-unicode bytes from git2, so there's a
 // test/non-unicode branch with a hand-crafted commit and a tests/h004_non_unicode.rs integration
 // test.

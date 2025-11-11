@@ -9,7 +9,7 @@ pub struct Fixup;
 
 inventory::submit!(RuleFactory::default::<Fixup>());
 
-const FIXUP_PREFIXES: [&str; 11] = [
+const FIXUP_PREFIXES: &[&str] = &[
     "fixup!", "squash!", "amend!", "WIP", "TODO", "FIXME", "DROPME",
     // avoid false positives by accepting false negatives. Of all these patterns, "wip" is the one
     // that's most likely to be a part of a real word.
@@ -29,10 +29,10 @@ impl Rule for Fixup {
     fn description(&self) -> &'static str {
         "Prefix a commit message with a !fixup marker"
     }
-    fn process(&mut self, commit: &git2::Commit, repo: &git2::Repository) -> Option<Achievement> {
-        let summary = commit.summary()?;
+    fn process(&mut self, commit: &gix::Commit, repo: &gix::Repository) -> Option<Achievement> {
+        let summary = commit.message().ok()?.title;
         for pattern in FIXUP_PREFIXES {
-            if summary.starts_with(pattern) {
+            if summary.starts_with(pattern.as_bytes()) {
                 let achievement = self.grant(commit, repo);
                 return Some(achievement);
             }

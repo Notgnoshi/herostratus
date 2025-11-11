@@ -8,13 +8,13 @@ use crate::config::Config;
 /// An iterator of [Achievement]s
 pub struct Achievements<'repo, Oids>
 where
-    Oids: Iterator<Item = git2::Oid>,
+    Oids: Iterator<Item = gix::ObjectId>,
 {
-    repo: &'repo git2::Repository,
+    repo: &'repo gix::Repository,
     oids: Oids,
     rules: Vec<Box<dyn Rule>>,
 
-    current_commit: Option<git2::Commit<'repo>>,
+    current_commit: Option<gix::Commit<'repo>>,
     next_rule: usize,
 
     finalized: Option<std::vec::IntoIter<Achievement>>,
@@ -26,7 +26,7 @@ where
 
 impl<Oids> Achievements<'_, Oids>
 where
-    Oids: Iterator<Item = git2::Oid>,
+    Oids: Iterator<Item = gix::ObjectId>,
 {
     // Returning None indicates rule processing is finished
     fn get_next_achievement_online(&mut self) -> Option<Achievement> {
@@ -80,7 +80,7 @@ where
 
 impl<Oids> Iterator for Achievements<'_, Oids>
 where
-    Oids: Iterator<Item = git2::Oid>,
+    Oids: Iterator<Item = gix::ObjectId>,
 {
     type Item = Achievement;
 
@@ -125,11 +125,11 @@ where
 /// Returns a lazy iterator. The rules will be processed as the iterator advances.
 pub fn process_rules<Oids>(
     oids: Oids,
-    repo: &git2::Repository,
+    repo: &gix::Repository,
     rules: Vec<Box<dyn Rule>>,
 ) -> Achievements<'_, Oids>
 where
-    Oids: Iterator<Item = git2::Oid>,
+    Oids: Iterator<Item = gix::ObjectId>,
 {
     Achievements {
         repo,
@@ -147,20 +147,20 @@ where
 pub fn grant<'repo>(
     config: Option<&Config>,
     reference: &str,
-    repo: &'repo git2::Repository,
+    repo: &'repo gix::Repository,
 ) -> eyre::Result<impl Iterator<Item = Achievement> + 'repo> {
     grant_with_rules(reference, repo, crate::rules::builtin_rules(config))
 }
 
 pub fn grant_with_rules<'repo>(
     reference: &str,
-    repo: &'repo git2::Repository,
+    repo: &'repo gix::Repository,
     rules: Vec<Box<dyn Rule>>,
 ) -> eyre::Result<impl Iterator<Item = Achievement> + 'repo> {
-    let rev = crate::git::rev::parse(reference, repo)
+    let rev = crate::git::rev::parse_gix(reference, repo)
         .wrap_err(format!("Failed to rev-parse: {reference:?}"))?;
-    let oids =
-        crate::git::rev::walk(rev, repo).wrap_err(format!("Failed to rev-walk rev: {rev:?}"))?;
+    let oids = crate::git::rev::walk_gix(rev, repo)
+        .wrap_err(format!("Failed to rev-walk rev: {rev:?}"))?;
 
     // TODO: There should be better error handling than this
     let oids = oids.filter_map(|o| match o {
@@ -183,9 +183,8 @@ mod tests {
     #[test]
     fn test_no_rules() {
         let temp_repo = fixtures::repository::simplest().unwrap();
-        let repo = temp_repo.git2();
         let rules = Vec::new();
-        let achievements = grant_with_rules("HEAD", &repo, rules).unwrap();
+        let achievements = grant_with_rules("HEAD", &temp_repo.repo, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert!(achievements.is_empty());
     }
@@ -193,9 +192,8 @@ mod tests {
     #[test]
     fn test_iterator_no_matches() {
         let temp_repo = fixtures::repository::simplest().unwrap();
-        let repo = temp_repo.git2();
         let rules = vec![Box::new(AlwaysFail) as Box<dyn Rule>];
-        let achievements = grant_with_rules("HEAD", &repo, rules).unwrap();
+        let achievements = grant_with_rules("HEAD", &temp_repo.repo, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert!(achievements.is_empty());
     }
@@ -203,13 +201,12 @@ mod tests {
     #[test]
     fn test_iterator_all_matches() {
         let temp_repo = fixtures::repository::simplest().unwrap();
-        let repo = temp_repo.git2();
 
         let rules = vec![
             Box::new(AlwaysFail) as Box<dyn Rule>,
             Box::new(ParticipationTrophy) as Box<dyn Rule>,
         ];
-        let achievements = grant_with_rules("HEAD", &repo, rules).unwrap();
+        let achievements = grant_with_rules("HEAD", &temp_repo.repo, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
     }
@@ -217,10 +214,9 @@ mod tests {
     #[test]
     fn test_awards_on_finalize() {
         let temp_repo = fixtures::repository::simplest().unwrap();
-        let repo = temp_repo.git2();
 
         let rules = vec![Box::new(ParticipationTrophy2) as Box<dyn Rule>];
-        let achievements = grant_with_rules("HEAD", &repo, rules).unwrap();
+        let achievements = grant_with_rules("HEAD", &temp_repo.repo, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
     }

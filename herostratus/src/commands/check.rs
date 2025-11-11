@@ -4,7 +4,7 @@ use std::time::Instant;
 use crate::achievement::{Achievement, grant};
 use crate::cli::{CheckAllArgs, CheckArgs};
 use crate::config::Config;
-use crate::git::clone::find_local_repository;
+use crate::git::clone::find_local_repository_gix;
 
 // Stateless; do not allow filesystem modification, or reading from application data
 pub fn check(args: &CheckArgs) -> eyre::Result<()> {
@@ -13,7 +13,7 @@ pub fn check(args: &CheckArgs) -> eyre::Result<()> {
         args.path.display(),
         args.reference
     );
-    let repo = find_local_repository(&args.path)?;
+    let repo = find_local_repository_gix(&args.path)?;
     let achievements = grant(None, &args.reference, &repo)?;
 
     process_achievements(achievements)
@@ -28,7 +28,7 @@ pub fn check_all(args: &CheckAllArgs, config: &Config, data_dir: &Path) -> eyre:
     let start = Instant::now();
     for (name, repo_config) in config.repositories.iter() {
         let _span = tracing::debug_span!("check", name = name).entered();
-        let repo = find_local_repository(&repo_config.path)?;
+        let repo = find_local_repository_gix(&repo_config.path)?;
         let reference = repo_config
             .branch
             .clone()

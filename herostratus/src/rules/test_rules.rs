@@ -14,7 +14,7 @@ impl Rule for AlwaysFail {
     fn description(&self) -> &'static str {
         ""
     }
-    fn process(&mut self, _commit: &git2::Commit, _repo: &git2::Repository) -> Option<Achievement> {
+    fn process(&mut self, _commit: &gix::Commit, _repo: &gix::Repository) -> Option<Achievement> {
         None
     }
 }
@@ -33,7 +33,7 @@ impl Rule for ParticipationTrophy {
     fn description(&self) -> &'static str {
         ""
     }
-    fn process(&mut self, commit: &git2::Commit, repo: &git2::Repository) -> Option<Achievement> {
+    fn process(&mut self, commit: &gix::Commit, repo: &gix::Repository) -> Option<Achievement> {
         tracing::debug!("Granting {:?} a participation trophy", commit.id());
         Some(self.grant(commit, repo))
     }
@@ -53,14 +53,14 @@ impl Rule for ParticipationTrophy2 {
     fn description(&self) -> &'static str {
         ""
     }
-    fn process(&mut self, _commit: &git2::Commit, _repo: &git2::Repository) -> Option<Achievement> {
+    fn process(&mut self, _commit: &gix::Commit, _repo: &gix::Repository) -> Option<Achievement> {
         None
     }
 
-    fn finalize(&mut self, _repo: &git2::Repository) -> Vec<Achievement> {
+    fn finalize(&mut self, _repo: &gix::Repository) -> Vec<Achievement> {
         tracing::debug!("Finalizing ParticipationTrophy2");
         vec![Achievement {
-            commit: git2::Oid::zero(),
+            commit: gix::ObjectId::null(gix::index::hash::Kind::Sha1),
             name: self.name(),
         }]
     }

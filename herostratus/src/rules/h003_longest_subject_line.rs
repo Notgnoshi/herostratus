@@ -3,7 +3,7 @@ use crate::config::RulesConfig;
 
 pub struct LongestSubjectLine {
     config: H003Config,
-    longest_so_far: Option<(git2::Oid, usize)>,
+    longest_so_far: Option<(gix::ObjectId, usize)>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
@@ -27,11 +27,12 @@ fn longest_subject_line(config: &RulesConfig) -> Box<dyn Rule> {
 }
 inventory::submit!(RuleFactory::new(longest_subject_line));
 
-fn subject_length(commit: &git2::Commit) -> usize {
-    match commit.summary() {
-        Some(subject) => subject.len(),
-        None => 0,
-    }
+fn subject_length(commit: &gix::Commit) -> usize {
+    let Ok(msg) = commit.message() else {
+        return 0;
+    };
+    // number of bytes, not number of characters, but that's fine for our purposes
+    msg.title.len()
 }
 
 impl Rule for LongestSubjectLine {
@@ -48,22 +49,22 @@ impl Rule for LongestSubjectLine {
         "The longest subject line"
     }
 
-    fn process(&mut self, commit: &git2::Commit, _repo: &git2::Repository) -> Option<Achievement> {
+    fn process(&mut self, commit: &gix::Commit, _repo: &gix::Repository) -> Option<Achievement> {
         let length = subject_length(commit);
         if length > self.config.length_threshold {
             match self.longest_so_far {
                 Some((_, longest_length)) => {
                     if length > longest_length {
-                        self.longest_so_far = Some((commit.id(), length));
+                        self.longest_so_far = Some((commit.id, length));
                     }
                 }
-                None => self.longest_so_far = Some((commit.id(), length)),
+                None => self.longest_so_far = Some((commit.id, length)),
             }
         }
         None
     }
 
-    fn finalize(&mut self, _repo: &git2::Repository) -> Vec<Achievement> {
+    fn finalize(&mut self, _repo: &gix::Repository) -> Vec<Achievement> {
         match self.longest_so_far {
             Some((oid, _)) => vec![Achievement {
                 name: self.name(),
@@ -90,9 +91,8 @@ mod tests {
             ..Default::default()
         };
         let repo = fixtures::repository::with_empty_commits(&["0123456789", "1234567890"]).unwrap();
-        let repo = repo.git2();
         let rules = vec![longest_subject_line(&config)];
-        let achievements = grant_with_rules("HEAD", &repo, rules).unwrap();
+        let achievements = grant_with_rules("HEAD", &repo.repo, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert!(achievements.is_empty());
     }
@@ -111,14 +111,14 @@ mod tests {
             "123456789",  // 9
         ])
         .unwrap();
-        let repo = repo.git2();
         let rules = vec![longest_subject_line(&config)];
-        let achievements = grant_with_rules("HEAD", &repo, rules).unwrap();
+        let achievements = grant_with_rules("HEAD", &repo.repo, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
 
         let oid = achievements[0].commit;
-        let commit = repo.find_commit(oid).unwrap();
-        assert_eq!(commit.summary(), Some("1234567890"));
+        let commit = repo.repo.find_commit(oid).unwrap();
+        let summary = commit.message().unwrap().title;
+        assert_eq!(summary, "1234567890");
     }
 }
