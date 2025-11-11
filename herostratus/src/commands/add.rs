@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::cli::AddArgs;
 use crate::config::{Config, RepositoryConfig};
-use crate::git::clone::{clone_repository_gix, get_clone_path};
+use crate::git::clone::{clone_repository, get_clone_path};
 
 fn args_to_config(args: &AddArgs, data_dir: &Path) -> eyre::Result<RepositoryConfig> {
     // This default path is why we can't just 'impl From<AddArgs> for RepositoryConfig'
@@ -42,7 +42,7 @@ pub fn add(args: &AddArgs, config: &mut Config, data_dir: &Path) -> eyre::Result
     let repo_config = args_to_config(args, data_dir)?;
 
     if !args.skip_clone {
-        let _repo = clone_repository_gix(&repo_config, args.force)?;
+        let _repo = clone_repository(&repo_config, args.force)?;
     }
 
     config.repositories.insert(name, repo_config);

@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use eyre::WrapErr;
 
-pub fn find_local_repository_gix<P: AsRef<Path> + std::fmt::Debug>(
+pub fn find_local_repository<P: AsRef<Path> + std::fmt::Debug>(
     path: P,
 ) -> eyre::Result<gix::Repository> {
     tracing::debug!("Searching local path {path:?} for a Git repository");
@@ -204,7 +204,7 @@ fn count_commits_between(
     if base == Some(head) {
         tracing::debug!("No new commits");
     } else {
-        let commits = crate::git::rev::walk_gix(head.object()?.id, repo)?;
+        let commits = crate::git::rev::walk(head.object()?.id, repo)?;
         for commit_id in commits {
             if let Some(before) = &base
                 && commit_id? == before.object()?.id
@@ -230,7 +230,7 @@ fn count_commits_between(
 ///
 /// Returns the number of commits pulled.
 #[tracing::instrument(level = "debug", skip_all, fields(url = %config.url))]
-pub fn pull_branch_gix(
+pub fn pull_branch(
     config: &crate::config::RepositoryConfig,
     repo: &gix::Repository,
 ) -> eyre::Result<usize> {
@@ -279,7 +279,7 @@ pub fn pull_branch_gix(
 ///
 /// If a branch has been specified, then clone *just* that branch.
 #[tracing::instrument(level = "debug", skip_all, fields(url = %config.url))]
-pub fn clone_repository_gix(
+pub fn clone_repository(
     config: &crate::config::RepositoryConfig,
     force: bool,
 ) -> eyre::Result<gix::Repository> {
@@ -317,7 +317,7 @@ pub fn clone_repository_gix(
                 .ok_or(eyre::eyre!("Failed to find remote.origin.url"))?;
             if existing_url.to_string() == config.url {
                 tracing::info!("... URLs match; using existing checkout and pulling");
-                pull_branch_gix(config, &existing_repo)?;
+                pull_branch(config, &existing_repo)?;
                 return Ok(existing_repo);
             }
             eyre::bail!(
@@ -373,7 +373,7 @@ mod tests {
     #[test]
     fn test_find_local_repository() {
         let temp_repo = fixtures::repository::simplest().unwrap();
-        let repo = find_local_repository_gix(temp_repo.tempdir.path()).unwrap();
+        let repo = find_local_repository(temp_repo.tempdir.path()).unwrap();
         assert_eq!(repo.path(), temp_repo.tempdir.path());
     }
 
@@ -422,7 +422,7 @@ mod tests {
         let result = downstream.repo.find_commit(commit2);
         assert!(result.is_err());
 
-        let fetched_commits = pull_branch_gix(&config, &downstream.repo).unwrap();
+        let fetched_commits = pull_branch(&config, &downstream.repo).unwrap();
         assert_eq!(fetched_commits, 2);
 
         // Now that we pulled, we can find the commits
@@ -437,7 +437,7 @@ mod tests {
         assert_eq!(downstream_head.id().unwrap(), commit2);
 
         let commit3 = fixtures::repository::add_empty_commit(&upstream.repo, "commit3").unwrap();
-        let fetched_commits = pull_branch_gix(&config, &downstream.repo).unwrap();
+        let fetched_commits = pull_branch(&config, &downstream.repo).unwrap();
         assert_eq!(fetched_commits, 1);
 
         let result = downstream.repo.find_commit(commit3);
@@ -468,7 +468,7 @@ mod tests {
             ..Default::default()
         };
 
-        let fetched_commits = pull_branch_gix(&config, &downstream.repo).unwrap();
+        let fetched_commits = pull_branch(&config, &downstream.repo).unwrap();
         assert_eq!(fetched_commits, 2);
 
         let result = downstream.repo.find_commit(commit1);
@@ -482,7 +482,7 @@ mod tests {
         assert_eq!(downstream_head.id().unwrap(), commit2);
 
         let commit3 = fixtures::repository::add_empty_commit(&upstream.repo, "commit3").unwrap();
-        let fetched_commits = pull_branch_gix(&config, &downstream.repo).unwrap();
+        let fetched_commits = pull_branch(&config, &downstream.repo).unwrap();
         assert_eq!(fetched_commits, 1);
 
         let result = downstream.repo.find_commit(commit3);
@@ -513,7 +513,7 @@ mod tests {
             ..Default::default()
         };
 
-        let fetched_commits = pull_branch_gix(&config, &downstream.repo).unwrap();
+        let fetched_commits = pull_branch(&config, &downstream.repo).unwrap();
         assert_eq!(fetched_commits, 2);
 
         let result = downstream.repo.find_commit(commit1);
@@ -527,7 +527,7 @@ mod tests {
         assert_eq!(downstream_head.id().unwrap(), commit2);
 
         let commit3 = fixtures::repository::add_empty_commit(&upstream.repo, "commit3").unwrap();
-        let fetched_commits = pull_branch_gix(&config, &downstream.repo).unwrap();
+        let fetched_commits = pull_branch(&config, &downstream.repo).unwrap();
         assert_eq!(fetched_commits, 1);
 
         let result = downstream.repo.find_commit(commit3);
@@ -556,7 +556,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = pull_branch_gix(&config, &downstream.repo);
+        let result = pull_branch(&config, &downstream.repo);
         assert!(result.is_ok());
 
         let result = downstream.repo.find_reference("branch1");
@@ -590,7 +590,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = pull_branch_gix(&config, &downstream.repo);
+        let result = pull_branch(&config, &downstream.repo);
         assert!(result.is_ok());
 
         // We find the branch1 that was fetched
@@ -620,7 +620,7 @@ mod tests {
             ..Default::default()
         };
         let force = false;
-        let downstream = clone_repository_gix(&config, force).unwrap();
+        let downstream = clone_repository(&config, force).unwrap();
 
         let result = downstream.find_commit(commit1);
         assert!(result.is_ok());
@@ -645,7 +645,7 @@ mod tests {
             ..Default::default()
         };
         let force = false;
-        let downstream = clone_repository_gix(&config, force).unwrap();
+        let downstream = clone_repository(&config, force).unwrap();
 
         let result = downstream.find_commit(commit1);
         assert!(result.is_ok());
@@ -666,7 +666,7 @@ mod tests {
             ..Default::default()
         };
         let force = false;
-        let _downstream = clone_repository_gix(&config, force).unwrap();
+        let _downstream = clone_repository(&config, force).unwrap();
     }
 
     #[test]
@@ -682,7 +682,7 @@ mod tests {
             ..Default::default()
         };
         let force = false;
-        let _downstream = clone_repository_gix(&config, force).unwrap();
+        let _downstream = clone_repository(&config, force).unwrap();
     }
 
     #[test]
@@ -699,7 +699,7 @@ mod tests {
             ..Default::default()
         };
         let force = false;
-        let _downstream = clone_repository_gix(&config, force).unwrap();
+        let _downstream = clone_repository(&config, force).unwrap();
     }
 
     #[test]
@@ -717,7 +717,7 @@ mod tests {
             ..Default::default()
         };
         let force = false;
-        let result = clone_repository_gix(&config, force);
+        let result = clone_repository(&config, force);
         assert!(result.is_err());
 
         // Create a sentinel file to test whether the directory was deleted, or the clone was just
@@ -727,7 +727,7 @@ mod tests {
         assert!(sentinel.exists());
 
         let force = true;
-        let result = clone_repository_gix(&config, force);
+        let result = clone_repository(&config, force);
         assert!(result.is_ok());
         assert!(!sentinel.exists());
     }
@@ -746,7 +746,7 @@ mod tests {
         };
 
         let force = false;
-        let _downstream = clone_repository_gix(&config, force).unwrap();
+        let _downstream = clone_repository(&config, force).unwrap();
         // Create a sentinel file to test whether the directory was deleted
         let sentinel = downstream_dir.join("sentinel.txt");
         std::fs::File::create(&sentinel).unwrap();
@@ -757,7 +757,7 @@ mod tests {
         let new_commit =
             fixtures::repository::add_empty_commit(&upstream.repo, "new commit").unwrap();
 
-        let downstream = clone_repository_gix(&config, force).unwrap();
+        let downstream = clone_repository(&config, force).unwrap();
         let result = downstream.find_commit(new_commit);
         assert!(result.is_ok());
         // The repo wasn't cleared out and re-cloned; the sentinel file still exists

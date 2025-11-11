@@ -157,10 +157,10 @@ pub fn grant_with_rules<'repo>(
     repo: &'repo gix::Repository,
     rules: Vec<Box<dyn Rule>>,
 ) -> eyre::Result<impl Iterator<Item = Achievement> + 'repo> {
-    let rev = crate::git::rev::parse_gix(reference, repo)
+    let rev = crate::git::rev::parse(reference, repo)
         .wrap_err(format!("Failed to rev-parse: {reference:?}"))?;
-    let oids = crate::git::rev::walk_gix(rev, repo)
-        .wrap_err(format!("Failed to rev-walk rev: {rev:?}"))?;
+    let oids =
+        crate::git::rev::walk(rev, repo).wrap_err(format!("Failed to rev-walk rev: {rev:?}"))?;
 
     // TODO: There should be better error handling than this
     let oids = oids.filter_map(|o| match o {

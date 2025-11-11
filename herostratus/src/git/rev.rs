@@ -1,6 +1,6 @@
 use eyre::WrapErr;
 
-pub fn parse_gix(reference: &str, repo: &gix::Repository) -> eyre::Result<gix::ObjectId> {
+pub fn parse(reference: &str, repo: &gix::Repository) -> eyre::Result<gix::ObjectId> {
     let object = repo
         .rev_parse_single(reference)
         .wrap_err("Failed to rev-parse")?;
@@ -12,7 +12,7 @@ pub fn parse_gix(reference: &str, repo: &gix::Repository) -> eyre::Result<gix::O
     Ok(oid)
 }
 
-pub fn walk_gix(
+pub fn walk(
     oid: gix::ObjectId,
     repo: &gix::Repository,
 ) -> eyre::Result<impl Iterator<Item = eyre::Result<gix::ObjectId>> + '_> {
@@ -45,8 +45,8 @@ mod test {
 
         let repo = temp_repo.repo;
 
-        let rev = parse_gix("HEAD", &repo).unwrap();
-        let commits: Vec<_> = walk_gix(rev, &repo)
+        let rev = parse("HEAD", &repo).unwrap();
+        let commits: Vec<_> = walk(rev, &repo)
             .unwrap()
             .map(|oid| repo.find_commit(oid.unwrap()).unwrap())
             .collect();

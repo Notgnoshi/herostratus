@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use crate::cli::FetchAllArgs;
 use crate::config::Config;
-use crate::git::clone::{clone_repository_gix, find_local_repository_gix, pull_branch_gix};
+use crate::git::clone::{clone_repository, find_local_repository, pull_branch};
 
 pub fn fetch_all(_args: &FetchAllArgs, config: &Config, _data_dir: &Path) -> eyre::Result<usize> {
     tracing::info!("Fetching repositories ...");
@@ -12,7 +12,7 @@ pub fn fetch_all(_args: &FetchAllArgs, config: &Config, _data_dir: &Path) -> eyr
     for (name, config) in config.repositories.iter() {
         let _span = tracing::debug_span!("fetch", name = name).entered();
         let mut skip_fetch = false;
-        let repo = match find_local_repository_gix(&config.path) {
+        let repo = match find_local_repository(&config.path) {
             Ok(repo) => repo,
             // Handle the case where 'add --skip-clone' was used
             Err(e) => {
@@ -22,12 +22,12 @@ pub fn fetch_all(_args: &FetchAllArgs, config: &Config, _data_dir: &Path) -> eyr
                 );
                 let force = false;
                 skip_fetch = true;
-                clone_repository_gix(config, force)?
+                clone_repository(config, force)?
             }
         };
 
         if !skip_fetch {
-            fetched_commits += pull_branch_gix(config, &repo)?;
+            fetched_commits += pull_branch(config, &repo)?;
         }
     }
     tracing::info!(

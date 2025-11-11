@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use herostratus::git::clone::find_local_repository_gix;
+use herostratus::git::clone::find_local_repository;
 use herostratus_tests::cmd::{CommandExt, herostratus};
 use predicates::prelude::*;
 use predicates::str;
@@ -49,7 +49,7 @@ fn smoke_test_on_all_own_branches() {
     use std::os::unix::ffi::OsStringExt;
 
     let path = Path::new(".");
-    let repo = find_local_repository_gix(path).unwrap();
+    let repo = find_local_repository(path).unwrap();
 
     let references = repo.references().unwrap();
     let local_branches = references.local_branches().unwrap();
