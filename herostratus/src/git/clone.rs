@@ -79,140 +79,14 @@ fn remove_dir_contents<P: AsRef<Path>>(path: P) -> std::io::Result<()> {
     Ok(())
 }
 
-fn clone_credentials(
-    config: &crate::config::RepositoryConfig,
-    parsed_username: Option<&str>,
-) -> eyre::Result<git2::Cred> {
-    let username = config
-        .remote_username
-        .as_deref()
-        .unwrap_or(parsed_username.unwrap_or("git"));
-
-    if config.url.starts_with("https://") {
-        if let Some(password) = &config.https_password {
-            Ok(git2::Cred::userpass_plaintext(username, password)?)
-        } else {
-            let git_config = git2::Config::open_default()?;
-            Ok(git2::Cred::credential_helper(
-                &git_config,
-                &config.url,
-                Some(username),
-            )?)
-        }
-    } else if config.url.starts_with("ssh://") || config.url.contains('@') {
-        if let Some(priv_key) = &config.ssh_private_key {
-            Ok(git2::Cred::ssh_key(
-                username,
-                config.ssh_public_key.as_deref(),
-                priv_key,
-                config.ssh_passphrase.as_deref(),
-            )?)
-        } else {
-            Ok(git2::Cred::ssh_key_from_agent(username)?)
-        }
-    } else {
-        Ok(git2::Cred::default()?)
-    }
-}
-
-fn fetch_options(config: &crate::config::RepositoryConfig) -> git2::FetchOptions<'_> {
-    let mut callbacks = git2::RemoteCallbacks::new();
-    callbacks.credentials(|_url, username_from_url, _allowed_typed| {
-        match clone_credentials(config, username_from_url) {
-            Ok(creds) => Ok(creds),
-            Err(e) => Err(git2::Error::new(
-                git2::ErrorCode::NotFound,
-                git2::ErrorClass::Config,
-                format!("Failed to determine appropriate clone credentials: {e:?}"),
-            )),
-        }
-    });
-    let mut options = git2::FetchOptions::new();
-    options.remote_callbacks(callbacks);
-    options
-}
-
-/// Update the local branch to match the remote's
-///
-/// Returns the number of new commits fetched. Creates the local branch if it does not exist. If a
-/// non-HEAD reference is given, do a "fast" fetch of *just* the specified reference, as opposed to
-/// all references from the remote.
-///
-/// TODO: Probably doesn't work on tags?
-pub fn pull_branch(
-    config: &crate::config::RepositoryConfig,
-    repo: &git2::Repository,
-) -> eyre::Result<usize> {
-    debug_assert!(repo.is_bare());
-    let mut remote = repo.find_remote("origin")?;
-    let reference_name = config.branch.as_deref().unwrap_or("HEAD");
-    // If this is the first time this reference is being fetched, fetch it like
-    //     git fetch origin branch:branch
-    // which updates the local branch to match the remote
-    let fetch_reference_name = if reference_name != "HEAD" {
-        format!("{reference_name}:{reference_name}")
-    } else {
-        reference_name.to_string()
-    };
-
-    let refspecs = [&fetch_reference_name];
-    let mut options = fetch_options(config);
-
-    tracing::info!("Fetching from {:?} ...", remote.url().unwrap_or_default());
-    let before = if let Ok(reference) = repo.resolve_reference_from_short_name(reference_name) {
-        reference.peel_to_commit().ok()
-    } else {
-        None
-    };
-    remote.fetch(&refspecs, Some(&mut options), None)?;
-    // If the fetch was successful, resolving the reference should succeed, even if this was the
-    // first fetch ever for this reference.
-    let reference = repo.resolve_reference_from_short_name(reference_name)?;
-    // BUG: The fetch doesn't update the local branch (unless it creates the branch), so this
-    // 'after' remains unchanged after fetching. Can use Reference::set_target to update the commit
-    // the reference points to, but to do that, we need to find the target of the remote reference.
-    //
-    // TODO: This doesn't work, possibly because fetch is unfinished? (TODO: Read about FETCH_HEAD;
-    // the .git/refs/ only has heads/ and not remotes/ - there's nowhere else where the remote
-    // upstream target of the reference is tracked).
-    //
-    // let remote_reference = repo.find_reference(&format!("origin/{reference_name}"))?;
-    let after = reference.peel_to_commit()?;
-
-    let mut new_commits: usize = 0;
-    if before.is_some() && before.as_ref().unwrap().id() == after.id() {
-        tracing::debug!(
-            "... done. {:?} -> {:?} No new commits",
-            before.as_ref().unwrap().id(),
-            after.id()
-        );
-    } else {
-        let commits = crate::git::rev::walk(after.id(), repo)?;
-        for commit_id in commits {
-            if let Some(before) = &before
-                && commit_id? == before.id()
-            {
-                break;
-            }
-            new_commits += 1;
-        }
-        tracing::debug!(
-            "... done. {:?} -> {:?} {new_commits} new commits",
-            before,
-            after.id()
-        );
-    }
-
-    Ok(new_commits)
-}
-
 /// After fetching, update the local repository to match the remote for the fetched references.
 fn update_local_repo(
     repo: &gix::Repository,
+    local_ref_name: &str,
     remote_ref_map: &gix::remote::fetch::RefMap,
 ) -> eyre::Result<()> {
     for remote_ref in &remote_ref_map.remote_refs {
-        sync_remote_ref(repo, remote_ref)?;
+        sync_remote_ref(repo, local_ref_name, remote_ref)?;
     }
 
     Ok(())
@@ -292,6 +166,7 @@ fn sync_remote_dirref(
 /// Update the local HEAD to match the remote HEAD
 fn sync_remote_ref(
     repo: &gix::Repository,
+    local_ref_name: &str,
     remote_ref: &gix::protocol::handshake::Ref,
 ) -> eyre::Result<()> {
     match remote_ref {
@@ -300,7 +175,11 @@ fn sync_remote_ref(
             target,
             object,
             ..
-        } => sync_remote_symref(repo, full_ref_name.as_ref(), target.as_ref(), *object)?,
+        } => {
+            if full_ref_name.ends_with(local_ref_name.as_bytes()) || full_ref_name == "HEAD" {
+                sync_remote_symref(repo, full_ref_name.as_ref(), target.as_ref(), *object)?;
+            }
+        }
         gix::protocol::handshake::Ref::Peeled {
             full_ref_name,
             object,
@@ -309,7 +188,11 @@ fn sync_remote_ref(
         | gix::protocol::handshake::Ref::Direct {
             full_ref_name,
             object,
-        } => sync_remote_dirref(repo, full_ref_name.as_ref(), *object)?,
+        } => {
+            if full_ref_name.ends_with(local_ref_name.as_bytes()) {
+                sync_remote_dirref(repo, full_ref_name.as_ref(), *object)?;
+            }
+        }
         gix::protocol::handshake::Ref::Unborn {
             full_ref_name,
             target,
@@ -355,6 +238,7 @@ fn count_commits_between(
 /// tree to consider either.
 ///
 /// Returns the number of commits pulled.
+#[tracing::instrument(level = "debug", skip_all, fields(url = %config.url))]
 pub fn pull_branch_gix(
     config: &crate::config::RepositoryConfig,
     repo: &gix::Repository,
@@ -370,8 +254,9 @@ pub fn pull_branch_gix(
         refspecs.push(&branch_refspec);
     }
     let ref_name = config.branch.as_deref().unwrap_or("HEAD");
-    let remote = remote.with_refspecs(refspecs, gix::remote::Direction::Fetch)?;
+    let remote = remote.with_refspecs(&refspecs, gix::remote::Direction::Fetch)?;
     tracing::info!("Pulling {ref_name:?} from remote {:?}", config.url);
+    tracing::debug!("refspecs: {refspecs:?}");
     // If this is None, then the reference doesn't exist locally (yet), and this is the first time
     // we're pulling it.
     let before = repo.rev_parse_single(ref_name).ok();
@@ -384,7 +269,7 @@ pub fn pull_branch_gix(
     let interrupt = std::sync::atomic::AtomicBool::new(false);
     let outcome = prepare.receive(gix::progress::Discard, &interrupt)?;
 
-    update_local_repo(repo, &outcome.ref_map)?;
+    update_local_repo(repo, ref_name, &outcome.ref_map)?;
     let after = repo.rev_parse_single(ref_name)?;
 
     let num_fetched_commits = count_commits_between(repo, before, after)?;
@@ -402,10 +287,11 @@ pub fn pull_branch_gix(
 /// vs SSH) then fail.
 ///
 /// If a branch has been specified, then clone *just* that branch.
-pub fn clone_repository(
+#[tracing::instrument(level = "debug", skip_all, fields(url = %config.url))]
+pub fn clone_repository_gix(
     config: &crate::config::RepositoryConfig,
     force: bool,
-) -> eyre::Result<git2::Repository> {
+) -> eyre::Result<gix::Repository> {
     let start = std::time::Instant::now();
     tracing::info!(
         "Cloning {:?} (ref={}) to {} ...",
@@ -413,53 +299,77 @@ pub fn clone_repository(
         config.branch.as_deref().unwrap_or("HEAD"),
         config.path.display()
     );
+    let parent_dir = config.path.parent().ok_or(eyre::eyre!(
+        "Failed to determine parent directory of {}",
+        config.path.display()
+    ))?;
+    if !parent_dir.exists() {
+        std::fs::create_dir_all(parent_dir)?;
+    }
 
     if config.path.exists() {
         tracing::warn!("{} already exists ...", config.path.display());
         if force {
-            tracing::info!("Deleting {} ...", config.path.display());
+            tracing::info!("Deleting and overwriting {} ...", config.path.display());
             remove_dir_contents(&config.path).wrap_err(format!(
-                "Failed to force clone {:?} to {}",
+                "Failed to clone {:?} to {}",
                 config.url,
                 config.path.display()
             ))?;
+            // Proceed to clone as normal
         } else {
-            let existing_repo = git2::Repository::discover(&config.path)?;
+            // Check the existing checkout's remote URL; if it matches, do a pull instead of a clone
+            let existing_repo = gix::discover(&config.path)?;
             let remote = existing_repo.find_remote("origin")?;
-            let existing_url = remote.url().unwrap_or("THIS_STRING_WONT_MATCH");
-            if existing_url == config.url {
-                tracing::info!("... URLs match. Using existing repository and fetching");
-                pull_branch(config, &existing_repo)?;
-
-                drop(remote);
+            let existing_url = remote
+                .url(gix::remote::Direction::Fetch)
+                .ok_or(eyre::eyre!("Failed to find remote.origin.url"))?;
+            if existing_url.to_string() == config.url {
+                tracing::info!("... URLs match; using existing checkout and pulling");
+                pull_branch_gix(config, &existing_repo)?;
                 return Ok(existing_repo);
             }
-
             eyre::bail!(
-                "{} already exists with a different clone URL: {existing_url:?}",
+                "{} already exists with a different remote URL: {existing_url:?}",
                 config.path.display()
             );
         }
     }
 
-    let mut builder = git2::build::RepoBuilder::new();
-    builder.bare(true);
-    let options = fetch_options(config);
-    builder.fetch_options(options);
+    let url = gix::Url::from_bytes(gix::bstr::BString::from(config.url.as_bytes()).as_ref())?;
+    let create_opts = gix::create::Options {
+        destination_must_be_empty: true,
+        ..Default::default()
+    };
+    let open_opts = gix::open::Options::default();
+    let prepare = gix::clone::PrepareFetch::new(
+        url,
+        &config.path,
+        gix::create::Kind::Bare,
+        create_opts,
+        open_opts,
+    )?;
+    let branch = config.branch.clone();
 
-    if let Some(branch) = &config.branch {
-        tracing::debug!("Cloning just the '{branch}' branch ...");
-        builder.branch(branch);
-    }
-
-    let repo = builder
-        .clone(&config.url, &config.path)
-        .wrap_err("Failed to clone repository")?;
-    tracing::info!(
-        "Finished cloning {:?} after {:.2?}",
-        config.url,
-        start.elapsed()
-    );
+    // Configure the remote with the right refspecs for fetching just the configure branch and the
+    // remote's HEAD.
+    let mut prepare = prepare.configure_remote(move |mut remote| {
+        // Can't be a Vec<String>; has to be a Vec<&str> ...
+        let mut refspecs = vec!["+HEAD:refs/remotes/origin/HEAD"];
+        let branch_refspec;
+        if let Some(branch) = &branch {
+            branch_refspec = format!("+refs/heads/{branch}:refs/heads/{branch}");
+            refspecs.push(&branch_refspec);
+        }
+        // By default, gix will set the default wildcard refspec, which would fetch everything. But
+        // we want to only fetch what the user configured.
+        remote.replace_refspecs(&refspecs, gix::remote::Direction::Fetch)?;
+        Ok(remote)
+    });
+    let interrupt = std::sync::atomic::AtomicBool::new(false);
+    let (repo, _outcome) = prepare.fetch_only(gix::progress::Discard, &interrupt)?;
+    let elapsed = start.elapsed();
+    tracing::info!("... Finished cloning {:?} after {elapsed:.2?}", config.url);
     Ok(repo)
 }
 
@@ -507,233 +417,362 @@ mod tests {
         let commit2 = fixtures::repository::add_empty_commit(&upstream.repo, "commit2").unwrap();
 
         let remote = downstream.repo.find_remote("origin").unwrap();
+        let url = remote
+            .url(gix::remote::Direction::Fetch)
+            .unwrap()
+            .to_string();
         let config = crate::config::RepositoryConfig {
             branch: None, // HEAD
-            url: remote.url().unwrap().to_string(),
+            url,
             ..Default::default()
         };
-        let repo = downstream.gix();
 
         // Try to find the upstream commit in the downstream repository. Can't find it, because the
         // remote hasn't been fetched from yet.
-        let result = downstream.repo.find_commit(commit1.id());
+        let result = downstream.repo.find_commit(commit1);
         assert!(result.is_err());
-        let result = downstream.repo.find_commit(commit2.id());
+        let result = downstream.repo.find_commit(commit2);
         assert!(result.is_err());
 
-        let fetched_commits = pull_branch_gix(&config, &repo).unwrap();
+        let fetched_commits = pull_branch_gix(&config, &downstream.repo).unwrap();
         assert_eq!(fetched_commits, 2);
 
         // Now that we pulled, we can find the commits
-        let result = downstream.repo.find_commit(commit1.id());
+        let result = downstream.repo.find_commit(commit1);
         assert!(result.is_ok());
-        let result = downstream.repo.find_commit(commit2.id());
+        let result = downstream.repo.find_commit(commit2);
         assert!(result.is_ok());
 
         let downstream_head = downstream.repo.head().unwrap();
         let upstream_head = upstream.repo.head().unwrap();
-        assert_eq!(
-            downstream_head.name().unwrap(),
-            upstream_head.name().unwrap()
-        );
-        assert_eq!(downstream_head.target().unwrap(), commit2.id());
+        assert_eq!(downstream_head.name(), upstream_head.name());
+        assert_eq!(downstream_head.id().unwrap(), commit2);
 
         let commit3 = fixtures::repository::add_empty_commit(&upstream.repo, "commit3").unwrap();
-        let fetched_commits = pull_branch_gix(&config, &repo).unwrap();
+        let fetched_commits = pull_branch_gix(&config, &downstream.repo).unwrap();
         assert_eq!(fetched_commits, 1);
 
-        let result = downstream.repo.find_commit(commit3.id());
+        let result = downstream.repo.find_commit(commit3);
         assert!(result.is_ok());
 
         let downstream_head = downstream.repo.head().unwrap();
         let upstream_head = upstream.repo.head().unwrap();
-        assert_eq!(
-            downstream_head.name().unwrap(),
-            upstream_head.name().unwrap()
-        );
-        assert_eq!(downstream_head.target().unwrap(), commit3.id());
+        assert_eq!(downstream_head.name(), upstream_head.name());
+        assert_eq!(downstream_head.id().unwrap(), commit3);
     }
 
     #[test]
     fn test_pull_custom_default_branch_name() {
         let (upstream, downstream) = fixtures::repository::upstream_downstream_empty().unwrap();
-        fixtures::repository::switch_branch(&upstream.repo, "trunk").unwrap();
+        fixtures::repository::set_default_branch(&upstream.repo, "trunk").unwrap();
 
         let commit1 = fixtures::repository::add_empty_commit(&upstream.repo, "commit1").unwrap();
         let commit2 = fixtures::repository::add_empty_commit(&upstream.repo, "commit2").unwrap();
 
         let remote = downstream.repo.find_remote("origin").unwrap();
+        let url = remote
+            .url(gix::remote::Direction::Fetch)
+            .unwrap()
+            .to_string();
         let config = crate::config::RepositoryConfig {
             branch: None, // HEAD
-            url: remote.url().unwrap().to_string(),
+            url,
             ..Default::default()
         };
-        let repo = downstream.gix();
 
-        let fetched_commits = pull_branch_gix(&config, &repo).unwrap();
+        let fetched_commits = pull_branch_gix(&config, &downstream.repo).unwrap();
         assert_eq!(fetched_commits, 2);
 
-        let result = downstream.repo.find_commit(commit1.id());
+        let result = downstream.repo.find_commit(commit1);
         assert!(result.is_ok());
-        let result = downstream.repo.find_commit(commit2.id());
+        let result = downstream.repo.find_commit(commit2);
         assert!(result.is_ok());
 
         let downstream_head = downstream.repo.head().unwrap();
         let upstream_head = upstream.repo.head().unwrap();
-        assert_eq!(
-            downstream_head.name().unwrap(),
-            upstream_head.name().unwrap()
-        );
-        assert_eq!(downstream_head.target().unwrap(), commit2.id());
+        assert_eq!(downstream_head.name(), upstream_head.name());
+        assert_eq!(downstream_head.id().unwrap(), commit2);
 
         let commit3 = fixtures::repository::add_empty_commit(&upstream.repo, "commit3").unwrap();
-        let fetched_commits = pull_branch_gix(&config, &repo).unwrap();
+        let fetched_commits = pull_branch_gix(&config, &downstream.repo).unwrap();
         assert_eq!(fetched_commits, 1);
 
-        let result = downstream.repo.find_commit(commit3.id());
+        let result = downstream.repo.find_commit(commit3);
         assert!(result.is_ok());
 
         let downstream_head = downstream.repo.head().unwrap();
         let upstream_head = upstream.repo.head().unwrap();
-        assert_eq!(
-            downstream_head.name().unwrap(),
-            upstream_head.name().unwrap()
-        );
-        assert_eq!(downstream_head.target().unwrap(), commit3.id());
+        assert_eq!(downstream_head.name(), upstream_head.name());
+        assert_eq!(downstream_head.id().unwrap(), commit3);
     }
 
     #[test]
     fn test_pull_specific_branch() {
         let (upstream, downstream) = fixtures::repository::upstream_downstream_empty().unwrap();
-        fixtures::repository::switch_branch(&upstream.repo, "dev").unwrap();
+        fixtures::repository::set_default_branch(&upstream.repo, "dev").unwrap();
 
         let commit1 = fixtures::repository::add_empty_commit(&upstream.repo, "commit1").unwrap();
         let commit2 = fixtures::repository::add_empty_commit(&upstream.repo, "commit2").unwrap();
 
         let remote = downstream.repo.find_remote("origin").unwrap();
+        let url = remote
+            .url(gix::remote::Direction::Fetch)
+            .unwrap()
+            .to_string();
         let config = crate::config::RepositoryConfig {
             branch: Some("dev".to_string()),
-            url: remote.url().unwrap().to_string(),
+            url,
             ..Default::default()
         };
-        let repo = downstream.gix();
 
-        let fetched_commits = pull_branch_gix(&config, &repo).unwrap();
+        let fetched_commits = pull_branch_gix(&config, &downstream.repo).unwrap();
         assert_eq!(fetched_commits, 2);
 
-        let result = downstream.repo.find_commit(commit1.id());
+        let result = downstream.repo.find_commit(commit1);
         assert!(result.is_ok());
-        let result = downstream.repo.find_commit(commit2.id());
+        let result = downstream.repo.find_commit(commit2);
         assert!(result.is_ok());
 
         let downstream_head = downstream.repo.head().unwrap();
         let upstream_head = upstream.repo.head().unwrap();
-        assert_eq!(
-            downstream_head.name().unwrap(),
-            upstream_head.name().unwrap()
-        );
-        assert_eq!(downstream_head.target().unwrap(), commit2.id());
+        assert_eq!(downstream_head.name(), upstream_head.name());
+        assert_eq!(downstream_head.id().unwrap(), commit2);
 
         let commit3 = fixtures::repository::add_empty_commit(&upstream.repo, "commit3").unwrap();
-        let fetched_commits = pull_branch_gix(&config, &repo).unwrap();
+        let fetched_commits = pull_branch_gix(&config, &downstream.repo).unwrap();
         assert_eq!(fetched_commits, 1);
 
-        let result = downstream.repo.find_commit(commit3.id());
+        let result = downstream.repo.find_commit(commit3);
         assert!(result.is_ok());
 
         let downstream_head = downstream.repo.head().unwrap();
         let upstream_head = upstream.repo.head().unwrap();
-        assert_eq!(
-            downstream_head.name().unwrap(),
-            upstream_head.name().unwrap()
-        );
-        assert_eq!(downstream_head.target().unwrap(), commit3.id());
+        assert_eq!(downstream_head.name(), upstream_head.name());
+        assert_eq!(downstream_head.id().unwrap(), commit3);
     }
 
     #[test]
     fn test_pulling_creates_a_local_branch() {
         let (upstream, downstream) = fixtures::repository::upstream_downstream().unwrap();
-        fixtures::repository::switch_branch(&upstream.repo, "branch1").unwrap();
+        fixtures::repository::set_default_branch(&upstream.repo, "branch1").unwrap();
         fixtures::repository::add_empty_commit(&upstream.repo, "commit on branch1").unwrap();
 
         let remote = downstream.repo.find_remote("origin").unwrap();
+        let url = remote
+            .url(gix::remote::Direction::Fetch)
+            .unwrap()
+            .to_string();
         let config = crate::config::RepositoryConfig {
             branch: Some("branch1".to_string()),
-            url: remote.url().unwrap().to_string(),
+            url,
             ..Default::default()
         };
 
-        let result = pull_branch(&config, &downstream.repo);
+        let result = pull_branch_gix(&config, &downstream.repo);
         assert!(result.is_ok());
 
-        // branch1 exists as a local branch, not just a remote one
-        let result = downstream
-            .repo
-            .find_branch("branch1", git2::BranchType::Local);
+        let result = downstream.repo.find_reference("branch1");
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_fast_fetch_single_reference() {
         let (upstream, downstream) = fixtures::repository::upstream_downstream().unwrap();
-        fixtures::repository::switch_branch(&upstream.repo, "branch1").unwrap();
-        fixtures::repository::switch_branch(&upstream.repo, "branch2").unwrap();
+        fixtures::repository::set_default_branch(&upstream.repo, "branch1").unwrap();
+        fixtures::repository::set_default_branch(&upstream.repo, "branch2").unwrap();
+        let commit2 =
+            fixtures::repository::add_empty_commit(&upstream.repo, "commit on branch2").unwrap();
 
-        fixtures::repository::switch_branch(&upstream.repo, "branch1").unwrap();
+        fixtures::repository::set_default_branch(&upstream.repo, "branch1").unwrap();
         fixtures::repository::add_empty_commit(&upstream.repo, "commit on branch1").unwrap();
 
+        let result = upstream.repo.find_reference("branch1");
+        assert!(result.is_ok());
+        let result = upstream.repo.find_reference("branch2");
+        assert!(result.is_ok());
+
         let remote = downstream.repo.find_remote("origin").unwrap();
+        let url = remote
+            .url(gix::remote::Direction::Fetch)
+            .unwrap()
+            .to_string();
         let config = crate::config::RepositoryConfig {
             branch: Some("branch1".to_string()),
-            url: remote.url().unwrap().to_string(),
+            url,
             ..Default::default()
         };
 
-        let result = pull_branch(&config, &downstream.repo);
+        let result = pull_branch_gix(&config, &downstream.repo);
         assert!(result.is_ok());
 
         // We find the branch1 that was fetched
-        let result = downstream
-            .repo
-            .find_branch("branch1", git2::BranchType::Local);
+        let result = downstream.repo.find_reference("branch1");
         assert!(result.is_ok());
 
-        // But not the branch2 that wasn't fetched
-        let result = downstream
-            .repo
-            .find_branch("branch2", git2::BranchType::Local);
+        // But branch2 wasn't fetched
+        let result = downstream.repo.find_reference("branch2");
         assert!(result.is_err());
-        let result = downstream
-            .repo
-            .find_branch("branch2", git2::BranchType::Remote);
+
+        // And the commit on branch2 wasn't fetched
+        let result = downstream.repo.find_commit(commit2);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_force_clone() {
+    fn test_clone_file_url() {
         let upstream = fixtures::repository::simplest().unwrap();
+        let commit1 = fixtures::repository::add_empty_commit(&upstream.repo, "commit1").unwrap();
         let tempdir = tempfile::tempdir().unwrap();
         let downstream_dir = tempdir.path().join("downstream");
-        std::fs::create_dir_all(&downstream_dir).unwrap();
-        // Something's already using the clone directory
-        let sentinel = downstream_dir.join("sentinel.txt");
-        std::fs::File::create(&sentinel).unwrap();
-        assert!(sentinel.exists());
 
         let config = crate::config::RepositoryConfig {
             branch: None, // HEAD
             url: format!("file://{}", upstream.tempdir.path().display()),
-            path: downstream_dir,
+            path: downstream_dir.clone(),
             ..Default::default()
         };
         let force = false;
-        let result = clone_repository(&config, force);
+        let downstream = clone_repository_gix(&config, force).unwrap();
+
+        let result = downstream.find_commit(commit1);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_clone_fast_fetch_single_branch() {
+        let upstream = fixtures::repository::simplest().unwrap();
+
+        fixtures::repository::set_default_branch(&upstream.repo, "branch1").unwrap();
+        let commit1 = fixtures::repository::add_empty_commit(&upstream.repo, "commit1").unwrap();
+        fixtures::repository::set_default_branch(&upstream.repo, "branch2").unwrap();
+        let commit2 = fixtures::repository::add_empty_commit(&upstream.repo, "commit2").unwrap();
+        fixtures::repository::set_default_branch(&upstream.repo, "branch1").unwrap();
+        let tempdir = tempfile::tempdir().unwrap();
+        let downstream_dir = tempdir.path().join("downstream");
+
+        let config = crate::config::RepositoryConfig {
+            branch: Some("branch1".to_string()),
+            url: format!("file://{}", upstream.tempdir.path().display()),
+            path: downstream_dir.clone(),
+            ..Default::default()
+        };
+        let force = false;
+        let downstream = clone_repository_gix(&config, force).unwrap();
+
+        let result = downstream.find_commit(commit1);
+        assert!(result.is_ok());
+
+        let result = downstream.find_commit(commit2);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_clone_https_url() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let downstream_dir = tempdir.path().join("downstream");
+
+        let config = crate::config::RepositoryConfig {
+            branch: Some("test/fixup".into()), // A small branch that's cheaper to fetch than the default
+            url: "https://github.com/Notgnoshi/herostratus.git".to_string(),
+            path: downstream_dir.clone(),
+            ..Default::default()
+        };
+        let force = false;
+        let _downstream = clone_repository_gix(&config, force).unwrap();
+    }
+
+    #[test]
+    #[cfg_attr(feature = "ci", ignore = "Requires SSH (not available in CI)")]
+    fn test_clone_ssh_alternative_url() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let downstream_dir = tempdir.path().join("downstream");
+
+        let config = crate::config::RepositoryConfig {
+            branch: Some("test/fixup".into()), // A small branch that's cheaper to fetch than the default
+            url: "git@github.com:Notgnoshi/herostratus.git".to_string(),
+            path: downstream_dir.clone(),
+            ..Default::default()
+        };
+        let force = false;
+        let _downstream = clone_repository_gix(&config, force).unwrap();
+    }
+
+    #[test]
+    #[cfg_attr(feature = "ci", ignore = "Requires SSH (not available in CI)")]
+    fn test_clone_ssh_url() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let downstream_dir = tempdir.path().join("downstream");
+
+        let config = crate::config::RepositoryConfig {
+            branch: Some("test/fixup".into()), // A small branch that's cheaper to fetch than the default
+            // TODO: git:// protocol times out without cloning anything
+            url: "ssh://git@github.com/Notgnoshi/herostratus.git".to_string(),
+            path: downstream_dir.clone(),
+            ..Default::default()
+        };
+        let force = false;
+        let _downstream = clone_repository_gix(&config, force).unwrap();
+    }
+
+    #[test]
+    fn test_clone_directory_already_exists() {
+        let upstream = fixtures::repository::simplest().unwrap();
+
+        let tempdir = tempfile::tempdir().unwrap();
+        let downstream_dir = tempdir.path().join("downstream");
+        std::fs::create_dir_all(&downstream_dir).unwrap();
+
+        let config = crate::config::RepositoryConfig {
+            branch: None, // HEAD
+            url: format!("file://{}", upstream.tempdir.path().display()),
+            path: downstream_dir.clone(),
+            ..Default::default()
+        };
+        let force = false;
+        let result = clone_repository_gix(&config, force);
+        assert!(result.is_err());
+
+        // Create a sentinel file to test whether the directory was deleted, or the clone was just
+        // created on top of the existing contents.
+        let sentinel = downstream_dir.join("sentinel.txt");
+        std::fs::File::create(&sentinel).unwrap();
         assert!(sentinel.exists());
 
         let force = true;
-        let result = clone_repository(&config, force);
+        let result = clone_repository_gix(&config, force);
         assert!(result.is_ok());
         assert!(!sentinel.exists());
+    }
+
+    #[test]
+    fn test_clone_already_cloned_does_a_fetch() {
+        let upstream = fixtures::repository::simplest().unwrap();
+        let tempdir = tempfile::tempdir().unwrap();
+        let downstream_dir = tempdir.path().join("downstream");
+
+        let config = crate::config::RepositoryConfig {
+            branch: None, // HEAD
+            url: format!("file://{}", upstream.tempdir.path().display()),
+            path: downstream_dir.clone(),
+            ..Default::default()
+        };
+
+        let force = false;
+        let _downstream = clone_repository_gix(&config, force).unwrap();
+        // Create a sentinel file to test whether the directory was deleted
+        let sentinel = downstream_dir.join("sentinel.txt");
+        std::fs::File::create(&sentinel).unwrap();
+        assert!(sentinel.exists());
+
+        // Now add a new commit to the upstream so we can test that another clone does a fetch
+        // instead of failing.
+        let new_commit =
+            fixtures::repository::add_empty_commit(&upstream.repo, "new commit").unwrap();
+
+        let downstream = clone_repository_gix(&config, force).unwrap();
+        let result = downstream.find_commit(new_commit);
+        assert!(result.is_ok());
+        // The repo wasn't cleared out and re-cloned; the sentinel file still exists
+        assert!(sentinel.exists());
     }
 }

@@ -183,8 +183,9 @@ mod tests {
     #[test]
     fn test_no_rules() {
         let temp_repo = fixtures::repository::simplest().unwrap();
+        let repo = temp_repo.git2();
         let rules = Vec::new();
-        let achievements = grant_with_rules("HEAD", &temp_repo.repo, rules).unwrap();
+        let achievements = grant_with_rules("HEAD", &repo, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert!(achievements.is_empty());
     }
@@ -192,8 +193,9 @@ mod tests {
     #[test]
     fn test_iterator_no_matches() {
         let temp_repo = fixtures::repository::simplest().unwrap();
+        let repo = temp_repo.git2();
         let rules = vec![Box::new(AlwaysFail) as Box<dyn Rule>];
-        let achievements = grant_with_rules("HEAD", &temp_repo.repo, rules).unwrap();
+        let achievements = grant_with_rules("HEAD", &repo, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert!(achievements.is_empty());
     }
@@ -201,12 +203,13 @@ mod tests {
     #[test]
     fn test_iterator_all_matches() {
         let temp_repo = fixtures::repository::simplest().unwrap();
+        let repo = temp_repo.git2();
 
         let rules = vec![
             Box::new(AlwaysFail) as Box<dyn Rule>,
             Box::new(ParticipationTrophy) as Box<dyn Rule>,
         ];
-        let achievements = grant_with_rules("HEAD", &temp_repo.repo, rules).unwrap();
+        let achievements = grant_with_rules("HEAD", &repo, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
     }
@@ -214,9 +217,10 @@ mod tests {
     #[test]
     fn test_awards_on_finalize() {
         let temp_repo = fixtures::repository::simplest().unwrap();
+        let repo = temp_repo.git2();
 
         let rules = vec![Box::new(ParticipationTrophy2) as Box<dyn Rule>];
-        let achievements = grant_with_rules("HEAD", &temp_repo.repo, rules).unwrap();
+        let achievements = grant_with_rules("HEAD", &repo, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
     }

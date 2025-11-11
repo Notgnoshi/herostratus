@@ -90,8 +90,9 @@ mod tests {
             ..Default::default()
         };
         let repo = fixtures::repository::with_empty_commits(&["0123456789", "1234567890"]).unwrap();
+        let repo = repo.git2();
         let rules = vec![longest_subject_line(&config)];
-        let achievements = grant_with_rules("HEAD", &repo.repo, rules).unwrap();
+        let achievements = grant_with_rules("HEAD", &repo, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert!(achievements.is_empty());
     }
@@ -110,13 +111,14 @@ mod tests {
             "123456789",  // 9
         ])
         .unwrap();
+        let repo = repo.git2();
         let rules = vec![longest_subject_line(&config)];
-        let achievements = grant_with_rules("HEAD", &repo.repo, rules).unwrap();
+        let achievements = grant_with_rules("HEAD", &repo, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
 
         let oid = achievements[0].commit;
-        let commit = repo.repo.find_commit(oid).unwrap();
+        let commit = repo.find_commit(oid).unwrap();
         assert_eq!(commit.summary(), Some("1234567890"));
     }
 }

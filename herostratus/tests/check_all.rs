@@ -1,10 +1,16 @@
+use std::path::PathBuf;
+
 use herostratus_tests::cmd::{CommandExt, herostratus};
 use predicates::prelude::*;
 use predicates::str;
 
 #[test]
 fn add_self_and_then_check_all() {
-    let self_dir = format!("file://{}/..", env!("CARGO_MANIFEST_DIR"));
+    let self_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .canonicalize()
+        .unwrap();
+    let self_dir = format!("file://{}", self_dir.display());
     let (mut cmd, temp) = herostratus(None);
     cmd.arg("add").arg("--skip-clone").arg(self_dir);
 

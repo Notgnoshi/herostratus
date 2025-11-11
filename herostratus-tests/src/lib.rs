@@ -3,7 +3,6 @@ pub mod fixtures;
 
 use tracing::Level;
 use tracing_subscriber::EnvFilter;
-use tracing_subscriber::fmt::writer::TestWriter;
 
 #[ctor::ctor]
 fn setup_test_logging() {
@@ -13,6 +12,7 @@ fn setup_test_logging() {
         .from_env_lossy();
     tracing_subscriber::fmt()
         .with_env_filter(filter)
-        .with_writer(TestWriter::new())
+        .with_target(false)
+        .with_test_writer()
         .init();
 }
