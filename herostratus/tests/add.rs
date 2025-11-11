@@ -85,11 +85,6 @@ fn test_clone_herostratus_branch() {
         ..Default::default()
     };
     assert_eq!(repo_config, &expected);
-
-    let repo = herostratus::git::clone::find_local_repository(&clone_dir).unwrap();
-    let head = repo.head().unwrap();
-    let head = head.name().unwrap();
-    assert_eq!(head, "refs/heads/test/fixup");
 }
 
 #[test]

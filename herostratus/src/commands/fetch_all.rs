@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use crate::cli::FetchAllArgs;
 use crate::config::Config;
-use crate::git::clone::{clone_repository, find_local_repository_gix, pull_branch_gix};
+use crate::git::clone::{clone_repository_gix, find_local_repository_gix, pull_branch_gix};
 
 pub fn fetch_all(_args: &FetchAllArgs, config: &Config, _data_dir: &Path) -> eyre::Result<usize> {
     tracing::info!("Fetching repositories ...");
@@ -22,8 +22,7 @@ pub fn fetch_all(_args: &FetchAllArgs, config: &Config, _data_dir: &Path) -> eyr
                 );
                 let force = false;
                 skip_fetch = true;
-                let git2_repo = clone_repository(config, force)?;
-                crate::git::git2_to_gix(&git2_repo)
+                clone_repository_gix(config, force)?
             }
         };
 
