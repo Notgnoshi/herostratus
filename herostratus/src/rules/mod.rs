@@ -23,7 +23,8 @@ pub fn builtin_rules(config: Option<&Config>) -> Vec<Box<dyn Rule>> {
         }) => r,
         _ => &default_rules_config,
     };
-    let excludes = rules_config.exclude.clone().unwrap_or_default();
+    let excludes = rules_config.exclude.as_deref().unwrap_or_default();
+    let includes = rules_config.include.as_deref().unwrap_or_default();
 
     let mut rules = Vec::new();
     // Each Rule uses inventory::submit! to register a factory to build themselves with.
@@ -33,15 +34,38 @@ pub fn builtin_rules(config: Option<&Config>) -> Vec<Box<dyn Rule>> {
         let short_pretty_id = format!("H{}", rule.id());
         let pretty_id = rule.pretty_id(); // each call does an allocation
 
-        for exclude in &excludes {
+        let mut exclude_rule = false;
+        for exclude in excludes {
             if &string_id == exclude
                 || &short_pretty_id == exclude
                 || rule.human_id() == exclude
                 || &pretty_id == exclude
+                || exclude == "all"
             {
-                tracing::info!("Excluding rule: {pretty_id} due to exclusion rule {exclude:?}");
-                continue 'outer;
+                tracing::debug!("Excluding rule: {pretty_id} due to exclusion rule {exclude:?}");
+                exclude_rule = true;
+                break; // break the inner exclude loop
             }
+        }
+
+        for include in includes {
+            if &string_id == include
+                || &short_pretty_id == include
+                || rule.human_id() == include
+                || &pretty_id == include
+            {
+                if exclude_rule {
+                    tracing::debug!(
+                        "Overriding exclusion of rule: {pretty_id} due to inclusion rule {include:?}"
+                    );
+                }
+                exclude_rule = false;
+                break; // break the inner include loop
+            }
+        }
+
+        if exclude_rule {
+            continue 'outer; // advance to the next rule factory
         }
 
         rules.push(rule);
@@ -182,5 +206,37 @@ mod tests {
         assert!(!ids.contains(&2));
         assert!(!ids.contains(&3));
         assert!(!ids.contains(&4));
+    }
+
+    #[test]
+    fn exclude_all_rules() {
+        let config = RulesConfig {
+            exclude: Some(vec!["all".into()]),
+            ..Default::default()
+        };
+        let config = Config {
+            rules: Some(config),
+            ..Default::default()
+        };
+
+        let rules = builtin_rules(Some(&config));
+        assert!(rules.is_empty());
+    }
+
+    #[test]
+    fn exclude_all_rules_except() {
+        let config = RulesConfig {
+            exclude: Some(vec!["all".into()]),
+            include: Some(vec!["H1".into()]),
+            ..Default::default()
+        };
+        let config = Config {
+            rules: Some(config),
+            ..Default::default()
+        };
+
+        let rules = builtin_rules(Some(&config));
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].human_id(), "fixup");
     }
 }

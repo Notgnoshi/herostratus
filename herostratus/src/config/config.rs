@@ -17,9 +17,17 @@ pub struct Config {
 
 #[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
 pub struct RulesConfig {
-    /// Rules to exclude. Maybe the rule ID (2), human ID (shortest-subject-line), or pretty ID
-    /// (H2-shortest-subject-line).
+    /// Rules to exclude.
+    ///
+    /// May be the rule ID (2), human ID (shortest-subject-line), pretty ID
+    /// (H2-shortest-subject-line), or the string "all" to exclude all rules.
     pub exclude: Option<Vec<String>>,
+
+    /// Rules to include. Applied *after* `rules.exclude`.
+    ///
+    /// May be the rule ID, human ID, or pretty ID. You would use this to re-include a rule that
+    /// was excluded via `rules.exclude = "all"`.
+    pub include: Option<Vec<String>>,
 
     // TODO: There's bound to be some kind of serde voodoo to reduce the copy-pasta and effort it
     // takes to add a configuration for a new rule. Or maybe this is better because it's simple?
