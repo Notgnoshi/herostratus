@@ -24,8 +24,8 @@ focus on the user impact** rather than the actual changes made.
 
   ```toml
   [rules]
-  exclude = ["all"]       # Ignore everything
-  include = ["H4", "H5"]  # Except for H4 and H5
+  exclude = ["all"] # Ignore everything
+  include = ["H4", "H5"] # Except for H4 and H5
   ```
 
 ## Changed
@@ -35,6 +35,22 @@ focus on the user impact** rather than the actual changes made.
 ## Removed
 
 ## Fixed
+
+* Fixed an issue preventing Herostratus from running on annotated tags.
+
+  Along with this change, the
+
+  ```toml
+  [repositories.<repository name>]
+  branch = "<branch name>"
+  ```
+
+  config option has changed to
+
+  ```toml
+  [repositories.<repository name>]
+  reference = "<branch name>"
+  ```
 
 ## Security
 

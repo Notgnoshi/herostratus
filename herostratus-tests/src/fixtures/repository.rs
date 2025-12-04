@@ -24,18 +24,22 @@ pub fn add_empty_commit<'r>(repo: &'r gix::Repository, message: &str) -> eyre::R
     add_empty_commit_time(repo, message, time)
 }
 
+fn get_signature_at_time(seconds: gix::date::SecondsSinceUnixEpoch) -> gix::actor::Signature {
+    let time = gix::date::Time { seconds, offset: 0 };
+    gix::actor::Signature {
+        name: "Herostratus".into(),
+        email: "Herostratus@example.com".into(),
+        time,
+    }
+}
+
 #[tracing::instrument(level="debug", skip_all, fields(path = %repo.path().display()))]
 pub fn add_empty_commit_time<'r>(
     repo: &'r gix::Repository,
     message: &str,
     seconds: gix::date::SecondsSinceUnixEpoch,
 ) -> eyre::Result<gix::Id<'r>> {
-    let time = gix::date::Time { seconds, offset: 0 };
-    let signature = gix::actor::Signature {
-        name: "Herostratus".into(),
-        email: "Herostratus@example.com".into(),
-        time,
-    };
+    let signature = get_signature_at_time(seconds);
     let mut buf = gix::date::parse::TimeBuf::default();
     let authored = signature.to_ref(&mut buf);
     let mut buf = gix::date::parse::TimeBuf::default();
@@ -160,6 +164,43 @@ pub fn set_default_branch(repo: &gix::Repository, branch_name: &str) -> eyre::Re
     Ok(())
 }
 
+#[tracing::instrument(level = "debug", skip_all, fields(path = %repo.path().display()))]
+pub fn create_lightweight_tag<'r>(
+    repo: &'r gix::Repository,
+    name: &str,
+    target: impl Into<gix::ObjectId>,
+) -> eyre::Result<gix::Reference<'r>> {
+    let reference = repo.tag_reference(
+        name,
+        target,
+        gix::refs::transaction::PreviousValue::MustNotExist,
+    )?;
+    Ok(reference)
+}
+
+#[tracing::instrument(level = "debug", skip_all, fields(path = %repo.path().display()))]
+pub fn create_annotated_tag<'r>(
+    repo: &'r gix::Repository,
+    name: &str,
+    target: impl Into<gix::ObjectId>,
+    message: &str,
+) -> eyre::Result<gix::Reference<'r>> {
+    let time = 1711656630;
+    let signature = get_signature_at_time(time);
+    let mut buf = gix::date::parse::TimeBuf::default();
+    let tagger = signature.to_ref(&mut buf);
+
+    let reference = repo.tag(
+        name,
+        target.into(),
+        gix::objs::Kind::Commit,
+        Some(tagger),
+        message,
+        gix::refs::transaction::PreviousValue::MustNotExist,
+    )?;
+    Ok(reference)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -242,5 +283,22 @@ mod tests {
         let commit2 = add_empty_commit(&repo.repo, "commit2 on branch2").unwrap();
         let head = repo.repo.head_id().unwrap();
         assert_eq!(head, commit2);
+    }
+
+    #[test]
+    fn test_create_tags() {
+        let repo = bare().unwrap();
+        let commit = add_empty_commit(&repo.repo, "commit1").unwrap();
+
+        let tag = create_lightweight_tag(&repo.repo, "SMALL_TAG", commit).unwrap();
+        assert_eq!(tag.id(), commit);
+
+        let commit = add_empty_commit(&repo.repo, "commit2").unwrap();
+        let mut tag =
+            create_annotated_tag(&repo.repo, "BIG_TAG", commit, "This is an annotated tag")
+                .unwrap();
+        assert_ne!(tag.id(), commit, "Annotated tags have their own object IDs");
+        let points_to = tag.peel_to_id().unwrap();
+        assert_eq!(points_to, commit);
     }
 }
