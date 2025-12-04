@@ -14,6 +14,12 @@ focus on the user impact** rather than the actual changes made.
 
 ## Added
 
+* Added the following rules:
+
+  | ID              | Description                                 |
+  | --------------- | ------------------------------------------- |
+  | H5-empty-commit | Create an empty commit containin no changes |
+
 ## Changed
 
 ## Deprecated
