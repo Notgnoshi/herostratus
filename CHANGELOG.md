@@ -14,6 +14,20 @@ focus on the user impact** rather than the actual changes made.
 
 ## Added
 
+* Added the following rules:
+
+  | ID              | Description                                  |
+  | --------------- | -------------------------------------------- |
+  | H5-empty-commit | Create an empty commit containing no changes |
+
+* You can now run specific rules with the following configuration
+
+  ```toml
+  [rules]
+  exclude = ["all"]       # Ignore everything
+  include = ["H4", "H5"]  # Except for H4 and H5
+  ```
+
 ## Changed
 
 ## Deprecated

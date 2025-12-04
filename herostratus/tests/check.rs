@@ -7,7 +7,7 @@ use predicates::str;
 
 #[test]
 fn search_current_repo_for_test_simple_branch() {
-    let (mut cmd, _temp) = herostratus(None);
+    let (mut cmd, _temp) = herostratus(None, None);
     cmd.arg("check").arg(".").arg("origin/test/simple");
 
     let output = cmd.captured_output();
@@ -16,7 +16,7 @@ fn search_current_repo_for_test_simple_branch() {
 
 #[test]
 fn search_current_repo_for_branch_that_does_not_exist() {
-    let (mut cmd, _temp) = herostratus(None);
+    let (mut cmd, _temp) = herostratus(None, None);
     cmd.arg("check")
         .arg(".")
         .arg("origin/test/this-branch-will-never-exist");
@@ -27,7 +27,7 @@ fn search_current_repo_for_branch_that_does_not_exist() {
 
 #[test]
 fn search_current_repo_for_fixup_commits() {
-    let (mut cmd, _temp) = herostratus(None);
+    let (mut cmd, _temp) = herostratus(None, None);
     cmd.arg("check").arg(".").arg("origin/test/fixup");
 
     let output = cmd.captured_output();
@@ -59,7 +59,7 @@ fn smoke_test_on_all_own_branches() {
         let reference = reference.unwrap();
         let name = std::ffi::OsString::from_vec(reference.name().as_bstr().to_vec());
 
-        let (mut cmd, _temp) = herostratus(None);
+        let (mut cmd, _temp) = herostratus(None, None);
         cmd.arg("check").arg(".").arg(name);
 
         let output = cmd.captured_output();

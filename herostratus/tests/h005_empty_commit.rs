@@ -3,14 +3,15 @@ use predicates::prelude::*;
 use predicates::str;
 
 #[test]
-fn h004_non_unicode() {
+fn h005_empty_commit() {
     let (mut cmd, _temp) = herostratus(None, None);
-    cmd.arg("check").arg(".").arg("origin/test/non-unicode");
+    // TODO: Support checking tags, and point to an early on tag in the branch?
+    cmd.arg("check").arg(".").arg("origin/main");
 
     let output = cmd.captured_output();
     assert!(output.status.success());
 
-    let assertion = str::contains("0f64af5fd5f51a45943dcd3f8c0fb53b88974aec");
+    let assertion = str::contains("2dcecd66c21932043cf127b31218cb67c2b0f0a4");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
         assertion.eval(&stdout),
