@@ -36,6 +36,8 @@ focus on the user impact** rather than the actual changes made.
 
 ## Fixed
 
+* Fixed an issue preventing Herostratus from running on annotated tags.
+
 ## Security
 
 # Herostratus - 0.2.0 - (2025-11-11)
