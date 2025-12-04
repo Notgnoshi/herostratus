@@ -4,7 +4,7 @@ use predicates::str;
 
 #[test]
 fn h005_empty_commit() {
-    let (mut cmd, _temp) = herostratus(None);
+    let (mut cmd, _temp) = herostratus(None, None);
     // TODO: Support checking tags, and point to an early on tag in the branch?
     cmd.arg("check").arg(".").arg("origin/main");
 

@@ -4,7 +4,7 @@ use predicates::str;
 
 #[test]
 fn h004_non_unicode() {
-    let (mut cmd, _temp) = herostratus(None);
+    let (mut cmd, _temp) = herostratus(None, None);
     cmd.arg("check").arg(".").arg("origin/test/non-unicode");
 
     let output = cmd.captured_output();

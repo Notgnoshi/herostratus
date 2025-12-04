@@ -3,7 +3,7 @@ use herostratus_tests::cmd::{CommandExt, herostratus};
 
 #[test]
 fn test_clone_herostratus() {
-    let (mut cmd, temp) = herostratus(None);
+    let (mut cmd, temp) = herostratus(None, None);
     let data_dir = temp.as_ref().unwrap().path();
 
     let expected_bare_repo = data_dir
@@ -38,7 +38,7 @@ fn test_clone_herostratus() {
     assert_eq!(repo_config, &expected);
 
     // Adding the same URL again in the same data_dir succeeds
-    let (mut cmd, _temp) = herostratus(Some(data_dir));
+    let (mut cmd, _temp) = herostratus(Some(data_dir), None);
     cmd.arg("add").arg(url);
 
     let output = cmd.captured_output();
@@ -51,7 +51,7 @@ fn test_clone_herostratus() {
 
 #[test]
 fn test_clone_herostratus_branch() {
-    let (mut cmd, temp) = herostratus(None);
+    let (mut cmd, temp) = herostratus(None, None);
     let clone_dir = temp
         .as_ref()
         .unwrap()
@@ -90,7 +90,7 @@ fn test_clone_herostratus_branch() {
 #[test]
 #[cfg_attr(feature = "ci", ignore = "Requires SSH (not available in CI)")]
 fn clone_herostratus_ssh() {
-    let (mut cmd, temp) = herostratus(None);
+    let (mut cmd, temp) = herostratus(None, None);
     let clone_dir = temp
         .as_ref()
         .unwrap()
@@ -122,9 +122,9 @@ fn clone_herostratus_ssh() {
 
 #[test]
 fn add_the_same_repo_twice() {
-    let (mut cmd1, temp) = herostratus(None);
-    let (mut cmd2, _) = herostratus(Some(temp.as_ref().unwrap().path()));
-    let (mut cmd3, _) = herostratus(Some(temp.as_ref().unwrap().path()));
+    let (mut cmd1, temp) = herostratus(None, None);
+    let (mut cmd2, _) = herostratus(Some(temp.as_ref().unwrap().path()), None);
+    let (mut cmd3, _) = herostratus(Some(temp.as_ref().unwrap().path()), None);
     let data_dir = temp.as_ref().unwrap().path();
     let clone_dir = temp
         .as_ref()
@@ -191,8 +191,8 @@ fn add_the_same_repo_twice() {
 
 #[test]
 fn test_two_branches_share_one_bare_repo() {
-    let (mut cmd1, temp) = herostratus(None);
-    let (mut cmd2, _) = herostratus(Some(temp.as_ref().unwrap().path()));
+    let (mut cmd1, temp) = herostratus(None, None);
+    let (mut cmd2, _) = herostratus(Some(temp.as_ref().unwrap().path()), None);
 
     let clone_dir = temp
         .as_ref()

@@ -11,13 +11,13 @@ fn add_self_and_then_check_all() {
         .canonicalize()
         .unwrap();
     let self_dir = format!("file://{}", self_dir.display());
-    let (mut cmd, temp) = herostratus(None);
+    let (mut cmd, temp) = herostratus(None, None);
     cmd.arg("add").arg("--skip-clone").arg(self_dir);
 
     let output = cmd.captured_output();
     assert!(output.status.success());
 
-    let (mut cmd, _) = herostratus(Some(temp.as_ref().unwrap().path()));
+    let (mut cmd, _) = herostratus(Some(temp.as_ref().unwrap().path()), None);
     // If 'add' skips the clone, using 'fetch-all' or 'check-all' without '--no-fetch' will clone
     cmd.arg("check-all");
     let output = cmd.captured_output();

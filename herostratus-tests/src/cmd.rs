@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::process::Output;
 use std::sync::LazyLock;
 
+use herostratus::config::{Config, RulesConfig, write_config};
 use tempfile::{TempDir, tempdir};
 
 // I'm using cargo_bin to discovery a binary provided by another crate in the workspace. That's not
@@ -10,8 +11,27 @@ use tempfile::{TempDir, tempdir};
 static HEROSTRATUS: LazyLock<PathBuf> =
     LazyLock::new(|| assert_cmd::cargo::cargo_bin("herostratus"));
 
+pub fn exclude_all_rules_except(rule: &str) -> Config {
+    Config {
+        rules: Some(RulesConfig {
+            exclude: Some(vec!["all".into()]),
+            include: Some(vec![rule.into()]),
+            ..Default::default()
+        }),
+        ..Default::default()
+    }
+}
+
 /// Get a [`Command`] for the herostratus binary and the [`TempDir`] data dir used in the test
-pub fn herostratus(data_dir: Option<&Path>) -> (assert_cmd::Command, Option<TempDir>) {
+///
+/// If the `config` is given, generate a config file in the data dir before returning the command,
+/// otherwise use whatever is present in the data dir.
+///
+/// NOTE: the `check` subcommand is stateless, and does not read from the data dir.
+pub fn herostratus(
+    data_dir: Option<&Path>,
+    config: Option<Config>,
+) -> (assert_cmd::Command, Option<TempDir>) {
     let (tempdir, path) = if let Some(data_dir) = data_dir {
         (None, data_dir.to_path_buf())
     } else {
@@ -19,6 +39,10 @@ pub fn herostratus(data_dir: Option<&Path>) -> (assert_cmd::Command, Option<Temp
         let data_dir = temp.path().to_path_buf();
         (Some(temp), data_dir)
     };
+
+    if let Some(config) = config {
+        write_config(&path, &config).unwrap();
+    }
 
     let mut cmd = assert_cmd::Command::new(&*HEROSTRATUS);
     cmd.arg("--color")

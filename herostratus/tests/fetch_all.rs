@@ -8,14 +8,14 @@ fn add_and_fetch() {
     let url = format!("file://{}", temp_upstream_repo.tempdir.path().display());
 
     // 2. Add it to herostratus, skipping the clone
-    let (mut cmd, temp_data) = herostratus(None);
+    let (mut cmd, temp_data) = herostratus(None, None);
     let data_dir = temp_data.as_ref().unwrap().path();
     cmd.arg("add").arg("--skip-clone").arg(url);
     let output = cmd.captured_output();
     assert!(output.status.success());
 
     // 3. Fetch the repo, which clones it under the hood, since it doesn't already exist
-    let (mut cmd, _) = herostratus(Some(data_dir));
+    let (mut cmd, _) = herostratus(Some(data_dir), None);
     cmd.arg("fetch-all");
     let output = cmd.captured_output();
     assert!(output.status.success());
@@ -24,7 +24,7 @@ fn add_and_fetch() {
     fixtures::repository::add_empty_commit(&temp_upstream_repo.repo, "Second commit").unwrap();
 
     // 5. Fetch the new commit
-    let (mut cmd, _) = herostratus(Some(data_dir));
+    let (mut cmd, _) = herostratus(Some(data_dir), None);
     cmd.arg("fetch-all");
     let output = cmd.captured_output();
     assert!(output.status.success());
