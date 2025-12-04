@@ -30,7 +30,7 @@ pub fn check_all(args: &CheckAllArgs, config: &Config, data_dir: &Path) -> eyre:
         let _span = tracing::debug_span!("check", name = name).entered();
         let repo = find_local_repository(&repo_config.path)?;
         let reference = repo_config
-            .branch
+            .reference
             .clone()
             .unwrap_or_else(|| String::from("HEAD"));
         let achievements = grant(Some(config), &reference, &repo)?;

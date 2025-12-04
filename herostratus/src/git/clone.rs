@@ -240,11 +240,11 @@ pub fn pull_branch(
     // Can't be a Vec<String>; has to be a Vec<&str> ...
     let mut refspecs = vec!["+HEAD:refs/remotes/origin/HEAD"];
     let branch_refspec;
-    if let Some(branch) = &config.branch {
+    if let Some(branch) = &config.reference {
         branch_refspec = format!("+refs/heads/{branch}:refs/heads/{branch}");
         refspecs.push(&branch_refspec);
     }
-    let ref_name = config.branch.as_deref().unwrap_or("HEAD");
+    let ref_name = config.reference.as_deref().unwrap_or("HEAD");
     let remote = remote.with_refspecs(&refspecs, gix::remote::Direction::Fetch)?;
     tracing::info!("Pulling {ref_name:?} from remote {:?}", config.url);
     tracing::debug!("refspecs: {refspecs:?}");
@@ -287,7 +287,7 @@ pub fn clone_repository(
     tracing::info!(
         "Cloning {:?} (ref={}) to {} ...",
         config.url,
-        config.branch.as_deref().unwrap_or("HEAD"),
+        config.reference.as_deref().unwrap_or("HEAD"),
         config.path.display()
     );
     let parent_dir = config.path.parent().ok_or(eyre::eyre!(
@@ -340,7 +340,7 @@ pub fn clone_repository(
         create_opts,
         open_opts,
     )?;
-    let branch = config.branch.clone();
+    let branch = config.reference.clone();
 
     // Configure the remote with the right refspecs for fetching just the configure branch and the
     // remote's HEAD.
@@ -410,7 +410,7 @@ mod tests {
             .unwrap()
             .to_string();
         let config = crate::config::RepositoryConfig {
-            branch: None, // HEAD
+            reference: None, // HEAD
             url,
             ..Default::default()
         };
@@ -463,7 +463,7 @@ mod tests {
             .unwrap()
             .to_string();
         let config = crate::config::RepositoryConfig {
-            branch: None, // HEAD
+            reference: None, // HEAD
             url,
             ..Default::default()
         };
@@ -508,7 +508,7 @@ mod tests {
             .unwrap()
             .to_string();
         let config = crate::config::RepositoryConfig {
-            branch: Some("dev".to_string()),
+            reference: Some("dev".to_string()),
             url,
             ..Default::default()
         };
@@ -551,7 +551,7 @@ mod tests {
             .unwrap()
             .to_string();
         let config = crate::config::RepositoryConfig {
-            branch: Some("branch1".to_string()),
+            reference: Some("branch1".to_string()),
             url,
             ..Default::default()
         };
@@ -585,7 +585,7 @@ mod tests {
             .unwrap()
             .to_string();
         let config = crate::config::RepositoryConfig {
-            branch: Some("branch1".to_string()),
+            reference: Some("branch1".to_string()),
             url,
             ..Default::default()
         };
@@ -614,7 +614,7 @@ mod tests {
         let downstream_dir = tempdir.path().join("downstream");
 
         let config = crate::config::RepositoryConfig {
-            branch: None, // HEAD
+            reference: None, // HEAD
             url: format!("file://{}", upstream.tempdir.path().display()),
             path: downstream_dir.clone(),
             ..Default::default()
@@ -639,7 +639,7 @@ mod tests {
         let downstream_dir = tempdir.path().join("downstream");
 
         let config = crate::config::RepositoryConfig {
-            branch: Some("branch1".to_string()),
+            reference: Some("branch1".to_string()),
             url: format!("file://{}", upstream.tempdir.path().display()),
             path: downstream_dir.clone(),
             ..Default::default()
@@ -660,7 +660,7 @@ mod tests {
         let downstream_dir = tempdir.path().join("downstream");
 
         let config = crate::config::RepositoryConfig {
-            branch: Some("test/fixup".into()), // A small branch that's cheaper to fetch than the default
+            reference: Some("test/fixup".into()), // A small branch that's cheaper to fetch than the default
             url: "https://github.com/Notgnoshi/herostratus.git".to_string(),
             path: downstream_dir.clone(),
             ..Default::default()
@@ -676,7 +676,7 @@ mod tests {
         let downstream_dir = tempdir.path().join("downstream");
 
         let config = crate::config::RepositoryConfig {
-            branch: Some("test/fixup".into()), // A small branch that's cheaper to fetch than the default
+            reference: Some("test/fixup".into()), // A small branch that's cheaper to fetch than the default
             url: "git@github.com:Notgnoshi/herostratus.git".to_string(),
             path: downstream_dir.clone(),
             ..Default::default()
@@ -692,7 +692,7 @@ mod tests {
         let downstream_dir = tempdir.path().join("downstream");
 
         let config = crate::config::RepositoryConfig {
-            branch: Some("test/fixup".into()), // A small branch that's cheaper to fetch than the default
+            reference: Some("test/fixup".into()), // A small branch that's cheaper to fetch than the default
             // TODO: git:// protocol times out without cloning anything
             url: "ssh://git@github.com/Notgnoshi/herostratus.git".to_string(),
             path: downstream_dir.clone(),
@@ -711,7 +711,7 @@ mod tests {
         std::fs::create_dir_all(&downstream_dir).unwrap();
 
         let config = crate::config::RepositoryConfig {
-            branch: None, // HEAD
+            reference: None, // HEAD
             url: format!("file://{}", upstream.tempdir.path().display()),
             path: downstream_dir.clone(),
             ..Default::default()
@@ -739,7 +739,7 @@ mod tests {
         let downstream_dir = tempdir.path().join("downstream");
 
         let config = crate::config::RepositoryConfig {
-            branch: None, // HEAD
+            reference: None, // HEAD
             url: format!("file://{}", upstream.tempdir.path().display()),
             path: downstream_dir.clone(),
             ..Default::default()

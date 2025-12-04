@@ -39,7 +39,7 @@ pub struct RulesConfig {
 #[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
 pub struct RepositoryConfig {
     pub path: PathBuf,
-    pub branch: Option<String>,
+    pub reference: Option<String>,
     pub url: String,
 
     /// The username to authenticate with.
@@ -136,7 +136,7 @@ mod tests {
         let mut repositories = HashMap::new();
         let config = RepositoryConfig {
             path: PathBuf::from("git/Notgnoshi/herostratus"),
-            branch: None,
+            reference: None,
             url: String::from("git@github.com:Notgnoshi/herostratus.git"),
             ..Default::default()
         };

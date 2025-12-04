@@ -32,7 +32,7 @@ fn test_clone_herostratus() {
     let expected = RepositoryConfig {
         path: expected_bare_repo,
         url: url.to_string(),
-        branch: None,
+        reference: None,
         ..Default::default()
     };
     assert_eq!(repo_config, &expected);
@@ -81,7 +81,7 @@ fn test_clone_herostratus_branch() {
     let expected = RepositoryConfig {
         path: clone_dir.clone(),
         url: url.to_string(),
-        branch: Some(String::from("test/fixup")),
+        reference: Some(String::from("test/fixup")),
         ..Default::default()
     };
     assert_eq!(repo_config, &expected);
@@ -216,7 +216,7 @@ fn test_two_branches_share_one_bare_repo() {
     let expected = format!(
         "[repositories.herostratus-1]\n\
          path = \"{}\"\n\
-         branch = \"test/simple\"\n\
+         reference = \"test/simple\"\n\
          url = \"https://github.com/Notgnoshi/herostratus.git\"\n\
         ",
         clone_dir.display()
@@ -240,8 +240,8 @@ fn test_two_branches_share_one_bare_repo() {
 
     let config1 = &config.repositories["herostratus-1"];
     let config2 = &config.repositories["herostratus-2"];
-    assert_eq!(config1.branch.as_deref(), Some("test/simple"));
-    assert_eq!(config2.branch.as_deref(), Some("test/fixup"));
+    assert_eq!(config1.reference.as_deref(), Some("test/simple"));
+    assert_eq!(config2.reference.as_deref(), Some("test/fixup"));
     assert_eq!(config1.path, config2.path);
     assert_eq!(config1.url, config2.url);
 }
