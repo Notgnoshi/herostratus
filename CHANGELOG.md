@@ -16,9 +16,10 @@ focus on the user impact** rather than the actual changes made.
 
 * Added the following rules:
 
-  | ID              | Description                                  |
-  | --------------- | -------------------------------------------- |
-  | H5-empty-commit | Create an empty commit containing no changes |
+  | ID                 | Description                                  |
+  | ------------------ | -------------------------------------------- |
+  | H5-empty-commit    | Create an empty commit containing no changes |
+  | H6-whitespace-only | Commit whitespace-only changes               |
 
 * You can now run specific rules with the following configuration
 
