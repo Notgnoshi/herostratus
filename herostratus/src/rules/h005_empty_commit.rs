@@ -62,18 +62,34 @@ impl EmptyCommit {
         changes.options(|o| {
             o.track_rewrites(None);
         });
-        // Calculating the stats is easier (I think) that calculating the diff and checking if it's
-        // empty. For rules that actually need to look at the diff,
-        // Platform::for_each_to_obtain_tree_with_cache() should be used.
-        let stats = changes.stats(&commit_tree)?;
-
-        // TODO: This counts submodule update commits as empty!
-        if stats.lines_added == 0 && stats.lines_removed == 0 && stats.files_changed == 0 {
-            return Ok(Some(self.grant(commit, repo)));
+        let mut cache = repo.diff_resource_cache_for_tree_diff()?;
+        let mut found_any_change = false;
+        match changes.for_each_to_obtain_tree_with_cache(
+            &commit_tree,
+            &mut cache,
+            |_change| -> eyre::Result<gix::object::tree::diff::Action> {
+                on_change(&mut found_any_change)
+            },
+        ) {
+            Ok(_) => {}
+            // It's not an error for the diff iterator to cancel iteration
+            Err(gix::object::tree::diff::for_each::Error::Diff(
+                gix::diff::tree_with_rewrites::Error::Diff(gix::diff::tree::Error::Cancelled),
+            )) => {}
+            Err(e) => return Err(e.into()),
         }
 
-        Ok(None)
+        if found_any_change {
+            Ok(None)
+        } else {
+            Ok(Some(self.grant(commit, repo)))
+        }
     }
+}
+
+fn on_change(found_any_change: &mut bool) -> eyre::Result<gix::object::tree::diff::Action> {
+    *found_any_change = true;
+    Ok(gix::object::tree::diff::Action::Cancel)
 }
 
 // It's hard to test this rule in unit tests because the test fixtures I have support *only* empty
