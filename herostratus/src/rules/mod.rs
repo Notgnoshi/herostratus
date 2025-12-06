@@ -4,6 +4,7 @@ mod h002_shortest_subject_line;
 mod h003_longest_subject_line;
 mod h004_non_unicode;
 mod h005_empty_commit;
+mod h006_whitespace_only;
 #[cfg(test)]
 pub(crate) mod test_rules;
 

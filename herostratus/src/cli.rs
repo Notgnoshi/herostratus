@@ -161,6 +161,10 @@ pub struct CheckAllArgs {
     /// Skip fetching all repositories before checking
     #[clap(long, short)]
     pub no_fetch: bool,
+
+    /// How many commits to process
+    #[clap(short, long)]
+    pub depth: Option<usize>,
 }
 
 /// Fetch each repository

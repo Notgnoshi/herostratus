@@ -26,7 +26,7 @@ impl Rule for EmptyCommit {
                 tracing::error!(
                     "Error processing commit {} for rule {}: {}",
                     commit.id(),
-                    self.human_id(),
+                    self.pretty_id(),
                     e
                 );
             })
@@ -37,7 +37,7 @@ impl Rule for EmptyCommit {
 
 impl EmptyCommit {
     fn impl_process(
-        &mut self,
+        &self,
         commit: &gix::Commit,
         repo: &gix::Repository,
     ) -> eyre::Result<Option<Achievement>> {

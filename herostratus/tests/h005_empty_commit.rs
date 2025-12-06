@@ -1,15 +1,16 @@
-use herostratus_tests::cmd::{CommandExt, herostratus};
+use herostratus_tests::cmd::{CommandExt, exclude_all_rules_except, herostratus};
 use predicates::prelude::*;
 use predicates::str;
 
 #[test]
 fn h005_empty_commit() {
-    let (mut cmd, _temp) = herostratus(None, None);
+    let config = exclude_all_rules_except("H5-empty-commit");
+    let (mut cmd, _temp) = herostratus(None, Some(config));
     // This test serves two purposes:
     // 1. Use an early tag so this test doesn't have to parse a variable number of commits as the
     //    project grows
     // 2. Ensure we are able to run on tags, branches, and HEAD alike
-    cmd.arg("check").arg(".").arg("v0.1.0");
+    cmd.arg("check").arg(".").arg("v0.1.0-rc1");
 
     let output = cmd.captured_output();
     assert!(output.status.success());

@@ -1,10 +1,11 @@
-use herostratus_tests::cmd::{CommandExt, herostratus};
+use herostratus_tests::cmd::{CommandExt, exclude_all_rules_except, herostratus};
 use predicates::prelude::*;
 use predicates::str;
 
 #[test]
 fn h004_non_unicode() {
-    let (mut cmd, _temp) = herostratus(None, None);
+    let config = exclude_all_rules_except("H4-non-unicode");
+    let (mut cmd, _temp) = herostratus(None, Some(config));
     cmd.arg("check").arg(".").arg("origin/test/non-unicode");
 
     let output = cmd.captured_output();

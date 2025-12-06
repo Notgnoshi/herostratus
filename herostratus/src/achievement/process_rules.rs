@@ -148,15 +148,17 @@ pub fn grant<'repo>(
     config: Option<&Config>,
     reference: &str,
     repo: &'repo gix::Repository,
+    depth: Option<usize>,
 ) -> eyre::Result<impl Iterator<Item = Achievement> + 'repo> {
-    grant_with_rules(reference, repo, crate::rules::builtin_rules(config))
+    grant_with_rules(reference, repo, depth, crate::rules::builtin_rules(config))
 }
 
 pub fn grant_with_rules<'repo>(
     reference: &str,
     repo: &'repo gix::Repository,
+    depth: Option<usize>,
     rules: Vec<Box<dyn Rule>>,
-) -> eyre::Result<impl Iterator<Item = Achievement> + 'repo> {
+) -> eyre::Result<Box<dyn Iterator<Item = Achievement> + 'repo>> {
     let rev = crate::git::rev::parse(reference, repo)
         .wrap_err(format!("Failed to rev-parse: {reference:?}"))?;
     let oids =
@@ -170,7 +172,11 @@ pub fn grant_with_rules<'repo>(
             None
         }
     });
-    Ok(process_rules(oids, repo, rules))
+    if let Some(depth) = depth {
+        Ok(Box::new(process_rules(oids.take(depth), repo, rules)))
+    } else {
+        Ok(Box::new(process_rules(oids, repo, rules)))
+    }
 }
 
 #[cfg(test)]
@@ -184,7 +190,7 @@ mod tests {
     fn test_no_rules() {
         let temp_repo = fixtures::repository::simplest().unwrap();
         let rules = Vec::new();
-        let achievements = grant_with_rules("HEAD", &temp_repo.repo, rules).unwrap();
+        let achievements = grant_with_rules("HEAD", &temp_repo.repo, None, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert!(achievements.is_empty());
     }
@@ -193,7 +199,7 @@ mod tests {
     fn test_iterator_no_matches() {
         let temp_repo = fixtures::repository::simplest().unwrap();
         let rules = vec![Box::new(AlwaysFail) as Box<dyn Rule>];
-        let achievements = grant_with_rules("HEAD", &temp_repo.repo, rules).unwrap();
+        let achievements = grant_with_rules("HEAD", &temp_repo.repo, None, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert!(achievements.is_empty());
     }
@@ -206,7 +212,7 @@ mod tests {
             Box::new(AlwaysFail) as Box<dyn Rule>,
             Box::new(ParticipationTrophy) as Box<dyn Rule>,
         ];
-        let achievements = grant_with_rules("HEAD", &temp_repo.repo, rules).unwrap();
+        let achievements = grant_with_rules("HEAD", &temp_repo.repo, None, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
     }
@@ -216,7 +222,7 @@ mod tests {
         let temp_repo = fixtures::repository::simplest().unwrap();
 
         let rules = vec![Box::new(ParticipationTrophy2) as Box<dyn Rule>];
-        let achievements = grant_with_rules("HEAD", &temp_repo.repo, rules).unwrap();
+        let achievements = grant_with_rules("HEAD", &temp_repo.repo, None, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
     }
