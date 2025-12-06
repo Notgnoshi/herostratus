@@ -76,6 +76,7 @@ fn search_current_repo_for_fixup_commits() {
 ///
 /// The application should not crash nor exit with an error on any branch.
 #[test]
+#[cfg_attr(not(feature = "ci"), ignore = "Slow test, only run in CI")]
 fn smoke_test_on_all_own_branches() {
     use std::os::unix::ffi::OsStringExt;
 
