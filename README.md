@@ -53,6 +53,10 @@ Achievement { name: "I meant to fix that up later, I swear!", commit: 60b480b554
 > [!WARNING]
 > This output format will change as Herostratus becomes more usable
 
+### What achievements are there?
+
+See [RULES.md](RULES.md) for a list of achievements.
+
 ## Development
 
 ### Build and test
