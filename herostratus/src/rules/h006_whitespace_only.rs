@@ -73,6 +73,7 @@ impl WhitespaceOnly {
             &mut cache,
             |change| -> eyre::Result<gix::object::tree::diff::Action> {
                 on_change(
+                    commit,
                     repo,
                     change,
                     &mut found_non_whitespace,
@@ -98,6 +99,7 @@ impl WhitespaceOnly {
 }
 
 fn on_change(
+    commit: &gix::Commit,
     repo: &gix::Repository,
     change: gix::object::tree::diff::Change,
     found_non_whitespace: &mut bool,
@@ -106,8 +108,18 @@ fn on_change(
     *found_any_change = true;
     match change {
         gix::object::tree::diff::Change::Modification {
-            previous_id, id, ..
-        } => on_modification(repo, previous_id, id, found_non_whitespace),
+            previous_id,
+            id,
+            entry_mode,
+            ..
+        } => {
+            // This commit contained a submodule update
+            if entry_mode.is_commit() {
+                *found_non_whitespace = true;
+                return Ok(gix::object::tree::diff::Action::Cancel);
+            }
+            on_modification(commit, repo, previous_id, id, found_non_whitespace)
+        }
         _ => {
             *found_non_whitespace = true;
             Ok(gix::object::tree::diff::Action::Cancel)
@@ -116,13 +128,28 @@ fn on_change(
 }
 
 fn on_modification(
+    commit: &gix::Commit,
     repo: &gix::Repository,
     previous_id: gix::Id,
     id: gix::Id,
     found_non_whitespace: &mut bool,
 ) -> eyre::Result<gix::object::tree::diff::Action> {
-    let before = repo.find_object(previous_id).unwrap();
-    let after = repo.find_object(id).unwrap();
+    let before = repo
+        .find_object(previous_id)
+        .inspect_err(|e| {
+            tracing::error!(
+                "Commit: {commit:?} previous: {previous_id:?} current: {id:?} error: {e:?}"
+            )
+        })
+        .unwrap();
+    let after = repo
+        .find_object(id)
+        .inspect_err(|e| {
+            tracing::error!(
+                "Commit: {commit:?} previous: {previous_id:?} current: {id:?} error: {e:?}"
+            )
+        })
+        .unwrap();
     if before.kind == gix::object::Kind::Tree {
         return Ok(gix::object::tree::diff::Action::Continue);
     }

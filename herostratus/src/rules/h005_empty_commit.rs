@@ -67,6 +67,7 @@ impl EmptyCommit {
         // Platform::for_each_to_obtain_tree_with_cache() should be used.
         let stats = changes.stats(&commit_tree)?;
 
+        // TODO: This counts submodule update commits as empty!
         if stats.lines_added == 0 && stats.lines_removed == 0 && stats.files_changed == 0 {
             return Ok(Some(self.grant(commit, repo)));
         }
