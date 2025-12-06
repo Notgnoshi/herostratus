@@ -26,6 +26,35 @@ fn search_current_repo_for_branch_that_does_not_exist() {
 }
 
 #[test]
+fn search_depth() {
+    let (mut cmd, _temp) = herostratus(None, None);
+    // The fixup branch's HEAD is not a fixup commit, but its parent is.
+    cmd.arg("check")
+        .arg(".")
+        .arg("origin/test/fixup")
+        .arg("--depth=1");
+    let output = cmd.captured_output();
+    let stderr = String::from_utf8_lossy(&output.stderr); // herostratus logs to stderr
+    assert!(output.status.success());
+
+    let assertion = str::contains("processing 1 commits");
+    assert!(assertion.eval(&stderr), "Found != 1 commits");
+
+    let (mut cmd, _temp) = herostratus(None, None);
+    cmd.arg("check")
+        .arg(".")
+        .arg("origin/test/fixup")
+        .arg("--depth=2");
+
+    let output = cmd.captured_output();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success());
+
+    let assertion = str::contains("processing 2 commits");
+    assert!(assertion.eval(&stderr), "Found != 2 commits");
+}
+
+#[test]
 fn search_current_repo_for_fixup_commits() {
     let (mut cmd, _temp) = herostratus(None, None);
     cmd.arg("check").arg(".").arg("origin/test/fixup");

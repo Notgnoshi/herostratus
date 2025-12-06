@@ -52,6 +52,7 @@ focus on the user impact** rather than the actual changes made.
   [repositories.<repository name>]
   reference = "<branch name>"
   ```
+* Fixed the `herostratus check --depth=<N>` flag being ignored
 
 ## Security
 

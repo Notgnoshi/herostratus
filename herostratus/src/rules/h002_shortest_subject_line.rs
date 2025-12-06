@@ -94,7 +94,7 @@ mod tests {
         };
         let repo = fixtures::repository::with_empty_commits(&["0123456789", "1234567890"]).unwrap();
         let rules = vec![shortest_subject_line(&config)];
-        let achievements = grant_with_rules("HEAD", &repo.repo, rules).unwrap();
+        let achievements = grant_with_rules("HEAD", &repo.repo, None, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert!(achievements.is_empty());
     }
@@ -105,7 +105,7 @@ mod tests {
             fixtures::repository::with_empty_commits(&["0123456789", "1234", "1234567", "12345"])
                 .unwrap();
         let rules = vec![Box::new(ShortestSubjectLine::default()) as Box<dyn Rule>];
-        let achievements = grant_with_rules("HEAD", &repo.repo, rules).unwrap();
+        let achievements = grant_with_rules("HEAD", &repo.repo, None, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
 
@@ -127,8 +127,8 @@ mod tests {
         // processing any two repositories
         let rules2 = vec![Box::new(ShortestSubjectLine::default()) as Box<dyn Rule>];
 
-        let achievements1 = grant_with_rules("HEAD", &repo1.repo, rules1).unwrap();
-        let achievements2 = grant_with_rules("HEAD", &repo2.repo, rules2).unwrap();
+        let achievements1 = grant_with_rules("HEAD", &repo1.repo, None, rules1).unwrap();
+        let achievements2 = grant_with_rules("HEAD", &repo2.repo, None, rules2).unwrap();
         let achievements1: Vec<_> = achievements1.collect();
         assert_eq!(achievements1.len(), 1);
         let achievements2: Vec<_> = achievements2.collect();

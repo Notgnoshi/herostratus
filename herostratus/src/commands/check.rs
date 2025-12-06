@@ -14,7 +14,7 @@ pub fn check(args: &CheckArgs) -> eyre::Result<()> {
         args.reference
     );
     let repo = find_local_repository(&args.path)?;
-    let achievements = grant(None, &args.reference, &repo)?;
+    let achievements = grant(None, &args.reference, &repo, args.depth)?;
 
     process_achievements(achievements)
 }
@@ -33,7 +33,7 @@ pub fn check_all(args: &CheckAllArgs, config: &Config, data_dir: &Path) -> eyre:
             .reference
             .clone()
             .unwrap_or_else(|| String::from("HEAD"));
-        let achievements = grant(Some(config), &reference, &repo)?;
+        let achievements = grant(Some(config), &reference, &repo, args.depth)?;
         process_achievements(achievements)?;
     }
     tracing::info!(
