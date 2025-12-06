@@ -2,6 +2,8 @@ use std::path::{Path, PathBuf};
 
 use eyre::WrapErr;
 
+use crate::bstr::{BStr, BString};
+
 pub fn find_local_repository<P: AsRef<Path> + std::fmt::Debug>(
     path: P,
 ) -> eyre::Result<gix::Repository> {
@@ -85,8 +87,8 @@ fn update_local_repo(
 
 fn sync_remote_symref(
     repo: &gix::Repository,
-    full_ref_name: &gix::bstr::BStr,
-    target: &gix::bstr::BStr,
+    full_ref_name: &BStr,
+    target: &BStr,
     object: gix::ObjectId,
 ) -> eyre::Result<()> {
     tracing::debug!("Syncing symref {full_ref_name:?} -> {target:?} -> {object:?}");
@@ -132,7 +134,7 @@ fn sync_remote_symref(
 
 fn sync_remote_dirref(
     repo: &gix::Repository,
-    full_ref_name: &gix::bstr::BStr,
+    full_ref_name: &BStr,
     object: gix::ObjectId,
 ) -> eyre::Result<()> {
     tracing::debug!("Syncing ref {full_ref_name:?} -> {object:?}");
@@ -327,7 +329,7 @@ pub fn clone_repository(
         }
     }
 
-    let url = gix::Url::from_bytes(gix::bstr::BString::from(config.url.as_bytes()).as_ref())?;
+    let url = gix::Url::from_bytes(BString::from(config.url.as_bytes()).as_ref())?;
     let create_opts = gix::create::Options {
         destination_must_be_empty: true,
         ..Default::default()
