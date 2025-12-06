@@ -1,4 +1,5 @@
 use crate::achievement::{Achievement, Rule, RuleFactory};
+use crate::bstr::BStr;
 
 #[derive(Default)]
 pub struct WhitespaceOnly;
@@ -154,8 +155,8 @@ fn on_modification(
         return Ok(gix::object::tree::diff::Action::Continue);
     }
 
-    let before_s = gix::bstr::BStr::new(&before.data);
-    let after_s = gix::bstr::BStr::new(&after.data);
+    let before_s = BStr::new(&before.data);
+    let after_s = BStr::new(&after.data);
 
     // tracing::debug!("Diffing {before:?} and {after:?}");
     // tracing::debug!("Before: {before_s:?}");
