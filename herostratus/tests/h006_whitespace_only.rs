@@ -1,10 +1,11 @@
-use herostratus_tests::cmd::{CommandExt, herostratus};
+use herostratus_tests::cmd::{CommandExt, exclude_all_rules_except, herostratus};
 use predicates::prelude::*;
 use predicates::str;
 
 #[test]
 fn h006_whitespace_only() {
-    let (mut cmd, _temp) = herostratus(None, None);
+    let config = exclude_all_rules_except("H6-whitespace-only");
+    let (mut cmd, _temp) = herostratus(None, Some(config));
     cmd.arg("check").arg(".").arg("origin/test/whitespace-only");
 
     let output = cmd.captured_output();
@@ -12,14 +13,8 @@ fn h006_whitespace_only() {
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     // Initial empty commit
-    //
-    // TODO: The test says this commit is awarded an achievement, but it's the H5-empty-commit
-    // achievement, not the H6-whitespace-only achievement.
-    let assertion = str::contains("37f5c446079eff62dcca0c3ada2c6b8786b94d16");
-    assert!(
-        assertion.eval(&stdout),
-        "Output did not contain hash: {stdout:?}"
-    );
+    let assertion = str::contains("37f5c446079eff62dcca0c3ada2c6b8786b94d16").not();
+    assert!(assertion.eval(&stdout), "Output contained hash: {stdout:?}");
 
     // Add empty file
     let assertion = str::contains("0eef8fb603dd80af0997b15832538347bd07c264").not();
