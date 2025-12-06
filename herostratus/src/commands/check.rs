@@ -6,15 +6,16 @@ use crate::cli::{CheckAllArgs, CheckArgs};
 use crate::config::Config;
 use crate::git::clone::find_local_repository;
 
-// Stateless; do not allow filesystem modification, or reading from application data
-pub fn check(args: &CheckArgs) -> eyre::Result<()> {
+// Stateless; do not allow filesystem modification, or reading from application data (unless
+// --data-dir was *explicitly* passed)
+pub fn check(args: &CheckArgs, config: Option<&Config>) -> eyre::Result<()> {
     tracing::info!(
         "Checking repository {:?}, reference {:?} for achievements ...",
         args.path.display(),
         args.reference
     );
     let repo = find_local_repository(&args.path)?;
-    let achievements = grant(None, &args.reference, &repo, args.depth)?;
+    let achievements = grant(config, &args.reference, &repo, args.depth)?;
 
     process_achievements(achievements)
 }

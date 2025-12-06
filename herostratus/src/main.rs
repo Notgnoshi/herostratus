@@ -44,13 +44,22 @@ fn main() -> eyre::Result<()> {
         None => {
             eyre::bail!("Missing required subcommand");
         }
-        // check is stateless. It does not touch the data dir.
-        Some(herostratus::cli::Command::Check(args)) => herostratus::commands::check(&args)
-            .wrap_err(format!(
+        // check is supposed to be stateless, but it's darned convenient to be able to pass in
+        // RulesConfigs from the config file, especially for the purpose of integration testing! So
+        // if --data-dir was passed from the CLI, we read the config, otherwise we don't.
+        Some(herostratus::cli::Command::Check(cargs)) => {
+            if let Some(dir) = &args.data_dir {
+                tracing::warn!("Reading configs from --data-dir={dir:?}");
+            }
+            let config = args
+                .data_dir
+                .map(|d| herostratus::config::read_config(&d).unwrap());
+            herostratus::commands::check(&cargs, config.as_ref()).wrap_err(format!(
                 "Failed to check repository {:?} reference {:?}",
-                args.path.display(),
-                args.reference
-            )),
+                cargs.path.display(),
+                cargs.reference
+            ))
+        }
         // The other subcommands are stateful, and require reading the application configuration
         Some(command) => {
             let mut config = herostratus::config::read_config(&data_dir)?;
