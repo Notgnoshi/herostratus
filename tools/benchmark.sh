@@ -44,60 +44,26 @@ usage() {
     echo
     echo "  --help, -h      Show this help and exit"
     echo "  --no-edit, -n   Do not edit the README with benchmark results"
-}
-
-## Execute a command, and measure its wall-clock execution time in seconds
-#
-# Does not capture command's stderr/stdout output. Saves the execution time to the global variable
-# EXEC_RUNTIME.
-EXEC_RUNTIME="0"
-exec_with_timing() {
-    debug "Executing: $*"
-    local -r start=$(date +%s.%2N)
-    "$@"
-    local -r end=$(date +%s.%2N)
-    EXEC_RUNTIME=$(awk "BEGIN {print $end - $start}")
-}
-
-## Run a single benchmark on the given repository
-#
-## Outputs the results to stdout as a single row in a markdown table.
-run_benchmark() {
-    local -r data_dir="$1"
-    local -r name="$2"
-    local -r url="$3"
-    local -r branch="$4"
-
-    exec_with_timing herostratus --data-dir "$data_dir" add --name "$name" "$url" "$branch" >&2
-    local -r add_time="$EXEC_RUNTIME"
-
-    local -r stdout="$data_dir/check-$name.out"
-    local -r stderr="$data_dir/check-$name.err"
-
-    exec_with_timing herostratus --data-dir "$data_dir" --color check-all --no-fetch \
-        >"$stdout" \
-        2> >(tee "$stderr" >&2)
-    local -r check_time="$EXEC_RUNTIME"
-
-    local num_achievements
-    num_achievements="$(grep "Generated.*achievements" "$stderr" | sed -En 's/^.*Generated ([0-9]+) achievements.*$/\1/p')"
-
-    local num_commits
-    num_commits="$(grep "Generated.*achievements" "$stderr" | sed -En 's/^.*processing ([0-9]+) commits.*$/\1/p')"
-    echo "| $name | $branch | $num_commits | ${add_time}s | ${check_time}s | $num_achievements |"
+    echo "  --no-run, -r    Do not run the benchmarks (edit the readme with the results from last run)"
 }
 
 ## Same as run_benchmarks, but output on stdout
 run_benchmarks_wrapper() {
     local -r data_dir="$REPO/data"
+    rm -f "$data_dir/config.toml"
 
-    echo "| Repository | Branch | # Commits | Clone time | Processing time| # Achievements |"
-    echo "|------------|--------|-----------|------------|----------------|----------------|"
     for ((i = 0; i < ${#BENCHMARK_NAMES[*]}; ++i)); do
         # Don't want to re-run duplicate check or fetch on previous benchmarks
-        rm -f "$data_dir/config.toml"
-        run_benchmark "$data_dir" "${BENCHMARK_NAMES[$i]}" "${BENCHMARK_URLS[$i]}" "${BENCHMARK_BRANCHES[$i]}"
+        herostratus --data-dir "$data_dir" add --name "${BENCHMARK_NAMES[$i]}" "${BENCHMARK_URLS[$i]}" "${BENCHMARK_BRANCHES[$i]}" >&2
     done
+
+    local -r stdout="$data_dir/check.out"
+    local -r stderr="$data_dir/check.err"
+    herostratus --data-dir "$data_dir" --color check-all --no-fetch --summary \
+        >"$stdout" \
+        2> >(tee "$stderr" >&2)
+
+    sed -ne '/## Summary/,$p' "$stdout"
 }
 
 ## Run the benchmarks and save the results in markdown format to the given file
@@ -120,6 +86,8 @@ run_benchmarks() {
 edit_readme_with_results() {
     local -r results="$1"
     local -r readme="$REPO/README.md"
+
+    sed -i 's/## Summary/## Benchmarks/' "$results"
 
     # NOTE: 'r $results' must be at the end of the line, and cannot have trailing space or comment
     sed -Ei "/START RESULTS/,/END RESULTS/{ /START RESULTS/{p; r $results
