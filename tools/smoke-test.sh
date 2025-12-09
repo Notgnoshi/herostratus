@@ -4,9 +4,17 @@ set -o pipefail
 set -o nounset
 set -o noclobber
 
-cargo run -- --data-dir data -l TRACE add git@github.com:Notgnoshi/herostratus.git test/simple --name hero-1
-cargo run -- --data-dir data -l TRACE add git@github.com:Notgnoshi/herostratus.git test/fixup --name hero-2
+REPO=$(git rev-parse --show-toplevel)
 
-bat data/config.toml
+rm -rf "$REPO/data"
 
-cargo run -- --data-dir data -l TRACE check-all
+# Use one with SSH
+cargo run -- --data-dir "$REPO/data" -l DEBUG add git@github.com:Notgnoshi/herostratus.git test/simple --name hero-1
+# Use a few different branches against the same repo
+cargo run -- --data-dir "$REPO/data" -l DEBUG add git@github.com:Notgnoshi/herostratus.git test/fixup --name hero-2
+# Use one with HTTPS
+cargo run -- --data-dir "$REPO/data" -l DEBUG add https://github.com/Notgnoshi/herostratus.git main --name hero-3
+
+cat "$REPO/data/config.toml"
+
+cargo run -- --data-dir "$REPO/data" -l DEBUG check-all
