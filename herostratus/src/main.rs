@@ -39,6 +39,15 @@ fn main() -> eyre::Result<()> {
         return Ok(());
     }
 
+    if args.list_rules {
+        let mut rules = herostratus::rules::builtin_rules_all();
+        rules.sort_by_key(|r| r.id());
+        for rule in rules {
+            println!("{:25}\t{}", rule.pretty_id(), rule.description());
+        }
+        return Ok(());
+    }
+
     match args.command {
         // Shortcoming of clap; you can't have required_unless_present_any=[] for subcommands
         None => {

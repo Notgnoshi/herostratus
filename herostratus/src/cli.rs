@@ -42,6 +42,10 @@ pub struct Args {
     #[clap(long)]
     pub get_config: bool,
 
+    /// List all available rules and exit
+    #[clap(long)]
+    pub list_rules: bool,
+
     #[command(subcommand)]
     pub command: Option<Command>,
 }
