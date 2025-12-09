@@ -1,5 +1,9 @@
 # Contributing to Herostratus
 
+## Developer quickstart
+
+See [docs/developer/quickstart.md](docs/developer/quickstart.md)!
+
 ## Project goals
 
 This is a silly project to gamify things that shouldn't be gamified.
