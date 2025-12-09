@@ -201,7 +201,7 @@ fn count_commits_between(
     repo: &gix::Repository,
     base: Option<gix::Id>,
     head: gix::Id,
-) -> eyre::Result<usize> {
+) -> eyre::Result<u64> {
     let mut num_fetched_commits = 0;
     if base == Some(head) {
         tracing::debug!("No new commits");
@@ -235,7 +235,7 @@ fn count_commits_between(
 pub fn pull_branch(
     config: &crate::config::RepositoryConfig,
     repo: &gix::Repository,
-) -> eyre::Result<usize> {
+) -> eyre::Result<u64> {
     debug_assert!(repo.is_bare());
     // TODO: Handle non-origin remotes (#71)
     let remote = repo.find_remote("origin")?;

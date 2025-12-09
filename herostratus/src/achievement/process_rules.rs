@@ -19,9 +19,9 @@ where
 
     finalized: Option<std::vec::IntoIter<Achievement>>,
 
-    start_processing: Option<Instant>,
-    num_commits_processed: u64,
-    num_achievements_generated: u64,
+    pub start_processing: Option<Instant>,
+    pub num_commits_processed: u64,
+    pub num_achievements_generated: u64,
 }
 
 impl<Oids> Achievements<'_, Oids>
@@ -149,7 +149,7 @@ pub fn grant<'repo>(
     reference: &str,
     repo: &'repo gix::Repository,
     depth: Option<usize>,
-) -> eyre::Result<impl Iterator<Item = Achievement> + 'repo> {
+) -> eyre::Result<Achievements<'repo, Box<dyn Iterator<Item = gix::ObjectId> + 'repo>>> {
     grant_with_rules(reference, repo, depth, crate::rules::builtin_rules(config))
 }
 
@@ -158,7 +158,7 @@ pub fn grant_with_rules<'repo>(
     repo: &'repo gix::Repository,
     depth: Option<usize>,
     rules: Vec<Box<dyn Rule>>,
-) -> eyre::Result<Box<dyn Iterator<Item = Achievement> + 'repo>> {
+) -> eyre::Result<Achievements<'repo, Box<dyn Iterator<Item = gix::ObjectId> + 'repo>>> {
     let rev = crate::git::rev::parse(reference, repo)
         .wrap_err(format!("Failed to rev-parse: {reference:?}"))?;
     let oids =
@@ -173,9 +173,9 @@ pub fn grant_with_rules<'repo>(
         }
     });
     if let Some(depth) = depth {
-        Ok(Box::new(process_rules(oids.take(depth), repo, rules)))
+        Ok(process_rules(Box::new(oids.take(depth)), repo, rules))
     } else {
-        Ok(Box::new(process_rules(oids, repo, rules)))
+        Ok(process_rules(Box::new(oids), repo, rules))
     }
 }
 

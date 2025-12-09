@@ -76,6 +76,10 @@ pub struct CheckArgs {
     /// How many commits to process
     #[clap(short, long)]
     pub depth: Option<usize>,
+
+    /// Print a summary of achievements to stdout
+    #[clap(short, long)]
+    pub summary: bool,
     // TODO: Rule filtering
     // TODO: Commit filtering
 }
@@ -169,6 +173,10 @@ pub struct CheckAllArgs {
     /// How many commits to process
     #[clap(short, long)]
     pub depth: Option<usize>,
+
+    /// Print a summary of achievements to stdout
+    #[clap(short, long)]
+    pub summary: bool,
 }
 
 /// Fetch each repository

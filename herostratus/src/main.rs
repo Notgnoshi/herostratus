@@ -63,11 +63,15 @@ fn main() -> eyre::Result<()> {
             let config = args
                 .data_dir
                 .map(|d| herostratus::config::read_config(&d).unwrap());
-            herostratus::commands::check(&cargs, config.as_ref()).wrap_err(format!(
+            let stats = herostratus::commands::check(&cargs, config.as_ref()).wrap_err(format!(
                 "Failed to check repository {:?} reference {:?}",
                 cargs.path.display(),
                 cargs.reference
-            ))
+            ))?;
+
+            if cargs.summary {
+                stats.print_summary();
+            }
         }
         // The other subcommands are stateful, and require reading the application configuration
         Some(command) => {
@@ -82,8 +86,11 @@ fn main() -> eyre::Result<()> {
                         .wrap_err(format!("Failed to remove repository: {:?}", args.url))?;
                 }
                 herostratus::cli::Command::CheckAll(args) => {
-                    herostratus::commands::check_all(&args, &config, &data_dir)
+                    let stats = herostratus::commands::check_all(&args, &config, &data_dir)
                         .wrap_err("Failed to check all repositories")?;
+                    if args.summary {
+                        herostratus::commands::print_check_all_summary(&stats);
+                    }
                 }
                 herostratus::cli::Command::FetchAll(args) => {
                     herostratus::commands::fetch_all(&args, &config, &data_dir)
@@ -93,7 +100,9 @@ fn main() -> eyre::Result<()> {
             }
 
             // Write the modified Config (in the case of Add and Remove subcommands) to the config file
-            herostratus::config::write_config(&data_dir, &config)
+            herostratus::config::write_config(&data_dir, &config)?;
         }
     }
+
+    Ok(())
 }
