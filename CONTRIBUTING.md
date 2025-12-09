@@ -1,5 +1,9 @@
 # Contributing to Herostratus
 
+## Developer quickstart
+
+See [docs/developer/quickstart.md](docs/developer/quickstart.md)!
+
 ## Project goals
 
 This is a silly project to gamify things that shouldn't be gamified.
@@ -47,20 +51,13 @@ The Minimum Supported Rust Version (MSRV) is the latest stable toolchain.
 Logs are great. Spammy logs are less great.
 
 * The default log level for users is INFO. INFO should not be spammy
+* DEBUG and TRACE logs are for developers. DEBUG should not be spammy, but TRACE sure can be!
 * Prefer logs that are useful for troubleshooting, both from a developer perspective and a user one
 
   E.g., prefer `"failed to process repository '{repo}' because: '{e:?}'"` over
   `"Failed to process repository"`
 
 ## Git
-
-All PRs are to be rebased on top of `main` prior to merging. Multi-commit PRs will be merged with a
-merge commit.
-
-**This project values its Git history.**
-
-@Notgnoshi reserves the right to make subjective judgement calls, but is willing to work with PR
-authors who have different opinions.
 
 This project uses `gitlint` in the CI/CD pipeline. You can run `gitlint` yourself with the same
 rules as the pipeline by setting the following two environment variables
@@ -74,4 +71,11 @@ gitlint --commits main..HEAD
 
 You can invoke gitlint through the CLI, your editor, or as a commit hook.
 
-**I don't desire a perfect history. Just a good one.**
+## Documentation
+
+This project values documentation:
+
+* API documentation in the form of rustdoc comments
+* Design documentation in [docs/design](docs/design)
+* Developer documentation at [docs/developer](docs/developer)
+* User documentation (TODO)
