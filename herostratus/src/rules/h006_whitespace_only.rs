@@ -1,33 +1,41 @@
-use crate::achievement::{Achievement, Rule, RuleFactory};
+use crate::achievement::{Achievement, AchievementDescriptor, Rule, RuleFactory};
 use crate::bstr::BStr;
 use crate::utils::utf8_whitespace::is_equal_ignoring_whitespace;
 
-#[derive(Default)]
-pub struct WhitespaceOnly;
+pub struct WhitespaceOnly {
+    descriptors: [AchievementDescriptor; 1],
+}
+
+impl Default for WhitespaceOnly {
+    fn default() -> Self {
+        Self {
+            descriptors: [AchievementDescriptor {
+                enabled: true,
+                id: 6,
+                human_id: "whitespace-only",
+                name: "Whitespace Warrior",
+                description: "Make a whitespace-only change",
+            }],
+        }
+    }
+}
 
 inventory::submit!(RuleFactory::default::<WhitespaceOnly>());
 
 impl Rule for WhitespaceOnly {
-    fn id(&self) -> usize {
-        6
+    fn get_descriptors(&self) -> &[AchievementDescriptor] {
+        &self.descriptors
     }
-    fn human_id(&self) -> &'static str {
-        "whitespace-only"
-    }
-    fn name(&self) -> &'static str {
-        "Whitespace Warrior"
-    }
-    fn description(&self) -> &'static str {
-        "Make a whitespace-only change"
+    fn get_descriptors_mut(&mut self) -> &mut [AchievementDescriptor] {
+        &mut self.descriptors
     }
 
     fn process(&mut self, commit: &gix::Commit, repo: &gix::Repository) -> Option<Achievement> {
         self.impl_process(commit, repo)
             .inspect_err(|e| {
                 tracing::error!(
-                    "Error processing commit {} for rule {}: {}",
+                    "Error processing commit {} for rule H6-whitespace-only: {}",
                     commit.id(),
-                    self.pretty_id(),
                     e
                 );
             })
@@ -95,7 +103,10 @@ impl WhitespaceOnly {
         if found_non_whitespace || !found_any_change {
             Ok(None)
         } else {
-            Ok(Some(self.grant(commit, repo)))
+            Ok(Some(Achievement {
+                name: "Whitespace Warrior",
+                commit: commit.id,
+            }))
         }
     }
 }

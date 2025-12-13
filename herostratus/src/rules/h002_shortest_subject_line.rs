@@ -1,11 +1,27 @@
-use crate::achievement::{Achievement, Rule, RuleFactory};
+use crate::achievement::{Achievement, AchievementDescriptor, Rule, RuleFactory};
 use crate::config::RulesConfig;
 
 /// The shortest subject line in a branch
-#[derive(Default)]
 pub struct ShortestSubjectLine {
+    descriptors: [AchievementDescriptor; 1],
     config: H002Config,
     shortest_so_far: Option<(gix::ObjectId, usize)>,
+}
+
+impl Default for ShortestSubjectLine {
+    fn default() -> Self {
+        Self {
+            descriptors: [AchievementDescriptor {
+                enabled: true,
+                id: 2,
+                human_id: "shortest-subject-line",
+                name: "Brevity is the soul of wit",
+                description: "The shortest subject line",
+            }],
+            config: H002Config::default(),
+            shortest_so_far: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
@@ -24,7 +40,7 @@ impl Default for H002Config {
 fn shortest_subject_line(config: &RulesConfig) -> Box<dyn Rule> {
     Box::new(ShortestSubjectLine {
         config: config.h2_shortest_subject_line.clone().unwrap_or_default(),
-        shortest_so_far: None,
+        ..Default::default()
     })
 }
 inventory::submit!(RuleFactory::new(shortest_subject_line));
@@ -38,17 +54,11 @@ fn subject_length(commit: &gix::Commit) -> usize {
 }
 
 impl Rule for ShortestSubjectLine {
-    fn id(&self) -> usize {
-        2
+    fn get_descriptors(&self) -> &[AchievementDescriptor] {
+        &self.descriptors
     }
-    fn human_id(&self) -> &'static str {
-        "shortest-subject-line"
-    }
-    fn name(&self) -> &'static str {
-        "Brevity is the soul of wit"
-    }
-    fn description(&self) -> &'static str {
-        "The shortest subject line"
+    fn get_descriptors_mut(&mut self) -> &mut [AchievementDescriptor] {
+        &mut self.descriptors
     }
     fn process(&mut self, commit: &gix::Commit, _repo: &gix::Repository) -> Option<Achievement> {
         let length = subject_length(commit);
@@ -68,8 +78,9 @@ impl Rule for ShortestSubjectLine {
 
     fn finalize(&mut self, _repo: &gix::Repository) -> Vec<Achievement> {
         match self.shortest_so_far {
+            // TODO: use AchievementDescriptor as source-of-truth for name
             Some((oid, _)) => vec![Achievement {
-                name: self.name(),
+                name: "Brevity is the soul of wit",
                 commit: oid,
             }],
             None => Vec::new(),

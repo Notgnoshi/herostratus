@@ -1,7 +1,8 @@
-use crate::achievement::{Achievement, Rule, RuleFactory};
+use crate::achievement::{Achievement, AchievementDescriptor, Rule, RuleFactory};
 use crate::config::RulesConfig;
 
 pub struct LongestSubjectLine {
+    descriptors: [AchievementDescriptor; 1],
     config: H003Config,
     longest_so_far: Option<(gix::ObjectId, usize)>,
 }
@@ -21,6 +22,13 @@ impl Default for H003Config {
 
 fn longest_subject_line(config: &RulesConfig) -> Box<dyn Rule> {
     Box::new(LongestSubjectLine {
+        descriptors: [AchievementDescriptor {
+            enabled: true,
+            id: 3,
+            human_id: "longest-subject-line",
+            name: "50 characters was more of a suggestion anyways",
+            description: "The longest subject line",
+        }],
         config: config.h3_longest_subject_line.clone().unwrap_or_default(),
         longest_so_far: None,
     })
@@ -36,17 +44,11 @@ fn subject_length(commit: &gix::Commit) -> usize {
 }
 
 impl Rule for LongestSubjectLine {
-    fn id(&self) -> usize {
-        3
+    fn get_descriptors(&self) -> &[AchievementDescriptor] {
+        &self.descriptors
     }
-    fn human_id(&self) -> &'static str {
-        "longest-subject-line"
-    }
-    fn name(&self) -> &'static str {
-        "50 characters was more of a suggestion anyways"
-    }
-    fn description(&self) -> &'static str {
-        "The longest subject line"
+    fn get_descriptors_mut(&mut self) -> &mut [AchievementDescriptor] {
+        &mut self.descriptors
     }
 
     fn process(&mut self, commit: &gix::Commit, _repo: &gix::Repository) -> Option<Achievement> {
@@ -67,7 +69,7 @@ impl Rule for LongestSubjectLine {
     fn finalize(&mut self, _repo: &gix::Repository) -> Vec<Achievement> {
         match self.longest_so_far {
             Some((oid, _)) => vec![Achievement {
-                name: self.name(),
+                name: "50 characters was more of a suggestion anyways",
                 commit: oid,
             }],
             None => Vec::new(),

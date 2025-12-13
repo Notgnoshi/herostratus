@@ -40,10 +40,12 @@ fn main() -> eyre::Result<()> {
     }
 
     if args.list_rules {
-        let mut rules = herostratus::rules::builtin_rules_all();
-        rules.sort_by_key(|r| r.id());
-        for rule in rules {
-            println!("{:25}\t{}", rule.pretty_id(), rule.description());
+        let rules = herostratus::rules::builtin_rules_all();
+        let mut descriptors: Vec<_> = rules.iter().flat_map(|r| r.get_descriptors()).collect();
+
+        descriptors.sort_by_key(|d| d.id);
+        for desc in descriptors {
+            println!("{:25}\t{}", desc.pretty_id(), desc.description);
         }
         return Ok(());
     }

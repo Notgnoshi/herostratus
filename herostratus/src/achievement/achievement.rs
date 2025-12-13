@@ -40,15 +40,18 @@ impl RuleFactory {
     }
 }
 
-/// Defines a [Rule] to grant [Achievement]s
-// TODO: How could user-contrib rule _scripts_ work? Consume commits via stdin, emit achievement
-// JSON on stdout?
-pub trait Rule {
+/// Describes an [Achivement] that a [Rule] can grant
+#[derive(Clone, Debug)]
+pub struct AchievementDescriptor {
+    /// Whether the [Rule] this descriptor belongs to will grant achievements described by this
+    /// descriptor
+    pub enabled: bool,
+
     /// The numeric ID of this [Rule]
     ///
     /// Must be unique per-rule. Either the [id](Self::id), [human_id](Self::human_id), or
     /// [pretty_id](Self::pretty_id) may be used to identify a [Rule].
-    fn id(&self) -> usize;
+    pub id: usize,
 
     /// The human ID of this [Rule]
     ///
@@ -56,26 +59,14 @@ pub trait Rule {
     ///
     /// Must be unique per-rule. Either the [id](Self::id), [human_id](Self::human_id), or
     /// [pretty_id](Self::pretty_id) may be used to identify a [Rule].
-    fn human_id(&self) -> &'static str;
+    pub human_id: &'static str,
 
-    /// The pretty ID of this [Rule]
-    ///
-    /// Concatenates the numeric [id](Self::id) and the human-meaningful [human_id](Self::id).
-    ///
-    /// Example: `H42-whats-the-question`
-    ///
-    /// Must be unique per-rule. Either the [id](Self::id), [human_id](Self::human_id), or
-    /// [pretty_id](Self::pretty_id) may be used to identify a [Rule].
-    fn pretty_id(&self) -> String {
-        format!("H{}-{}", self.id(), self.human_id())
-    }
-
-    /// Return the name of the [Achievement] that this rule generates
+    /// The name of the [Achievement] that this rule generates
     ///
     /// The name should generally be humorous, even if the [description](Self::description) isn't.
     ///
     /// There is expected to be a 1-1 correspondence between [Achievement]s and [Rule]s.
-    fn name(&self) -> &'static str;
+    pub name: &'static str,
 
     /// A short flavor text describing what this [Rule] is all about
     ///
@@ -85,15 +76,64 @@ pub trait Rule {
     /// * Use a swear word
     /// * Use the most swear words
     /// * The shortest subject line
-    fn description(&self) -> &'static str;
+    pub description: &'static str,
+}
 
-    /// Grant the given [gix::Commit] this rule's [Achievement]
-    fn grant(&self, commit: &gix::Commit, _repo: &gix::Repository) -> Achievement {
-        Achievement {
-            name: self.name(),
-            commit: commit.id,
+impl AchievementDescriptor {
+    /// Determine if the given ID matches this [AchievementDescriptor]
+    pub fn id_matches(&self, id: &str) -> bool {
+        id == self.id.to_string()
+            || id == format!("H{}", self.id)
+            || id == self.human_id
+            || id == self.pretty_id()
+    }
+
+    /// The pretty ID of the [Achievement]s that this [AchievementDescriptor] describes.
+    ///
+    /// Concatenates the numeric [id](Self::id) and the human-meaningful [human_id](Self::id).
+    ///
+    /// Example: `H42-whats-the-question`
+    ///
+    /// Must be unique per-rule. Either the [id](Self::id), [human_id](Self::human_id), or
+    /// [pretty_id](Self::pretty_id) may be used to identify a [Rule].
+    pub fn pretty_id(&self) -> String {
+        format!("H{}-{}", self.id, self.human_id)
+    }
+}
+
+/// Defines a [Rule] to grant [Achievement]s
+pub trait Rule {
+    /// Disable granting the [AchievementDescriptor] with the given ID.
+    ///
+    /// This allows individual [AchievementDescriptor]s to be enabled/disabled for any given Rule.
+    fn disable_by_id(&mut self, id: usize) {
+        for d in self.get_descriptors_mut() {
+            if d.id == id {
+                tracing::info!("Disabling achievement {:?}", d.pretty_id());
+                d.enabled = false;
+            }
         }
     }
+
+    /// Enable granting the [AchievementDescriptor] with the given ID.
+    ///
+    /// This allows individual [AchievementDescriptor]s to be enabled/disabled for any given Rule.
+    fn enable_by_id(&mut self, id: usize) {
+        for d in self.get_descriptors_mut() {
+            if d.id == id {
+                tracing::info!("Enabling achievement {:?}", d.pretty_id());
+                d.enabled = true;
+            }
+        }
+    }
+
+    /// Get the list of [AchievementDescriptor]s that this [Rule] can grant
+    ///
+    /// This allows one [Rule] to grant multiple different types of [Achievement]s, which is useful
+    /// for achievement types that can share computation (e.g., shortest commit, longest commit,
+    /// etc).
+    fn get_descriptors(&self) -> &[AchievementDescriptor];
+    fn get_descriptors_mut(&mut self) -> &mut [AchievementDescriptor];
 
     /// Process the given [gix::Commit] to generate an [Achievement]
     ///
@@ -114,11 +154,6 @@ pub trait Rule {
 /// Wrap achievement granting in logging
 pub trait LoggedRule: Rule {
     fn log_achievement(&self, achievement: &Achievement) {
-        debug_assert_eq!(
-            achievement.name,
-            self.name(),
-            "Achievement::name and Rule::name are expected to match"
-        );
         tracing::info!("Generated achievement: {achievement:?}");
     }
 
@@ -134,7 +169,7 @@ pub trait LoggedRule: Rule {
             // This isn't the total number of achievements, just the ones granted at the end
             tracing::debug!(
                 "Rule '{}' generated {} achievements after finalization",
-                self.name(),
+                achievements.first().unwrap().name, // unwrap safe because is_empty() checked above
                 achievements.len()
             );
             for achievement in &achievements {
