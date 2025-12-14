@@ -198,7 +198,7 @@ mod tests {
     #[test]
     fn test_iterator_no_matches() {
         let temp_repo = fixtures::repository::simplest().unwrap();
-        let rules = vec![Box::new(AlwaysFail) as Box<dyn Rule>];
+        let rules = vec![Box::new(AlwaysFail::default()) as Box<dyn Rule>];
         let achievements = grant_with_rules("HEAD", &temp_repo.repo, None, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert!(achievements.is_empty());
@@ -209,8 +209,8 @@ mod tests {
         let temp_repo = fixtures::repository::simplest().unwrap();
 
         let rules = vec![
-            Box::new(AlwaysFail) as Box<dyn Rule>,
-            Box::new(ParticipationTrophy) as Box<dyn Rule>,
+            Box::new(AlwaysFail::default()) as Box<dyn Rule>,
+            Box::new(ParticipationTrophy::default()) as Box<dyn Rule>,
         ];
         let achievements = grant_with_rules("HEAD", &temp_repo.repo, None, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
@@ -221,7 +221,7 @@ mod tests {
     fn test_awards_on_finalize() {
         let temp_repo = fixtures::repository::simplest().unwrap();
 
-        let rules = vec![Box::new(ParticipationTrophy2) as Box<dyn Rule>];
+        let rules = vec![Box::new(ParticipationTrophy2::default()) as Box<dyn Rule>];
         let achievements = grant_with_rules("HEAD", &temp_repo.repo, None, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);

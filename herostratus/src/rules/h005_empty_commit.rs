@@ -1,32 +1,40 @@
-use crate::achievement::{Achievement, Rule, RuleFactory};
+use crate::achievement::{Achievement, AchievementDescriptor, Rule, RuleFactory};
 
 /// Grant achievements for `git commit --allow-empty` (not merge) commits
-#[derive(Default)]
-pub struct EmptyCommit;
+pub struct EmptyCommit {
+    descriptors: [AchievementDescriptor; 1],
+}
+
+impl Default for EmptyCommit {
+    fn default() -> Self {
+        Self {
+            descriptors: [AchievementDescriptor {
+                enabled: true,
+                id: 5,
+                human_id: "empty-commit",
+                name: "You can always add more later",
+                description: "Create an empty commit containing no changes",
+            }],
+        }
+    }
+}
 
 inventory::submit!(RuleFactory::default::<EmptyCommit>());
 
 impl Rule for EmptyCommit {
-    fn id(&self) -> usize {
-        5
+    fn get_descriptors(&self) -> &[AchievementDescriptor] {
+        &self.descriptors
     }
-    fn human_id(&self) -> &'static str {
-        "empty-commit"
-    }
-    fn name(&self) -> &'static str {
-        "You can always add more later"
-    }
-    fn description(&self) -> &'static str {
-        "Create an empty commit containing no changes"
+    fn get_descriptors_mut(&mut self) -> &mut [AchievementDescriptor] {
+        &mut self.descriptors
     }
 
     fn process(&mut self, commit: &gix::Commit, repo: &gix::Repository) -> Option<Achievement> {
         self.impl_process(commit, repo)
             .inspect_err(|e| {
                 tracing::error!(
-                    "Error processing commit {} for rule {}: {}",
+                    "Error processing commit {} for rule H5-empty-commit: {}",
                     commit.id(),
-                    self.pretty_id(),
                     e
                 );
             })
@@ -82,7 +90,10 @@ impl EmptyCommit {
         if found_any_change {
             Ok(None)
         } else {
-            Ok(Some(self.grant(commit, repo)))
+            Ok(Some(Achievement {
+                name: "You can always add more later",
+                commit: commit.id,
+            }))
         }
     }
 }

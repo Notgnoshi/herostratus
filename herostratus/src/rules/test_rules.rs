@@ -1,58 +1,90 @@
-pub use crate::achievement::{Achievement, Rule};
+pub use crate::achievement::{Achievement, AchievementDescriptor, Rule};
 
-pub struct AlwaysFail;
+pub struct AlwaysFail {
+    desc: [AchievementDescriptor; 1],
+}
+
+impl Default for AlwaysFail {
+    fn default() -> Self {
+        Self {
+            desc: [AchievementDescriptor {
+                enabled: true,
+                id: 1,
+                human_id: "always-fail",
+                name: "Always Fail",
+                description: "This rule always fails to grant an achievement",
+            }],
+        }
+    }
+}
 impl Rule for AlwaysFail {
-    fn id(&self) -> usize {
-        1
+    fn get_descriptors(&self) -> &[AchievementDescriptor] {
+        &self.desc
     }
-    fn human_id(&self) -> &'static str {
-        "always-fail"
-    }
-    fn name(&self) -> &'static str {
-        ""
-    }
-    fn description(&self) -> &'static str {
-        ""
+    fn get_descriptors_mut(&mut self) -> &mut [AchievementDescriptor] {
+        &mut self.desc
     }
     fn process(&mut self, _commit: &gix::Commit, _repo: &gix::Repository) -> Option<Achievement> {
         None
     }
 }
 
-pub struct ParticipationTrophy;
+pub struct ParticipationTrophy {
+    desc: [AchievementDescriptor; 1],
+}
+impl Default for ParticipationTrophy {
+    fn default() -> Self {
+        Self {
+            desc: [AchievementDescriptor {
+                enabled: true,
+                id: 2,
+                human_id: "participation-trophy",
+                name: "Always succeed",
+                description: "This rule always grants an achievement",
+            }],
+        }
+    }
+}
 impl Rule for ParticipationTrophy {
-    fn id(&self) -> usize {
-        2
+    fn get_descriptors(&self) -> &[AchievementDescriptor] {
+        &self.desc
     }
-    fn human_id(&self) -> &'static str {
-        "participation-trophy"
+    fn get_descriptors_mut(&mut self) -> &mut [AchievementDescriptor] {
+        &mut self.desc
     }
-    fn name(&self) -> &'static str {
-        ""
-    }
-    fn description(&self) -> &'static str {
-        ""
-    }
-    fn process(&mut self, commit: &gix::Commit, repo: &gix::Repository) -> Option<Achievement> {
+    fn process(&mut self, commit: &gix::Commit, _repo: &gix::Repository) -> Option<Achievement> {
         tracing::debug!("Granting {:?} a participation trophy", commit.id());
-        Some(self.grant(commit, repo))
+        Some(Achievement {
+            name: "",
+            commit: commit.id,
+        })
     }
 }
 
-pub struct ParticipationTrophy2;
+pub struct ParticipationTrophy2 {
+    desc: [AchievementDescriptor; 1],
+}
+impl Default for ParticipationTrophy2 {
+    fn default() -> Self {
+        Self {
+            desc: [AchievementDescriptor {
+                enabled: true,
+                id: 3,
+                human_id: "participation-trophy-2",
+                name: "Always succeed at finalize",
+                description: "This rule always grants an achievement at finalize",
+            }],
+        }
+    }
+}
 impl Rule for ParticipationTrophy2 {
-    fn id(&self) -> usize {
-        3
+    fn get_descriptors(&self) -> &[AchievementDescriptor] {
+        &self.desc
     }
-    fn human_id(&self) -> &'static str {
-        "participation-trophy-2"
+    fn get_descriptors_mut(&mut self) -> &mut [AchievementDescriptor] {
+        &mut self.desc
     }
-    fn name(&self) -> &'static str {
-        ""
-    }
-    fn description(&self) -> &'static str {
-        ""
-    }
+
     fn process(&mut self, _commit: &gix::Commit, _repo: &gix::Repository) -> Option<Achievement> {
         None
     }
@@ -60,8 +92,8 @@ impl Rule for ParticipationTrophy2 {
     fn finalize(&mut self, _repo: &gix::Repository) -> Vec<Achievement> {
         tracing::debug!("Finalizing ParticipationTrophy2");
         vec![Achievement {
+            name: "",
             commit: gix::ObjectId::null(gix::index::hash::Kind::Sha1),
-            name: self.name(),
         }]
     }
 }

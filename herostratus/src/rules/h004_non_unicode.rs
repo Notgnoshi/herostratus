@@ -1,28 +1,40 @@
-use crate::achievement::{Achievement, Rule, RuleFactory};
+use crate::achievement::{Achievement, AchievementDescriptor, Rule, RuleFactory};
 
-#[derive(Default)]
-pub struct NonUnicode;
+pub struct NonUnicode {
+    descriptors: [AchievementDescriptor; 1],
+}
+
+impl Default for NonUnicode {
+    fn default() -> Self {
+        Self {
+            descriptors: [AchievementDescriptor {
+                enabled: true,
+                id: 4,
+                human_id: "non-unicode",
+                name: "But ... How?!",
+                description: "Make a commit message containing a non UTF-8 byte",
+            }],
+        }
+    }
+}
 inventory::submit!(RuleFactory::default::<NonUnicode>());
 
 impl Rule for NonUnicode {
-    fn id(&self) -> usize {
-        4
+    fn get_descriptors(&self) -> &[AchievementDescriptor] {
+        &self.descriptors
     }
-    fn human_id(&self) -> &'static str {
-        "non-unicode"
-    }
-    fn name(&self) -> &'static str {
-        "But ... How?!"
-    }
-    fn description(&self) -> &'static str {
-        "Make a commit message containing a non UTF-8 byte"
+    fn get_descriptors_mut(&mut self) -> &mut [AchievementDescriptor] {
+        &mut self.descriptors
     }
 
-    fn process(&mut self, commit: &gix::Commit, repo: &gix::Repository) -> Option<Achievement> {
+    fn process(&mut self, commit: &gix::Commit, _repo: &gix::Repository) -> Option<Achievement> {
         let bytes = commit.message_raw_sloppy();
         let msg = str::from_utf8(bytes);
         if msg.is_err() {
-            return Some(self.grant(commit, repo));
+            return Some(Achievement {
+                name: "But ... How?!",
+                commit: commit.id,
+            });
         }
         None
     }
