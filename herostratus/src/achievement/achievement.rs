@@ -140,7 +140,7 @@ pub trait Rule {
     /// Notice that this method takes `&mut self`. This is to allow the `Rule` to accumulate state
     /// during commit processing. At the end of processing, [finalize](Self::finalize) will be
     /// called, to generate any achievements from the accumulated state.
-    fn process(&mut self, commit: &gix::Commit, repo: &gix::Repository) -> Option<Achievement>;
+    fn process(&mut self, commit: &gix::Commit, repo: &gix::Repository) -> Vec<Achievement>;
 
     /// Called when finished processing all commits
     ///
@@ -157,10 +157,12 @@ pub trait LoggedRule: Rule {
         tracing::info!("Generated achievement: {achievement:?}");
     }
 
-    fn process_log(&mut self, commit: &gix::Commit, repo: &gix::Repository) -> Option<Achievement> {
-        let achievement = self.process(commit, repo)?;
-        self.log_achievement(&achievement);
-        Some(achievement)
+    fn process_log(&mut self, commit: &gix::Commit, repo: &gix::Repository) -> Vec<Achievement> {
+        let achievements = self.process(commit, repo);
+        for achievement in &achievements {
+            self.log_achievement(achievement);
+        }
+        achievements
     }
 
     fn finalize_log(&mut self, repo: &gix::Repository) -> Vec<Achievement> {

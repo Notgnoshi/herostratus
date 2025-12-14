@@ -17,7 +17,8 @@ where
     current_commit: Option<gix::Commit<'repo>>,
     next_rule: usize,
 
-    finalized: Option<std::vec::IntoIter<Achievement>>,
+    accumulated: std::vec::IntoIter<Achievement>,
+    has_finalized: bool,
 
     pub start_processing: Option<Instant>,
     pub num_commits_processed: u64,
@@ -34,9 +35,18 @@ where
             return None;
         }
 
-        let mut retval = None;
+        // If we have accumulated achievements from the last call, return those first
+        let accumulated = self.get_next_accumulated();
+        if accumulated.is_some() {
+            return accumulated;
+        }
+        // If it's None, then we finished processing the accumulated achievements, so we
+        // proceed to process the next Rule (we don't want to return None here and stop
+        // processing all Rules).
+
+        let mut retval = Vec::new();
         // At least one rule is processed each iteration
-        while retval.is_none() {
+        while retval.is_empty() {
             // Roll over to the next commit if we've finished processing this one
             if self.next_rule >= self.rules.len() {
                 self.next_rule = 0;
@@ -59,7 +69,8 @@ where
             retval = self.rules[self.next_rule].process_log(commit, self.repo);
             self.next_rule += 1;
         }
-        retval
+        self.accumulated = retval.into_iter();
+        self.get_next_accumulated()
     }
 
     fn finalize_all_rules(&mut self) {
@@ -69,12 +80,11 @@ where
             let mut temp = rule.finalize_log(self.repo);
             achievements.append(&mut temp);
         }
-        self.finalized = Some(achievements.into_iter());
+        self.accumulated = achievements.into_iter();
     }
 
-    fn get_next_achievement_finalized(&mut self) -> Option<Achievement> {
-        let finalized = self.finalized.as_mut()?;
-        finalized.next()
+    fn get_next_accumulated(&mut self) -> Option<Achievement> {
+        self.accumulated.next()
     }
 }
 
@@ -90,16 +100,20 @@ where
         }
 
         // Get all of the achievements from processing the rules online
-        if let Some(achievement) = self.get_next_achievement_online() {
-            self.num_achievements_generated += 1;
-            return Some(achievement);
+        if !self.has_finalized {
+            let achievement = self.get_next_achievement_online();
+            if achievement.is_some() {
+                self.num_achievements_generated += 1;
+                return achievement;
+            }
         }
 
         // Once done processing all of the rules, collect any achievements that the rules stored.
-        if self.finalized.is_none() {
+        if !self.has_finalized {
             self.finalize_all_rules();
+            self.has_finalized = true;
         }
-        if let Some(achievement) = self.get_next_achievement_finalized() {
+        if let Some(achievement) = self.get_next_accumulated() {
             self.num_achievements_generated += 1;
             return Some(achievement);
         }
@@ -137,7 +151,8 @@ where
         rules,
         current_commit: None,
         next_rule: usize::MAX,
-        finalized: None,
+        accumulated: Vec::new().into_iter(),
+        has_finalized: false,
         start_processing: None,
         num_commits_processed: 0,
         num_achievements_generated: 0,

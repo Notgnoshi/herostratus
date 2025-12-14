@@ -30,7 +30,7 @@ impl Rule for WhitespaceOnly {
         &mut self.descriptors
     }
 
-    fn process(&mut self, commit: &gix::Commit, repo: &gix::Repository) -> Option<Achievement> {
+    fn process(&mut self, commit: &gix::Commit, repo: &gix::Repository) -> Vec<Achievement> {
         self.impl_process(commit, repo)
             .inspect_err(|e| {
                 tracing::error!(
@@ -41,6 +41,8 @@ impl Rule for WhitespaceOnly {
             })
             .ok()
             .flatten()
+            .into_iter()
+            .collect()
     }
 }
 

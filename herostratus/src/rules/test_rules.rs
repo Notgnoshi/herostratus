@@ -24,8 +24,8 @@ impl Rule for AlwaysFail {
     fn get_descriptors_mut(&mut self) -> &mut [AchievementDescriptor] {
         &mut self.desc
     }
-    fn process(&mut self, _commit: &gix::Commit, _repo: &gix::Repository) -> Option<Achievement> {
-        None
+    fn process(&mut self, _commit: &gix::Commit, _repo: &gix::Repository) -> Vec<Achievement> {
+        Vec::new()
     }
 }
 
@@ -52,12 +52,12 @@ impl Rule for ParticipationTrophy {
     fn get_descriptors_mut(&mut self) -> &mut [AchievementDescriptor] {
         &mut self.desc
     }
-    fn process(&mut self, commit: &gix::Commit, _repo: &gix::Repository) -> Option<Achievement> {
+    fn process(&mut self, commit: &gix::Commit, _repo: &gix::Repository) -> Vec<Achievement> {
         tracing::debug!("Granting {:?} a participation trophy", commit.id());
-        Some(Achievement {
+        vec![Achievement {
             name: "",
             commit: commit.id,
-        })
+        }]
     }
 }
 
@@ -85,8 +85,8 @@ impl Rule for ParticipationTrophy2 {
         &mut self.desc
     }
 
-    fn process(&mut self, _commit: &gix::Commit, _repo: &gix::Repository) -> Option<Achievement> {
-        None
+    fn process(&mut self, _commit: &gix::Commit, _repo: &gix::Repository) -> Vec<Achievement> {
+        Vec::new()
     }
 
     fn finalize(&mut self, _repo: &gix::Repository) -> Vec<Achievement> {

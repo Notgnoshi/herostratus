@@ -29,7 +29,7 @@ impl Rule for EmptyCommit {
         &mut self.descriptors
     }
 
-    fn process(&mut self, commit: &gix::Commit, repo: &gix::Repository) -> Option<Achievement> {
+    fn process(&mut self, commit: &gix::Commit, repo: &gix::Repository) -> Vec<Achievement> {
         self.impl_process(commit, repo)
             .inspect_err(|e| {
                 tracing::error!(
@@ -40,6 +40,8 @@ impl Rule for EmptyCommit {
             })
             .ok()
             .flatten()
+            .into_iter()
+            .collect()
     }
 }
 
@@ -91,7 +93,7 @@ impl EmptyCommit {
             Ok(None)
         } else {
             Ok(Some(Achievement {
-                name: "You can always add more later",
+                name: self.descriptors[0].name,
                 commit: commit.id,
             }))
         }
