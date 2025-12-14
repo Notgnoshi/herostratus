@@ -1,15 +1,13 @@
 //! The achievements builtin to Herostratus
 mod h001_fixup;
-mod h002_shortest_subject_line;
-mod h003_longest_subject_line;
+mod h002_h003_subject_line;
 mod h004_non_unicode;
 mod h005_empty_commit;
 mod h006_whitespace_only;
 #[cfg(test)]
 pub(crate) mod test_rules;
 
-pub use h002_shortest_subject_line::H002Config;
-pub use h003_longest_subject_line::H003Config;
+pub use h002_h003_subject_line::{H002Config, H003Config};
 
 use crate::achievement::{Rule, RuleFactory};
 use crate::config::{Config, RulesConfig};
