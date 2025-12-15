@@ -134,8 +134,11 @@ where
         let commit_tree = commit.tree().unwrap();
         let parent_tree = match parent {
             Some(pid) => {
-                let parent_commit = self.repo.find_commit(pid).unwrap();
-                parent_commit.tree().unwrap()
+                match self.repo.find_commit(pid) {
+                    Ok(parent) => parent.tree().unwrap(),
+                    // This could be a shallow clone where the parent commit is missing.
+                    Err(_) => self.repo.empty_tree(),
+                }
             }
             None => self.repo.empty_tree(),
         };
