@@ -87,7 +87,7 @@ impl Rule for SubjectLineLength {
     fn get_descriptors_mut(&mut self) -> &mut [AchievementDescriptor] {
         &mut self.descriptors
     }
-    fn process(&mut self, commit: &gix::Commit, _repo: &gix::Repository) -> Option<Achievement> {
+    fn process(&mut self, commit: &gix::Commit, _repo: &gix::Repository) -> Vec<Achievement> {
         let length = subject_length(commit);
         if length < self.h2_config.length_threshold {
             match self.shortest_so_far {
@@ -110,7 +110,7 @@ impl Rule for SubjectLineLength {
             }
         }
 
-        None
+        Vec::new()
     }
 
     fn finalize(&mut self, _repo: &gix::Repository) -> Vec<Achievement> {

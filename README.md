@@ -64,7 +64,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and [quickstart.md](docs/developer/quicks
 
 | Name        | # Commits | # Achievements | Time    | Time per commit |
 | ----------- | --------- | -------------- | ------- | --------------- |
-| herostratus | 227       | 1              | 37.81ms | 166.58µs        |
-| git         | 79181     | 500            | 208.35s | 2.63ms          |
+| herostratus | 242       | 1              | 16.13ms | 66.67µs         |
+| git         | 79202     | 501            | 64.22s  | 810.84µs        |
 
 <!-- END RESULTS -->

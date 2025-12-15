@@ -27,20 +27,19 @@ impl Rule for NonUnicode {
         &mut self.descriptors
     }
 
-    fn process(&mut self, commit: &gix::Commit, _repo: &gix::Repository) -> Option<Achievement> {
+    fn process(&mut self, commit: &gix::Commit, _repo: &gix::Repository) -> Vec<Achievement> {
         let bytes = commit.message_raw_sloppy();
         let msg = str::from_utf8(bytes);
         if msg.is_err() {
-            return Some(Achievement {
-                name: "But ... How?!",
+            return vec![Achievement {
+                name: self.descriptors[0].name,
                 commit: commit.id,
-            });
+            }];
         }
-        None
+        Vec::new()
     }
 }
 
-// TODO: I think this is possible with gitoxide?
 // NOTE: It's not possible to create a commit containing non-unicode bytes from git2, so there's a
 // test/non-unicode branch with a hand-crafted commit and a tests/h004_non_unicode.rs integration
 // test.

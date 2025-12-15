@@ -38,16 +38,18 @@ impl Rule for Fixup {
     fn get_descriptors_mut(&mut self) -> &mut [AchievementDescriptor] {
         &mut self.descriptors
     }
-    fn process(&mut self, commit: &gix::Commit, _repo: &gix::Repository) -> Option<Achievement> {
-        let summary = commit.message().ok()?.title;
+    fn process(&mut self, commit: &gix::Commit, _repo: &gix::Repository) -> Vec<Achievement> {
+        let Ok(msg) = commit.message() else {
+            return Vec::new();
+        };
         for pattern in FIXUP_PREFIXES {
-            if summary.starts_with(pattern.as_bytes()) {
-                return Some(Achievement {
-                    name: "I'll fix that up later",
+            if msg.title.starts_with(pattern.as_bytes()) {
+                return vec![Achievement {
+                    name: self.descriptors[0].name,
                     commit: commit.id,
-                });
+                }];
             }
         }
-        None
+        Vec::new()
     }
 }
