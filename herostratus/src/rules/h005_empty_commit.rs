@@ -35,8 +35,15 @@ impl Rule for EmptyCommit {
         true
     }
 
-    fn on_diff_start(&mut self, _commit: &gix::Commit, _repo: &gix::Repository) {
-        self.found_any_change = false;
+    fn on_diff_start(&mut self, commit: &gix::Commit, _repo: &gix::Repository) {
+        let mut parents = commit.parent_ids();
+        let _first_parent = parents.next();
+        if parents.next().is_some() {
+            // It's a merge commit; we don't care about those
+            self.found_any_change = true;
+        } else {
+            self.found_any_change = false;
+        }
     }
 
     fn on_diff_change(
