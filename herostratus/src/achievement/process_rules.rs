@@ -13,9 +13,17 @@ where
     repo: &'repo gix::Repository,
     oids: Oids,
     rules: Vec<Box<dyn Rule>>,
+    // INVARIANT: 1-1 index correspondence with `rules`
+    rule_diff_interest: Vec<bool>,
 
     accumulated: std::vec::IntoIter<Achievement>,
     has_finalized: bool,
+
+    // This cache is unbounded and needs to be reset periodically to avoid infinite memory growth.
+    // Don't reset it every commit, because each commit needs to lookup itself and its parent(s).
+    // But we shouldn't *never* reset it, because then we'd end up holding the whole history in
+    // memory. So we reset it every N commits processed.
+    diff_cache: gix::diff::blob::Platform,
 
     pub start_processing: Option<Instant>,
     pub num_commits_processed: u64,
@@ -41,7 +49,20 @@ where
             }
         }
 
-        if !achievements.is_empty() {
+        let new = self.diff_commit(&commit);
+        if !new.is_empty() {
+            achievements.extend(new);
+        }
+
+        const CLEAR_CACHE_EVERY_N: u64 = 50; // SWAG: Scientific Wild Ass Guess
+        if self
+            .num_commits_processed
+            .is_multiple_of(CLEAR_CACHE_EVERY_N)
+        {
+            self.diff_cache.clear_resource_cache_keep_allocation();
+        }
+
+        if achievements.len() > 1 {
             tracing::debug!(
                 "Generated {} achievements for commit {}",
                 achievements.len(),
@@ -50,6 +71,106 @@ where
         }
 
         achievements
+    }
+
+    fn on_diff_start(&mut self, commit: &gix::Commit) {
+        for (idx, rule) in &mut self.rules.iter_mut().enumerate() {
+            let interest = rule.is_interested_in_diffs();
+            self.rule_diff_interest[idx] = interest;
+            if interest {
+                rule.on_diff_start(commit, self.repo);
+            }
+        }
+    }
+
+    fn on_diff_change(
+        &mut self,
+        commit: &gix::Commit,
+        change: gix::object::tree::diff::Change,
+    ) -> eyre::Result<gix::object::tree::diff::Action> {
+        // Can only cancel the top-level diff processing if all rules agree to cancel. But we want
+        // to stop feeding changes into Rules that have already decided to cancel.
+        let mut all_disinterested = true;
+        for (idx, rule) in &mut self.rules.iter_mut().enumerate() {
+            if self.rule_diff_interest[idx] {
+                let action = rule.on_diff_change(commit, self.repo, &change)?;
+                if let gix::object::tree::diff::Action::Cancel = action {
+                    self.rule_diff_interest[idx] = false;
+                } else {
+                    all_disinterested = false;
+                }
+            }
+        }
+
+        if all_disinterested {
+            Ok(gix::object::tree::diff::Action::Cancel)
+        } else {
+            Ok(gix::object::tree::diff::Action::Continue)
+        }
+    }
+
+    fn on_diff_end(&mut self, commit: &gix::Commit) -> Vec<Achievement> {
+        let mut achievements = Vec::new();
+        for rule in &mut self.rules {
+            if rule.is_interested_in_diffs() {
+                let new = rule.on_diff_end(commit, self.repo);
+                if !new.is_empty() {
+                    achievements.extend(new);
+                }
+            }
+        }
+        achievements
+    }
+
+    fn diff_commit(&mut self, commit: &gix::Commit) -> Vec<Achievement> {
+        self.on_diff_start(commit);
+        let mut parents = commit.parent_ids();
+        let parent = parents.next();
+        if parents.next().is_some() {
+            // This is a merge commit (has multiple parents), and we want to skip it
+            return self.on_diff_end(commit);
+        }
+
+        let commit_tree = commit.tree().unwrap();
+        let parent_tree = match parent {
+            Some(pid) => {
+                let parent_commit = self.repo.find_commit(pid).unwrap();
+                parent_commit.tree().unwrap()
+            }
+            None => self.repo.empty_tree(),
+        };
+
+        let mut changes = parent_tree.changes().unwrap();
+        changes.options(|o| {
+            o.track_rewrites(None);
+        });
+
+        // Swap to avoid mutably borrowing self
+        let mut diff_cache = self.repo.diff_resource_cache_for_tree_diff().unwrap();
+        std::mem::swap(&mut diff_cache, &mut self.diff_cache);
+
+        let outcome =
+            changes.for_each_to_obtain_tree_with_cache(&commit_tree, &mut diff_cache, |change| {
+                self.on_diff_change(commit, change)
+            });
+
+        // Put the cache back
+        std::mem::swap(&mut self.diff_cache, &mut diff_cache);
+
+        match outcome {
+            Ok(_) => {}
+            Err(gix::object::tree::diff::for_each::Error::Diff(
+                gix::diff::tree_with_rewrites::Error::Diff(gix::diff::tree::Error::Cancelled),
+            )) => {
+                // It's not an error for on_diff_change to cancel processing! That's actually desirable,
+                // because it means we can short circuit processing.
+            }
+            Err(e) => {
+                panic!("Failed to diff commit {}: {e:?}", commit.id());
+            }
+        }
+
+        self.on_diff_end(commit)
     }
 
     fn process_commits_until_first_achievement(&mut self) {
@@ -156,9 +277,13 @@ where
     Achievements {
         repo,
         oids,
+        rule_diff_interest: rules.iter().map(|r| r.is_interested_in_diffs()).collect(),
         rules,
         accumulated: Vec::new().into_iter(),
         has_finalized: false,
+        diff_cache: repo
+            .diff_resource_cache_for_tree_diff()
+            .expect("Failed to create diff cache"),
         start_processing: None,
         num_commits_processed: 0,
         num_achievements_generated: 0,

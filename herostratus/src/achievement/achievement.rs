@@ -176,7 +176,7 @@ pub trait Rule {
         &mut self,
         _commit: &gix::Commit,
         _repo: &gix::Repository,
-        _change: gix::object::tree::diff::Change,
+        _change: &gix::object::tree::diff::Change,
     ) -> eyre::Result<gix::object::tree::diff::Action> {
         Ok(gix::object::tree::diff::Action::Cancel)
     }
