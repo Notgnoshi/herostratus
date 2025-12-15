@@ -14,9 +14,6 @@ where
     oids: Oids,
     rules: Vec<Box<dyn Rule>>,
 
-    current_commit: Option<gix::Commit<'repo>>,
-    next_rule: usize,
-
     accumulated: std::vec::IntoIter<Achievement>,
     has_finalized: bool,
 
@@ -29,47 +26,58 @@ impl<Oids> Achievements<'_, Oids>
 where
     Oids: Iterator<Item = gix::ObjectId>,
 {
+    fn process_commit(&mut self, oid: gix::ObjectId) -> Vec<Achievement> {
+        let commit = self
+            .repo
+            .find_commit(oid)
+            .expect("Failed to find commit from Oids iterator");
+        self.num_commits_processed += 1;
+
+        let mut achievements = Vec::new();
+        for rule in &mut self.rules {
+            let new = rule.process_log(&commit, self.repo);
+            if !new.is_empty() {
+                achievements.extend(new);
+            }
+        }
+
+        if !achievements.is_empty() {
+            tracing::debug!(
+                "Generated {} achievements for commit {}",
+                achievements.len(),
+                commit.id()
+            );
+        }
+
+        achievements
+    }
+
+    fn process_commits_until_first_achievement(&mut self) {
+        while let Some(oid) = self.oids.next() {
+            let achievements = self.process_commit(oid);
+            if !achievements.is_empty() {
+                self.accumulated = achievements.into_iter();
+                break;
+            }
+        }
+    }
+
     // Returning None indicates rule processing is finished
     fn get_next_achievement_online(&mut self) -> Option<Achievement> {
         if self.rules.is_empty() {
             return None;
         }
 
-        // If we have accumulated achievements from the last call, return those first
+        // If we have accumulated achievements, consume those first
         let accumulated = self.get_next_accumulated();
         if accumulated.is_some() {
             return accumulated;
         }
-        // If it's None, then we finished processing the accumulated achievements, so we
-        // proceed to process the next Rule (we don't want to return None here and stop
-        // processing all Rules).
 
-        let mut retval = Vec::new();
-        // At least one rule is processed each iteration
-        while retval.is_empty() {
-            // Roll over to the next commit if we've finished processing this one
-            if self.next_rule >= self.rules.len() {
-                self.next_rule = 0;
-                let oid = self.oids.next()?;
-                // I think the only way this could happen if the commit was garbage collected
-                // during traversal, which is pretty unlikely?
-                let commit = self
-                    .repo
-                    .find_commit(oid)
-                    .expect("Failed to find commit in repository");
-                self.current_commit = Some(commit);
-                self.num_commits_processed += 1;
-            }
+        // Otherwise process commits until one of them accumulates achievements
+        self.process_commits_until_first_achievement();
 
-            let Some(commit) = &self.current_commit else {
-                unreachable!();
-            };
-
-            // Process the rules on this commit, stopping after the first achievement
-            retval = self.rules[self.next_rule].process_log(commit, self.repo);
-            self.next_rule += 1;
-        }
-        self.accumulated = retval.into_iter();
+        // And yield the first achievement accumulated from that
         self.get_next_accumulated()
     }
 
@@ -149,8 +157,6 @@ where
         repo,
         oids,
         rules,
-        current_commit: None,
-        next_rule: usize::MAX,
         accumulated: Vec::new().into_iter(),
         has_finalized: false,
         start_processing: None,
