@@ -3,6 +3,7 @@ use crate::achievement::{Achievement, AchievementDescriptor, Rule, RuleFactory};
 /// Grant achievements for `git commit --allow-empty` (not merge) commits
 pub struct EmptyCommit {
     descriptors: [AchievementDescriptor; 1],
+    found_any_change: bool,
 }
 
 impl Default for EmptyCommit {
@@ -15,6 +16,7 @@ impl Default for EmptyCommit {
                 name: "You can always add more later",
                 description: "Create an empty commit containing no changes",
             }],
+            found_any_change: false,
         }
     }
 }
@@ -29,80 +31,34 @@ impl Rule for EmptyCommit {
         &mut self.descriptors
     }
 
-    fn process(&mut self, commit: &gix::Commit, repo: &gix::Repository) -> Vec<Achievement> {
-        self.impl_process(commit, repo)
-            .inspect_err(|e| {
-                tracing::error!(
-                    "Error processing commit {} for rule H5-empty-commit: {}",
-                    commit.id(),
-                    e
-                );
-            })
-            .ok()
-            .flatten()
-            .into_iter()
-            .collect()
+    fn is_interested_in_diffs(&self) -> bool {
+        true
     }
-}
 
-impl EmptyCommit {
-    fn impl_process(
-        &self,
-        commit: &gix::Commit,
-        repo: &gix::Repository,
-    ) -> eyre::Result<Option<Achievement>> {
-        // Get the parent of the commit, which may not exist if it's the root commit.
-        let mut parents = commit.parent_ids();
-        let parent = parents.next();
-        if parents.next().is_some() {
-            // This is a merge commit, and we want to skip it
-            return Ok(None);
-        }
+    fn on_diff_start(&mut self, _commit: &gix::Commit, _repo: &gix::Repository) {
+        self.found_any_change = false;
+    }
 
-        let commit_tree = commit.tree()?;
-        let parent_tree = match parent {
-            Some(pid) => {
-                let parent_commit = repo.find_commit(pid)?;
-                parent_commit.tree()?
-            }
-            None => repo.empty_tree(),
-        };
+    fn on_diff_change(
+        &mut self,
+        _commit: &gix::Commit,
+        _repo: &gix::Repository,
+        _change: &gix::object::tree::diff::Change,
+    ) -> eyre::Result<gix::object::tree::diff::Action> {
+        self.found_any_change = true;
+        Ok(gix::object::tree::diff::Action::Cancel)
+    }
 
-        let mut changes = parent_tree.changes()?;
-        changes.options(|o| {
-            o.track_rewrites(None);
-        });
-        let mut cache = repo.diff_resource_cache_for_tree_diff()?;
-        let mut found_any_change = false;
-        match changes.for_each_to_obtain_tree_with_cache(
-            &commit_tree,
-            &mut cache,
-            |_change| -> eyre::Result<gix::object::tree::diff::Action> {
-                on_change(&mut found_any_change)
-            },
-        ) {
-            Ok(_) => {}
-            // It's not an error for the diff iterator to cancel iteration
-            Err(gix::object::tree::diff::for_each::Error::Diff(
-                gix::diff::tree_with_rewrites::Error::Diff(gix::diff::tree::Error::Cancelled),
-            )) => {}
-            Err(e) => return Err(e.into()),
-        }
-
-        if found_any_change {
-            Ok(None)
+    fn on_diff_end(&mut self, commit: &gix::Commit, _repo: &gix::Repository) -> Vec<Achievement> {
+        if self.found_any_change {
+            Vec::new()
         } else {
-            Ok(Some(Achievement {
+            vec![Achievement {
                 name: self.descriptors[0].name,
                 commit: commit.id,
-            }))
+            }]
         }
     }
-}
-
-fn on_change(found_any_change: &mut bool) -> eyre::Result<gix::object::tree::diff::Action> {
-    *found_any_change = true;
-    Ok(gix::object::tree::diff::Action::Cancel)
 }
 
 // It's hard to test this rule in unit tests because the test fixtures I have support *only* empty
