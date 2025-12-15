@@ -4,6 +4,10 @@ use crate::utils::utf8_whitespace::is_equal_ignoring_whitespace;
 
 pub struct WhitespaceOnly {
     descriptors: [AchievementDescriptor; 1],
+    /// Whether any non-whitespace change was found
+    found_non_whitespace_difference: bool,
+    /// Whether any change was found at all
+    found_any_change: bool,
 }
 
 impl Default for WhitespaceOnly {
@@ -16,6 +20,8 @@ impl Default for WhitespaceOnly {
                 name: "Whitespace Warrior",
                 description: "Make a whitespace-only change",
             }],
+            found_non_whitespace_difference: false,
+            found_any_change: false,
         }
     }
 }
@@ -30,152 +36,97 @@ impl Rule for WhitespaceOnly {
         &mut self.descriptors
     }
 
-    fn process(&mut self, commit: &gix::Commit, repo: &gix::Repository) -> Vec<Achievement> {
-        self.impl_process(commit, repo)
-            .inspect_err(|e| {
-                tracing::error!(
-                    "Error processing commit {} for rule H6-whitespace-only: {}",
-                    commit.id(),
-                    e
-                );
-            })
-            .ok()
-            .flatten()
-            .into_iter()
-            .collect()
+    fn is_interested_in_diffs(&self) -> bool {
+        true
+    }
+
+    fn on_diff_start(&mut self, _commit: &gix::Commit, _repo: &gix::Repository) {
+        self.found_non_whitespace_difference = false;
+        self.found_any_change = false;
+    }
+
+    fn on_diff_change(
+        &mut self,
+        commit: &gix::Commit,
+        repo: &gix::Repository,
+        change: &gix::object::tree::diff::Change,
+    ) -> eyre::Result<gix::object::tree::diff::Action> {
+        self.found_any_change = true;
+
+        match change {
+            gix::object::tree::diff::Change::Modification {
+                previous_id,
+                id,
+                entry_mode,
+                ..
+            } => {
+                if entry_mode.is_commit() {
+                    // Submodule updates look like commit entry modes
+                    self.found_non_whitespace_difference = true;
+                    return Ok(gix::object::tree::diff::Action::Cancel);
+                }
+                self.on_modification(commit, repo, *previous_id, *id)
+            }
+
+            // Additions, deletions, and rewrites are always non-whitespace changes
+            gix::object::tree::diff::Change::Addition { .. }
+            | gix::object::tree::diff::Change::Deletion { .. }
+            | gix::object::tree::diff::Change::Rewrite { .. } => {
+                self.found_non_whitespace_difference = true;
+                Ok(gix::object::tree::diff::Action::Cancel)
+            }
+        }
+    }
+
+    fn on_diff_end(&mut self, commit: &gix::Commit, _repo: &gix::Repository) -> Vec<Achievement> {
+        // Don't claim that empty commits containing no changes are whitespace-only changes!
+        if self.found_non_whitespace_difference || !self.found_any_change {
+            Vec::new()
+        } else {
+            vec![Achievement {
+                name: self.descriptors[0].name,
+                commit: commit.id,
+            }]
+        }
     }
 }
 
 impl WhitespaceOnly {
-    fn impl_process(
-        &self,
+    fn on_modification(
+        &mut self,
         commit: &gix::Commit,
         repo: &gix::Repository,
-    ) -> eyre::Result<Option<Achievement>> {
-        // Get the parent of the commit, which may not exist if it's the root commit.
-        let mut parents = commit.parent_ids();
-        let parent = parents.next();
-        if parents.next().is_some() {
-            // This is a merge commit, and we want to skip it
-            return Ok(None);
-        }
-
-        let commit_tree = commit.tree()?;
-        let parent_tree = match parent {
-            Some(pid) => {
-                let parent_commit = repo.find_commit(pid)?;
-                parent_commit.tree()?
-            }
-            None => repo.empty_tree(),
-        };
-
-        let mut changes = parent_tree.changes()?;
-        changes.options(|o| {
-            o.track_rewrites(None);
-        });
-
-        let mut found_non_whitespace = false;
-        // Empty commits won't trigger the on_change callback, so we keep track if any changes were
-        // found, because empty commits aren't whitespace changes.
-        let mut found_any_change = false;
-        // TODO: Does the cache need any custom config options?
-        let mut cache = repo.diff_resource_cache_for_tree_diff()?;
-        match changes.for_each_to_obtain_tree_with_cache(
-            &commit_tree,
-            &mut cache,
-            |change| -> eyre::Result<gix::object::tree::diff::Action> {
-                on_change(
-                    commit,
-                    repo,
-                    change,
-                    &mut found_non_whitespace,
-                    &mut found_any_change,
+        previous_id: gix::Id,
+        id: gix::Id,
+    ) -> eyre::Result<gix::object::tree::diff::Action> {
+        let before = repo
+            .find_object(previous_id)
+            .inspect_err(|e| {
+                tracing::error!(
+                    "Commit: {commit:?} previous: {previous_id:?} current: {id:?} error: {e:?}"
                 )
-            },
-        ) {
-            Ok(_) => {}
-            // It's not an error for the diff iterator to cancel iteration; that means it found a
-            // non-whitespace difference, and is short-circuiting.
-            Err(gix::object::tree::diff::for_each::Error::Diff(
-                gix::diff::tree_with_rewrites::Error::Diff(gix::diff::tree::Error::Cancelled),
-            )) => {}
-            Err(e) => return Err(e.into()),
+            })
+            .unwrap();
+        let after = repo
+            .find_object(id)
+            .inspect_err(|e| {
+                tracing::error!(
+                    "Commit: {commit:?} previous: {previous_id:?} current: {id:?} error: {e:?}"
+                )
+            })
+            .unwrap();
+        if before.kind == gix::object::Kind::Tree {
+            return Ok(gix::object::tree::diff::Action::Continue);
         }
 
-        if found_non_whitespace || !found_any_change {
-            Ok(None)
-        } else {
-            Ok(Some(Achievement {
-                name: "Whitespace Warrior",
-                commit: commit.id,
-            }))
-        }
-    }
-}
+        let before_s = BStr::new(&before.data);
+        let after_s = BStr::new(&after.data);
 
-fn on_change(
-    commit: &gix::Commit,
-    repo: &gix::Repository,
-    change: gix::object::tree::diff::Change,
-    found_non_whitespace: &mut bool,
-    found_any_change: &mut bool,
-) -> eyre::Result<gix::object::tree::diff::Action> {
-    *found_any_change = true;
-    match change {
-        gix::object::tree::diff::Change::Modification {
-            previous_id,
-            id,
-            entry_mode,
-            ..
-        } => {
-            // This commit contained a submodule update
-            if entry_mode.is_commit() {
-                *found_non_whitespace = true;
-                return Ok(gix::object::tree::diff::Action::Cancel);
-            }
-            on_modification(commit, repo, previous_id, id, found_non_whitespace)
-        }
-        _ => {
-            *found_non_whitespace = true;
+        if !is_equal_ignoring_whitespace(before_s, after_s) {
+            self.found_non_whitespace_difference = true;
             Ok(gix::object::tree::diff::Action::Cancel)
+        } else {
+            Ok(gix::object::tree::diff::Action::Continue)
         }
-    }
-}
-
-fn on_modification(
-    commit: &gix::Commit,
-    repo: &gix::Repository,
-    previous_id: gix::Id,
-    id: gix::Id,
-    found_non_whitespace: &mut bool,
-) -> eyre::Result<gix::object::tree::diff::Action> {
-    let before = repo
-        .find_object(previous_id)
-        .inspect_err(|e| {
-            tracing::error!(
-                "Commit: {commit:?} previous: {previous_id:?} current: {id:?} error: {e:?}"
-            )
-        })
-        .unwrap();
-    let after = repo
-        .find_object(id)
-        .inspect_err(|e| {
-            tracing::error!(
-                "Commit: {commit:?} previous: {previous_id:?} current: {id:?} error: {e:?}"
-            )
-        })
-        .unwrap();
-    if before.kind == gix::object::Kind::Tree {
-        return Ok(gix::object::tree::diff::Action::Continue);
-    }
-
-    let before_s = BStr::new(&before.data);
-    let after_s = BStr::new(&after.data);
-
-    if !is_equal_ignoring_whitespace(before_s, after_s) {
-        *found_non_whitespace = true;
-        Ok(gix::object::tree::diff::Action::Cancel)
-    } else {
-        Ok(gix::object::tree::diff::Action::Continue)
     }
 }

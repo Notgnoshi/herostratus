@@ -140,7 +140,9 @@ pub trait Rule {
     /// Notice that this method takes `&mut self`. This is to allow the `Rule` to accumulate state
     /// during commit processing. At the end of processing, [finalize](Self::finalize) will be
     /// called, to generate any achievements from the accumulated state.
-    fn process(&mut self, commit: &gix::Commit, repo: &gix::Repository) -> Vec<Achievement>;
+    fn process(&mut self, _commit: &gix::Commit, _repo: &gix::Repository) -> Vec<Achievement> {
+        Vec::new()
+    }
 
     /// Called when finished processing all commits
     ///
