@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use eyre::WrapErr;
 
-use crate::achievement::{Achievement, LoggedRule, Rule};
+use crate::achievement::{Achievement, Rule};
 use crate::config::Config;
 
 /// An iterator of [Achievement]s
@@ -43,7 +43,7 @@ where
 
         let mut achievements = Vec::new();
         for rule in &mut self.rules {
-            let new = rule.process_log(&commit, self.repo);
+            let new = rule.process(&commit, self.repo);
             if !new.is_empty() {
                 achievements.extend(new);
             }
@@ -209,14 +209,24 @@ where
         tracing::debug!("Finalizing rules ...");
         let mut achievements = Vec::new();
         for rule in &mut self.rules {
-            let mut temp = rule.finalize_log(self.repo);
+            let mut temp = rule.finalize(self.repo);
             achievements.append(&mut temp);
         }
         self.accumulated = achievements.into_iter();
     }
 
     fn get_next_accumulated(&mut self) -> Option<Achievement> {
-        self.accumulated.next()
+        if let Some(achievement) = self.accumulated.next() {
+            self.num_achievements_generated += 1;
+            tracing::info!(
+                "granted achievement: {:?} for commit {}",
+                achievement.name,
+                achievement.commit
+            );
+            Some(achievement)
+        } else {
+            None
+        }
     }
 }
 
@@ -235,7 +245,6 @@ where
         if !self.has_finalized {
             let achievement = self.get_next_achievement_online();
             if achievement.is_some() {
-                self.num_achievements_generated += 1;
                 return achievement;
             }
         }
@@ -246,7 +255,6 @@ where
             self.has_finalized = true;
         }
         if let Some(achievement) = self.get_next_accumulated() {
-            self.num_achievements_generated += 1;
             return Some(achievement);
         }
 

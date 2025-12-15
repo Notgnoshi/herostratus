@@ -190,36 +190,3 @@ pub trait Rule {
         Vec::new()
     }
 }
-
-/// Wrap achievement granting in logging
-pub trait LoggedRule: Rule {
-    fn log_achievement(&self, achievement: &Achievement) {
-        tracing::info!("Generated achievement: {achievement:?}");
-    }
-
-    fn process_log(&mut self, commit: &gix::Commit, repo: &gix::Repository) -> Vec<Achievement> {
-        let achievements = self.process(commit, repo);
-        for achievement in &achievements {
-            self.log_achievement(achievement);
-        }
-        achievements
-    }
-
-    fn finalize_log(&mut self, repo: &gix::Repository) -> Vec<Achievement> {
-        let achievements = self.finalize(repo);
-        if !achievements.is_empty() {
-            // This isn't the total number of achievements, just the ones granted at the end
-            tracing::debug!(
-                "Rule '{}' generated {} achievements after finalization",
-                achievements.first().unwrap().name, // unwrap safe because is_empty() checked above
-                achievements.len()
-            );
-            for achievement in &achievements {
-                self.log_achievement(achievement);
-            }
-        }
-        achievements
-    }
-}
-
-impl<T: ?Sized + Rule> LoggedRule for T {}
