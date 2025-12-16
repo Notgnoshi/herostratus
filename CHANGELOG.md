@@ -14,6 +14,18 @@ focus on the user impact** rather than the actual changes made.
 
 ## Added
 
+## Changed
+
+## Deprecated
+
+## Removed
+
+## Fixed
+
+# Herostratus - 0.3.0 - (2025-12-16)
+
+## Added
+
 * Added the following rules:
 
   | ID                 | Description                                  |
@@ -28,12 +40,6 @@ focus on the user impact** rather than the actual changes made.
   exclude = ["all"] # Ignore everything
   include = ["H4", "H5"] # Except for H4 and H5
   ```
-
-## Changed
-
-## Deprecated
-
-## Removed
 
 ## Fixed
 
@@ -54,7 +60,15 @@ focus on the user impact** rather than the actual changes made.
   ```
 * Fixed the `herostratus check --depth=<N>` flag being ignored
 
-## Security
+## For Developers
+
+* Added micro benchmarks for measuring granular performance with `cargo bench`
+* Added macro benchmarks for measuring end-to-end performance with `./tools/benchmark.sh`
+* Rules `H5` and `H6` are examples of writing rules that look at the diff of a commit
+* Performance: Enable a single `Rule` to generate multiple `Achievement`s of different types for a
+  single commit
+* Performance: Compute the diff once per commit, and share it between rules that need it with the
+  Visitor pattern
 
 # Herostratus - 0.2.0 - (2025-11-11)
 
