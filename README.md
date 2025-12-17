@@ -16,13 +16,17 @@ Inspired by <https://github.com/someteam/acha>.
 ```sh
 git clone git@github.com:Notgnoshi/herostratus.git
 cd herostratus
-cargo run -- check .
-cargo run -- check . origin/test/fixup
+cargo run --release -- check .
+cargo run --release -- check . origin/test/fixup
 ```
 
 The `check` subcommand is stateless. It reads/writes no configuration, and can not fetch from the
 upstream remote. Read on for stateful configuration that enables running and re-running Herostratus
 on a group of repositories:
+
+> [!TIP]
+>
+> `--release` builds are recommended for significantly better performance!
 
 ### Setting it up
 

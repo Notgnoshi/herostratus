@@ -14,6 +14,32 @@ focus on the user impact** rather than the actual changes made.
 
 ## Added
 
+Herostratus now caches what commits (and what achievements) were processed for each repository. This
+means back-to-back runs of `herostratus check-all` will be faster, and duplicate achievements won't
+be granted!
+
+For example:
+
+```sh
+$ herostratus add https://github.com/git/git.git
+
+# Should take ~1 minute and grant several achievements
+$ herostratus check-all --summary
+## Summary
+
+| Name        | # Commits | # Achievements | Time    | Time per commit |
+| ----------- | --------- | -------------- | ------- | --------------- |
+| git         | 79202     | 501            | 64.22s  | 810.84µs        |
+
+# Should exit almost immediately and grant no new achievements
+$ herostratus check-all --summary
+## Summary
+
+| Name | # Commits | # Achievements | Time   | Time per commit |
+| ---- | --------- | -------------- | ------ | --------------- |
+| git  | 0         | 0              | 1.44ms | 0.00ns          |
+```
+
 ## Changed
 
 ## Deprecated

@@ -42,7 +42,18 @@ pub fn check(args: &CheckArgs, config: Option<&Config>) -> eyre::Result<CheckSta
         .file_name()
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or("".into());
-    check_impl(config, &name, &args.path, &args.reference, args.depth)
+
+    // Use an ephemeral in-memory cache that gets discarded immediately after processing
+    let mut cache = crate::cache::EntryCache::default();
+
+    check_impl(
+        config,
+        &name,
+        &args.path,
+        &args.reference,
+        args.depth,
+        &mut cache,
+    )
 }
 
 fn check_impl(
@@ -51,6 +62,7 @@ fn check_impl(
     path: &Path,
     reference: &str,
     depth: Option<usize>,
+    cache: &mut crate::cache::EntryCache,
 ) -> eyre::Result<CheckStat> {
     tracing::info!("Checking repository {path:?}, reference {reference:?} for achievements ...");
     let mut stat = CheckStat {
@@ -59,7 +71,7 @@ fn check_impl(
     };
     let start = Instant::now();
     let repo = find_local_repository(path)?;
-    let mut achievements = grant(config, reference, &repo, depth)?;
+    let mut achievements = grant(config, reference, &repo, cache, depth)?;
 
     process_achievements(&mut achievements)?;
 
@@ -85,7 +97,11 @@ pub fn print_check_all_summary(stats: &[CheckAllStat]) {
     println!("| Name | # Commits | # Achievements | Time | Time per commit |");
     println!("| ---- | --------- | -------------- | ---- | --------------- |");
     for stat in stats {
-        let time_per_commit = stat.check_duration / stat.num_commits_checked as u32;
+        let time_per_commit = if stat.num_commits_checked == 0 {
+            Duration::ZERO
+        } else {
+            stat.check_duration / stat.num_commits_checked as u32
+        };
         println!(
             "| {} | {} | {} | {:.2?} | {:.2?} |",
             stat.name,
@@ -131,6 +147,9 @@ pub fn check_all(
         fetch_stats = crate::commands::fetch_all(&args.into(), config, data_dir)?;
     }
 
+    // Use a persistent JSON cache stored in the application data directory
+    let mut cache = crate::cache::GlobalCache::from_data_dir(data_dir)?;
+
     tracing::info!("Checking repositories ...");
     let start = Instant::now();
     for (name, repo_config) in config.repositories.iter() {
@@ -138,12 +157,14 @@ pub fn check_all(
             .reference
             .clone()
             .unwrap_or_else(|| String::from("HEAD"));
+        let cache = cache.get_entry_cache(name, &reference);
         let check_stat = check_impl(
             Some(config),
             name,
             &repo_config.path,
             &reference,
             args.depth,
+            cache,
         )?;
         check_stats.push(check_stat);
     }
