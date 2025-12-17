@@ -97,7 +97,11 @@ pub fn print_check_all_summary(stats: &[CheckAllStat]) {
     println!("| Name | # Commits | # Achievements | Time | Time per commit |");
     println!("| ---- | --------- | -------------- | ---- | --------------- |");
     for stat in stats {
-        let time_per_commit = stat.check_duration / stat.num_commits_checked as u32;
+        let time_per_commit = if stat.num_commits_checked == 0 {
+            Duration::ZERO
+        } else {
+            stat.check_duration / stat.num_commits_checked as u32
+        };
         println!(
             "| {} | {} | {} | {:.2?} | {:.2?} |",
             stat.name,
