@@ -26,7 +26,6 @@ where
     diff_cache: gix::diff::blob::Platform,
     // This cache is to enable short-circuiting processing commits that have already been processed
     // on a previous run.
-    #[expect(unused)]
     entry_cache: &'repo mut crate::cache::EntryCache,
 
     pub start_processing: Option<Instant>,
@@ -38,7 +37,20 @@ impl<Oids> Achievements<'_, Oids>
 where
     Oids: Iterator<Item = gix::ObjectId>,
 {
+    fn get_enabled_rule_ids(&self) -> Vec<usize> {
+        let descriptors = self.rules.iter().flat_map(|r| r.get_descriptors());
+        descriptors
+            .filter_map(|d| d.enabled.then_some(d.id))
+            .collect()
+    }
+
     fn process_commit(&mut self, oid: gix::ObjectId) -> Vec<Achievement> {
+        // TODO: It's not actually fully processed until all of the resulting Achievements have
+        // been consumed.
+        if self.entry_cache.last_processed_commit.is_none() {
+            self.entry_cache.last_processed_commit = Some(oid);
+        }
+
         let commit = self
             .repo
             .find_commit(oid)
@@ -217,6 +229,7 @@ where
             achievements.append(&mut temp);
         }
         self.accumulated = achievements.into_iter();
+        self.entry_cache.last_processed_rules = self.get_enabled_rule_ids();
     }
 
     fn get_next_accumulated(&mut self) -> Option<Achievement> {
@@ -410,5 +423,9 @@ mod tests {
             grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
+
+        let rev = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
+        assert_eq!(cache.last_processed_commit.unwrap(), rev);
+        assert_eq!(cache.last_processed_rules, [3]);
     }
 }

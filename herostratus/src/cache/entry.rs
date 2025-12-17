@@ -1,3 +1,59 @@
+use std::str::FromStr;
+
+use serde::Deserialize;
+
+fn serialize_object_id<S>(
+    object_id: &Option<gix::ObjectId>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    match object_id {
+        Some(oid) => serializer.serialize_str(&oid.to_string()),
+        None => serializer.serialize_none(),
+    }
+}
+
+fn deserialize_object_id<'de, D>(deserializer: D) -> Result<Option<gix::ObjectId>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<String>::deserialize(deserializer)?;
+    match opt {
+        Some(s) => gix::ObjectId::from_str(&s)
+            .map(Some)
+            .map_err(serde::de::Error::custom),
+        None => Ok(None),
+    }
+}
+
 /// A cache for a specific branch of a specific repository
+///
+/// This is used to prevent reprocessing commits that have already been processed. It includes:
+///
+/// * The commit hash of the last processed commit
+/// * What [AchievementDescriptor](crate::achievement::AchievementDescriptor)s have been processed
+///   on the last processed commit (to properly handle the case where new achievement `Rule`s are
+///   added on an existing entry)
+/// * Any [Rule](crate::achievement::Rule)-specific data needed to resume processing from the last
+///   commit. For example, the `H2-shortest-subject-line` rule may need to store the current
+///   shortest subject line length encountered so far.
+///
+/// NOTE: Care needs to be taken to ensure we can re-use existing caches when fields are added or
+/// modified!
+///
+/// TODO: Figure out what the caveats for re-using existing caches are.
+///
+/// See: `./docs/design/persistence.md`
 #[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
-pub struct EntryCache {}
+pub struct EntryCache {
+    /// A 40-char hexadecimal SHA1 commit hash of the last processed commit
+    #[serde(
+        serialize_with = "serialize_object_id",
+        deserialize_with = "deserialize_object_id"
+    )]
+    pub last_processed_commit: Option<gix::ObjectId>,
+    /// The integer rule IDs of the rules that were run on the `last_processed_commit`
+    pub last_processed_rules: Vec<usize>,
+}
