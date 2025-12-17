@@ -109,7 +109,7 @@ pub trait Rule {
     fn disable_by_id(&mut self, id: usize) {
         for d in self.get_descriptors_mut() {
             if d.id == id {
-                tracing::info!("Disabling achievement {:?}", d.pretty_id());
+                tracing::debug!("Disabling achievement {:?}", d.pretty_id());
                 d.enabled = false;
             }
         }
@@ -121,7 +121,7 @@ pub trait Rule {
     fn enable_by_id(&mut self, id: usize) {
         for d in self.get_descriptors_mut() {
             if d.id == id {
-                tracing::info!("Enabling achievement {:?}", d.pretty_id());
+                tracing::debug!("Enabling achievement {:?}", d.pretty_id());
                 d.enabled = true;
             }
         }

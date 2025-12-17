@@ -55,7 +55,7 @@ impl Rule for ParticipationTrophy {
     fn process(&mut self, commit: &gix::Commit, _repo: &gix::Repository) -> Vec<Achievement> {
         tracing::debug!("Granting {:?} a participation trophy", commit.id());
         vec![Achievement {
-            name: "",
+            name: self.desc[0].name,
             commit: commit.id,
         }]
     }
@@ -92,8 +92,34 @@ impl Rule for ParticipationTrophy2 {
     fn finalize(&mut self, _repo: &gix::Repository) -> Vec<Achievement> {
         tracing::debug!("Finalizing ParticipationTrophy2");
         vec![Achievement {
-            name: "",
+            name: self.desc[0].name,
             commit: gix::ObjectId::null(gix::index::hash::Kind::Sha1),
         }]
+    }
+}
+
+pub struct FlexibleRule {
+    pub descriptors: Vec<AchievementDescriptor>,
+}
+
+impl Rule for FlexibleRule {
+    fn get_descriptors(&self) -> &[AchievementDescriptor] {
+        &self.descriptors
+    }
+    fn get_descriptors_mut(&mut self) -> &mut [AchievementDescriptor] {
+        &mut self.descriptors
+    }
+
+    fn process(&mut self, commit: &gix::Commit, _repo: &gix::Repository) -> Vec<Achievement> {
+        let mut achievements = Vec::new();
+        for d in &self.descriptors {
+            if d.enabled {
+                achievements.push(Achievement {
+                    name: d.name,
+                    commit: commit.id,
+                });
+            }
+        }
+        achievements
     }
 }
