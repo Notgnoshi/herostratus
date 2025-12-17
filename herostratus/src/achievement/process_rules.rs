@@ -24,6 +24,10 @@ where
     // But we shouldn't *never* reset it, because then we'd end up holding the whole history in
     // memory. So we reset it every N commits processed.
     diff_cache: gix::diff::blob::Platform,
+    // This cache is to enable short-circuiting processing commits that have already been processed
+    // on a previous run.
+    #[expect(unused)]
+    entry_cache: &'repo mut crate::cache::EntryCache,
 
     pub start_processing: Option<Instant>,
     pub num_commits_processed: u64,
@@ -277,11 +281,12 @@ where
 /// Process the given `oids` with the specified `rules`
 ///
 /// Returns a lazy iterator. The rules will be processed as the iterator advances.
-pub fn process_rules<Oids>(
+fn process_rules<'repo, Oids>(
     oids: Oids,
-    repo: &gix::Repository,
+    repo: &'repo gix::Repository,
+    entry_cache: &'repo mut crate::cache::EntryCache,
     rules: Vec<Box<dyn Rule>>,
-) -> Achievements<'_, Oids>
+) -> Achievements<'repo, Oids>
 where
     Oids: Iterator<Item = gix::ObjectId>,
 {
@@ -295,6 +300,7 @@ where
         diff_cache: repo
             .diff_resource_cache_for_tree_diff()
             .expect("Failed to create diff cache"),
+        entry_cache,
         start_processing: None,
         num_commits_processed: 0,
         num_achievements_generated: 0,
@@ -305,14 +311,22 @@ pub fn grant<'repo>(
     config: Option<&Config>,
     reference: &str,
     repo: &'repo gix::Repository,
+    cache: &'repo mut crate::cache::EntryCache,
     depth: Option<usize>,
 ) -> eyre::Result<Achievements<'repo, Box<dyn Iterator<Item = gix::ObjectId> + 'repo>>> {
-    grant_with_rules(reference, repo, depth, crate::rules::builtin_rules(config))
+    grant_with_rules(
+        reference,
+        repo,
+        cache,
+        depth,
+        crate::rules::builtin_rules(config),
+    )
 }
 
 pub fn grant_with_rules<'repo>(
     reference: &str,
     repo: &'repo gix::Repository,
+    cache: &'repo mut crate::cache::EntryCache,
     depth: Option<usize>,
     rules: Vec<Box<dyn Rule>>,
 ) -> eyre::Result<Achievements<'repo, Box<dyn Iterator<Item = gix::ObjectId> + 'repo>>> {
@@ -329,10 +343,16 @@ pub fn grant_with_rules<'repo>(
             None
         }
     });
+
     if let Some(depth) = depth {
-        Ok(process_rules(Box::new(oids.take(depth)), repo, rules))
+        Ok(process_rules(
+            Box::new(oids.take(depth)),
+            repo,
+            cache,
+            rules,
+        ))
     } else {
-        Ok(process_rules(Box::new(oids), repo, rules))
+        Ok(process_rules(Box::new(oids), repo, cache, rules))
     }
 }
 
@@ -347,7 +367,9 @@ mod tests {
     fn test_no_rules() {
         let temp_repo = fixtures::repository::simplest().unwrap();
         let rules = Vec::new();
-        let achievements = grant_with_rules("HEAD", &temp_repo.repo, None, rules).unwrap();
+        let mut cache = crate::cache::EntryCache::default();
+        let achievements =
+            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert!(achievements.is_empty());
     }
@@ -356,7 +378,9 @@ mod tests {
     fn test_iterator_no_matches() {
         let temp_repo = fixtures::repository::simplest().unwrap();
         let rules = vec![Box::new(AlwaysFail::default()) as Box<dyn Rule>];
-        let achievements = grant_with_rules("HEAD", &temp_repo.repo, None, rules).unwrap();
+        let mut cache = crate::cache::EntryCache::default();
+        let achievements =
+            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert!(achievements.is_empty());
     }
@@ -369,7 +393,9 @@ mod tests {
             Box::new(AlwaysFail::default()) as Box<dyn Rule>,
             Box::new(ParticipationTrophy::default()) as Box<dyn Rule>,
         ];
-        let achievements = grant_with_rules("HEAD", &temp_repo.repo, None, rules).unwrap();
+        let mut cache = crate::cache::EntryCache::default();
+        let achievements =
+            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
     }
@@ -379,7 +405,9 @@ mod tests {
         let temp_repo = fixtures::repository::simplest().unwrap();
 
         let rules = vec![Box::new(ParticipationTrophy2::default()) as Box<dyn Rule>];
-        let achievements = grant_with_rules("HEAD", &temp_repo.repo, None, rules).unwrap();
+        let mut cache = crate::cache::EntryCache::default();
+        let achievements =
+            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
     }
