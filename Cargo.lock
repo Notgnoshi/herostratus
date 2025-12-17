@@ -1698,6 +1698,7 @@ dependencies = [
  "inventory",
  "predicates",
  "serde",
+ "serde_json",
  "tempfile",
  "toml",
  "tracing",

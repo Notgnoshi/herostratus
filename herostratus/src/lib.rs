@@ -1,4 +1,5 @@
 pub mod achievement;
+pub mod cache;
 pub mod cli;
 pub mod commands;
 pub mod config;
