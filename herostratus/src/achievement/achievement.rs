@@ -1,3 +1,4 @@
+use crate::cache::EntryCache;
 use crate::config::RulesConfig;
 
 #[derive(Debug)]
@@ -134,6 +135,21 @@ pub trait Rule {
     /// etc).
     fn get_descriptors(&self) -> &[AchievementDescriptor];
     fn get_descriptors_mut(&mut self) -> &mut [AchievementDescriptor];
+
+    /// Initialize the [Rule] with the given [EntryCache]
+    ///
+    /// This allows [Rule]s to read cached data from previous runs. This in turn allows stateful
+    /// [Rule]s to persist state between runs. This is useful for rules like
+    /// `H2-shortest-subject-line` which need to remember the shortest subject line seen so far,
+    /// rather than just the shortest subject line in the current run.
+    ///
+    /// Called on initialization of the [Rule] before any commits are processed.
+    /// [fini_cache](Self::fini_cache) is called after all commits have been processed.
+    fn init_cache(&mut self, _cache: &EntryCache) {}
+    /// Write any final data from the [Rule] to the given [EntryCache]
+    ///
+    /// Called after finalization of the [Rule] after all commits have been processed.
+    fn fini_cache(&mut self, _cache: &mut EntryCache) {}
 
     /// Process the given [gix::Commit] to generate an [Achievement]
     ///

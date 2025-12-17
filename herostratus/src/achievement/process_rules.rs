@@ -390,6 +390,9 @@ where
         }
         self.entry_cache.last_processed_rules = self.get_enabled_rule_ids();
         self.entry_cache.last_processed_commit = self.first_commit;
+        for rule in &mut self.rules {
+            rule.fini_cache(self.entry_cache);
+        }
 
         // If we get to here, we've finished generating achievements, and it's time to log summary
         // stats. Use .take() so that the stats are only logged once, even if .next() is repeatedly
@@ -419,7 +422,7 @@ fn process_rules<'repo, Oids>(
 where
     Oids: Iterator<Item = gix::ObjectId>,
 {
-    Achievements {
+    let mut iter = Achievements {
         repo,
         oids,
         rule_diff_interest: rules.iter().map(|r| r.is_interested_in_diffs()).collect(),
@@ -435,7 +438,12 @@ where
         start_processing: None,
         num_commits_processed: 0,
         num_achievements_generated: 0,
+    };
+    for rule in &mut iter.rules {
+        rule.init_cache(iter.entry_cache);
     }
+
+    iter
 }
 
 pub fn grant<'repo>(
