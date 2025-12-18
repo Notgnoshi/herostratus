@@ -28,7 +28,7 @@ Things that need to be stored:
 
 ## 2. Remember which commits/rules have been processed for each repository/branch
 
-**DRAFT**
+**IMPLEMENTED**
 
 **Why?** Performance improvement. It can take quite long to process large-ish repositories like
 Linux and Git.

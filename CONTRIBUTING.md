@@ -2,7 +2,7 @@
 
 ## Developer quickstart
 
-See [docs/developer/quickstart.md](docs/developer/quickstart.md)!
+See [docs/developer/quickstart.md](/docs/developer/quickstart.md)!
 
 ## Project goals
 
@@ -22,7 +22,7 @@ This is a silly project to gamify things that shouldn't be gamified.
 ## Releases
 
 Releases are automated by the CI/CD pipeline. They are triggered by bumping the version number in
-the [Cargo.toml](Cargo.toml).
+the [Cargo.toml](/Cargo.toml).
 
 The process is:
 
@@ -76,6 +76,6 @@ You can invoke gitlint through the CLI, your editor, or as a commit hook.
 This project values documentation:
 
 * API documentation in the form of rustdoc comments
-* Design documentation in [docs/design](docs/design)
-* Developer documentation at [docs/developer](docs/developer)
+* Design documentation in [docs/design](/docs/design)
+* Developer documentation at [docs/developer](/docs/developer)
 * User documentation (TODO)

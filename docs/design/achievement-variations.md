@@ -36,7 +36,7 @@ For example:
 
 NOTE: This implies a persistent cache for these style of achievements, because a future feature will
 be to avoid reprocessing commits that have already been processed! See:
-[persistence.md](persistence.md).
+[persistence.md](/docs/design/persistence.md).
 
 ## 3. Unique achievements
 
@@ -52,7 +52,8 @@ For example:
 * "Shortest commit message"
 * "Most prolific swearer"
 
-NOTE: This implies persistence of granted achievements. See [persistence.md](persistence.md).
+NOTE: This implies persistence of granted achievements. See
+[persistence.md](/docs/design/persistence.md).
 
 ## 4. User awareness
 
@@ -90,9 +91,9 @@ diff algorithm, and isn't guaranteed to be the same across different tools.
 
 So any achievement rule that cares about the diff must compute it, and work with the diff
 programmatically. This can be fairly expensive. See
-[performance-considerations.md](performance-considerations.md) for an approach that hopefully
-reduces the performance impact of diffing commits. Other achievements though, might care just about
-the commit message, which is far cheaper to access.
+[performance-considerations.md](/docs/design/performance-considerations.md) for an approach that
+hopefully reduces the performance impact of diffing commits. Other achievements though, might care
+just about the commit message, which is far cheaper to access.
 
 A middle ground might be achievements that care about the number of additions/removals, or the file
 paths that changed, but not the changes themselves.

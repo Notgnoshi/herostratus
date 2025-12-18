@@ -19,7 +19,7 @@ write their own rules.
 
 Make it easy enough to contribute new rules, that users feel they can do so. This may require
 maintaining a set of default and non-default rules. It may also require toning down the
-[contribution standards](../../CONTRIBUTING.md)
+[contribution standards](/CONTRIBUTING.md)
 
 ## Wrap scripts
 

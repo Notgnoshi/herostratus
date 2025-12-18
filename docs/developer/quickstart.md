@@ -9,7 +9,7 @@ cargo test
 cargo run -- check .
 ```
 
-See [docs/developer](docs/developer) for more developer documentation.
+See [docs/developer](/docs/developer) for more developer documentation.
 
 ## Format
 
@@ -42,7 +42,7 @@ cargo nextest run
 ### Integration tests
 
 There are both unit tests and integration tests. The integration tests execute the `herostratus`
-binary, and make assertions on its output. See [herostratus/tests](herostratus/tests).
+binary, and make assertions on its output. See [herostratus/tests](/herostratus/tests).
 
 ### Ignored tests
 

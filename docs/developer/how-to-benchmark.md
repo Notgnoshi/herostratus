@@ -15,7 +15,7 @@ cargo install gungraun-runner
 
 ## How to run
 
-There are benchmarks defined in [herostratus/benches](herostratus/benches/main.rs). Run them with
+There are benchmarks defined in [herostratus/benches](/herostratus/benches/main.rs). Run them with
 
 ```sh
 cargo bench

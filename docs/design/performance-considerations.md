@@ -12,7 +12,7 @@ methods of improving Herostratus's performance.
 # Caching
 
 The best way to improve performance is to do less work. Cache the last commit processed, and stop
-processing commits when you reach it. See [persistence.md](persistence.md).
+processing commits when you reach it. See [persistence.md](/docs/design/persistence.md).
 
 This gets tricky when you consider that adding more rules over time is likely to happen, so you'll
 want the previously processed commits to be reprocessed when new rules are added.
@@ -22,8 +22,8 @@ figure out, because of how intertwined persistence is with other features.
 
 # Parallelism
 
-See: [parallelism.md](parallelism.md). I expect that the parallelism strategy I pick will be to run
-the achievement `Rule`s in parallel over a serial commit iterator.
+See: [parallelism.md](/docs/design/parallelism.md). I expect that the parallelism strategy I pick
+will be to run the achievement `Rule`s in parallel over a serial commit iterator.
 
 # Benchmarks
 
