@@ -168,6 +168,7 @@ pub fn check_all(
         )?;
         check_stats.push(check_stat);
     }
+    cache.save()?;
     tracing::info!(
         "... checked {} repositories after {:.2?}",
         config.repositories.len(),
