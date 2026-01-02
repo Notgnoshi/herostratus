@@ -157,7 +157,7 @@ pub fn check_all(
             .reference
             .clone()
             .unwrap_or_else(|| String::from("HEAD"));
-        let cache = cache.get_entry_cache(name, &reference);
+        let cache = cache.get_entry_cache(name);
         let check_stat = check_impl(
             Some(config),
             name,

@@ -12,12 +12,13 @@ impl GlobalCache {
         Self::load(cache_path)
     }
 
-    /// Get the cache for a specific repository and reference pair
+    /// Get the cache for a specific repository
     ///
     /// NOTE: `name` is the same name as in the
-    /// [Config::repositories](crate::config::Config::repositories) map.
-    pub fn get_entry_cache(&mut self, name: &str, reference: &str) -> &mut EntryCache {
-        let key = format!("{}#{}", name, reference);
+    /// [Config::repositories](crate::config::Config::repositories) map, and uniquely identifies a
+    /// repository / branch pair.
+    pub fn get_entry_cache(&mut self, name: &str) -> &mut EntryCache {
+        let key = name.to_string();
         self.data.entry(key).or_default()
     }
 }
@@ -34,9 +35,9 @@ mod tests {
         let mut cache = GlobalCache::from_data_dir(tmp.path()).unwrap();
         assert!(cache.data.is_empty());
 
-        let _ = cache.get_entry_cache("NAME", "BRANCH1");
-        let _ = cache.get_entry_cache("NAME", "BRANCH2");
-        let entry = cache.get_entry_cache("NAME", "BRANCH1");
+        let _ = cache.get_entry_cache("NAME1");
+        let _ = cache.get_entry_cache("NAME2");
+        let entry = cache.get_entry_cache("NAME1");
         entry.last_processed_rules = vec![418];
         assert_eq!(cache.data.len(), 2);
         cache.save().unwrap();
@@ -44,7 +45,7 @@ mod tests {
         let mut cache = GlobalCache::from_data_dir(tmp.path()).unwrap();
         assert_eq!(cache.data.len(), 2);
 
-        let entry = cache.get_entry_cache("NAME", "BRANCH1");
+        let entry = cache.get_entry_cache("NAME1");
         assert_eq!(entry.last_processed_rules, [418]);
     }
 }
