@@ -48,6 +48,7 @@ where
 ///
 /// See: `./docs/design/persistence.md`
 #[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
+#[deprecated(note = "See: persistence.md for design notes")]
 pub struct EntryCache {
     /// A 40-char hexadecimal SHA1 commit hash of the last processed commit
     #[serde(

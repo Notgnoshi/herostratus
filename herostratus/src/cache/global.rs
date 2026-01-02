@@ -4,6 +4,7 @@ use std::path::Path;
 use crate::cache::EntryCache;
 use crate::cache::utils::JsonFileCache;
 
+#[deprecated(note = "See: persistence.md for design notes")]
 pub type GlobalCache = JsonFileCache<HashMap<String, EntryCache>>;
 
 impl GlobalCache {
