@@ -6,6 +6,10 @@ pub struct TempRepository {
 }
 
 impl TempRepository {
+    pub fn path(&self) -> &std::path::Path {
+        self.tempdir.path()
+    }
+
     /// Consume the TempDir without deleting the on-disk repository
     ///
     /// You probably don't want to use this in the final state of a test, but it can be useful for

@@ -54,15 +54,12 @@ where
         if self.first_commit.is_none() {
             self.first_commit = Some(oid);
         }
-        if self.entry_cache.last_processed_commit.is_none() {
+        if self.checkpoint.data.commit.is_none() {
             // If there's nothing in the cache, we continue processing and don't early-exit
             return (Vec::new(), true);
         }
 
-        let last_oid = self
-            .entry_cache
-            .last_processed_commit
-            .expect("Checked above");
+        let last_oid = self.checkpoint.data.commit.expect("Checked above");
         if oid == last_oid {
             // We've hit a commit we've already processed. Do we need to keep going with any new
             // rules that were added since the last time we ran?
@@ -81,7 +78,7 @@ where
             tracing::debug!("Reached last processed commit {oid}");
 
             // Disable any rules that were already processed from the last run
-            for id in &self.entry_cache.last_processed_rules {
+            for id in &self.checkpoint.data.rules {
                 for rule in &mut self.rules {
                     for desc in rule.get_descriptors() {
                         if desc.id == *id {
@@ -390,17 +387,17 @@ where
         if let Some(achievement) = self.get_next_accumulated() {
             return Some(achievement);
         }
-        self.entry_cache.last_processed_rules = self.get_enabled_rule_ids();
-        self.entry_cache.last_processed_commit = self.first_commit;
+        self.checkpoint.data.rules = self.get_enabled_rule_ids();
+        self.checkpoint.data.commit = self.first_commit;
         for rule in &mut self.rules {
             rule.fini_cache(self.entry_cache);
         }
-        self.checkpoint.save().expect("Failed to save checkpoint");
 
         // If we get to here, we've finished generating achievements, and it's time to log summary
         // stats. Use .take() so that the stats are only logged once, even if .next() is repeatedly
         // called at the end.
         if let Some(start_timestamp) = self.start_processing.take() {
+            self.checkpoint.save().expect("Failed to save checkpoint");
             tracing::info!(
                 "Generated {} achievements after processing {} commits in {:?}",
                 self.num_achievements_generated,
@@ -576,14 +573,17 @@ mod tests {
 
         let rules = vec![Box::new(ParticipationTrophy2::default()) as Box<dyn Rule>];
         let mut cache = crate::cache::EntryCache::default();
-        let achievements =
+        let mut achievements =
             grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, None, "", rules).unwrap();
-        let achievements: Vec<_> = achievements.collect();
-        assert_eq!(achievements.len(), 1);
+        let mut granted = Vec::new();
+        for a in &mut achievements {
+            granted.push(a);
+        }
+        assert_eq!(granted.len(), 1);
 
         let rev = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
-        assert_eq!(cache.last_processed_commit.unwrap(), rev);
-        assert_eq!(cache.last_processed_rules, [3]);
+        assert_eq!(achievements.checkpoint.data.commit.unwrap(), rev);
+        assert_eq!(achievements.checkpoint.data.rules, [3]);
     }
 
     #[test]
@@ -595,8 +595,16 @@ mod tests {
             Box::new(AlwaysFail::default()) as Box<dyn Rule>,
             Box::new(ParticipationTrophy::default()) as Box<dyn Rule>,
         ];
-        let achievements =
-            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, None, "", rules).unwrap();
+        let achievements = grant_with_rules(
+            "HEAD",
+            &temp_repo.repo,
+            &mut cache,
+            None,
+            Some(temp_repo.path()),
+            "",
+            rules,
+        )
+        .unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
 
@@ -606,8 +614,16 @@ mod tests {
             Box::new(AlwaysFail::default()) as Box<dyn Rule>,
             Box::new(ParticipationTrophy::default()) as Box<dyn Rule>,
         ];
-        let achievements =
-            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, None, "", rules).unwrap();
+        let achievements = grant_with_rules(
+            "HEAD",
+            &temp_repo.repo,
+            &mut cache,
+            None,
+            Some(temp_repo.path()),
+            "",
+            rules,
+        )
+        .unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert!(achievements.is_empty());
 
@@ -618,8 +634,16 @@ mod tests {
             Box::new(AlwaysFail::default()) as Box<dyn Rule>,
             Box::new(ParticipationTrophy::default()) as Box<dyn Rule>,
         ];
-        let achievements =
-            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, None, "", rules).unwrap();
+        let achievements = grant_with_rules(
+            "HEAD",
+            &temp_repo.repo,
+            &mut cache,
+            None,
+            Some(temp_repo.path()),
+            "",
+            rules,
+        )
+        .unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
         assert_eq!(achievements[0].commit, new_commit);
@@ -635,8 +659,16 @@ mod tests {
             Box::new(AlwaysFail::default()) as Box<dyn Rule>, // 1
             Box::new(ParticipationTrophy::default()) as Box<dyn Rule>, // 2
         ];
-        let achievements =
-            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, None, "", rules).unwrap();
+        let achievements = grant_with_rules(
+            "HEAD",
+            &temp_repo.repo,
+            &mut cache,
+            None,
+            Some(temp_repo.path()),
+            "",
+            rules,
+        )
+        .unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
 
@@ -656,8 +688,16 @@ mod tests {
         rules[2].get_descriptors_mut()[0].id = 3;
         rules[2].get_descriptors_mut()[0].name = "second instance";
 
-        let achievements =
-            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, None, "", rules).unwrap();
+        let achievements = grant_with_rules(
+            "HEAD",
+            &temp_repo.repo,
+            &mut cache,
+            None,
+            Some(temp_repo.path()),
+            "",
+            rules,
+        )
+        .unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 3);
 
@@ -676,7 +716,6 @@ mod tests {
     fn test_continue_processing_pathological_case() {
         let temp_repo = fixtures::repository::simplest().unwrap();
         let first_commit = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
-        let mut cache = crate::cache::EntryCache::default();
 
         let rules = vec![
             Box::new(AlwaysFail::default()) as Box<dyn Rule>, // 1
@@ -699,13 +738,25 @@ mod tests {
                 ],
             }) as Box<dyn Rule>,
         ];
-        let achievements =
-            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, None, "", rules).unwrap();
-        let achievements: Vec<_> = achievements.collect();
-        assert_eq!(cache.last_processed_rules, [1, 2]);
-        assert_eq!(achievements.len(), 1);
-        assert_eq!(achievements[0].commit, first_commit);
-        assert_eq!(achievements[0].name, "rule1");
+        let mut cache = crate::cache::EntryCache::default();
+        let mut achievements = grant_with_rules(
+            "HEAD",
+            &temp_repo.repo,
+            &mut cache,
+            None,
+            Some(temp_repo.path()),
+            "",
+            rules,
+        )
+        .unwrap();
+        let mut granted = Vec::new();
+        for a in &mut achievements {
+            granted.push(a);
+        }
+        assert_eq!(achievements.checkpoint.data.rules, [1, 2]);
+        assert_eq!(granted.len(), 1);
+        assert_eq!(granted[0].commit, first_commit);
+        assert_eq!(granted[0].name, "rule1");
 
         // Add a new commit, and a new AchievementDescriptor to the existing Rule implementation
         let second_commit =
@@ -731,8 +782,17 @@ mod tests {
                 ],
             }) as Box<dyn Rule>,
         ];
-        let achievements =
-            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, None, "", rules).unwrap();
+        let mut cache = crate::cache::EntryCache::default();
+        let achievements = grant_with_rules(
+            "HEAD",
+            &temp_repo.repo,
+            &mut cache,
+            None,
+            Some(temp_repo.path()),
+            "",
+            rules,
+        )
+        .unwrap();
         let achievements: Vec<_> = achievements.collect();
 
         // The new commit should get achievements from both the old and new rule instances
