@@ -104,6 +104,20 @@ impl AchievementDescriptor {
 
 /// Defines a [Rule] to grant [Achievement]s
 pub trait Rule {
+    /// Get the name of this [Rule] type
+    ///
+    /// This is not the name of the [Achievement]s granted by this [Rule], but rather of the [Rule]
+    /// itself. This is used for logging, and for caching data specific to particular [Rule]s.
+    ///
+    /// You probably don't want to override this.
+    fn name(&self) -> &'static str {
+        let full_name = std::any::type_name::<Self>();
+        match full_name.rsplit_once("::") {
+            None => full_name,
+            Some((_module_path, name)) => name,
+        }
+    }
+
     /// Disable granting the [AchievementDescriptor] with the given ID.
     ///
     /// This allows individual [AchievementDescriptor]s to be enabled/disabled for any given Rule.

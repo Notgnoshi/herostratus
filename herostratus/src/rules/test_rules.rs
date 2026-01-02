@@ -123,3 +123,14 @@ impl Rule for FlexibleRule {
         achievements
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rule_name() {
+        let rule = AlwaysFail::default();
+        assert_eq!(rule.name(), "AlwaysFail");
+    }
+}
