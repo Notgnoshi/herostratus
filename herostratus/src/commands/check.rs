@@ -45,6 +45,7 @@ pub fn check(args: &CheckArgs, config: Option<&Config>) -> eyre::Result<CheckSta
 
     // Use an ephemeral in-memory cache that gets discarded immediately after processing
     let mut cache = crate::cache::EntryCache::default();
+    let data_dir = None;
 
     check_impl(
         config,
@@ -53,6 +54,7 @@ pub fn check(args: &CheckArgs, config: Option<&Config>) -> eyre::Result<CheckSta
         &args.reference,
         args.depth,
         &mut cache,
+        data_dir,
     )
 }
 
@@ -62,7 +64,9 @@ fn check_impl(
     path: &Path,
     reference: &str,
     depth: Option<usize>,
+    // TODO: Replace the EntryCache with the data_dir once GlobalCache/EntryCache are removed
     cache: &mut crate::cache::EntryCache,
+    data_dir: Option<&Path>,
 ) -> eyre::Result<CheckStat> {
     tracing::info!("Checking repository {path:?}, reference {reference:?} for achievements ...");
     let mut stat = CheckStat {
@@ -71,7 +75,7 @@ fn check_impl(
     };
     let start = Instant::now();
     let repo = find_local_repository(path)?;
-    let mut achievements = grant(config, reference, &repo, cache, depth)?;
+    let mut achievements = grant(config, reference, &repo, cache, depth, data_dir, name)?;
 
     process_achievements(&mut achievements)?;
 
@@ -165,6 +169,7 @@ pub fn check_all(
             &reference,
             args.depth,
             cache,
+            Some(data_dir),
         )?;
         check_stats.push(check_stat);
     }

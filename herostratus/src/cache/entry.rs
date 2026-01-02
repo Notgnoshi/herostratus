@@ -1,32 +1,4 @@
-use std::str::FromStr;
-
-use serde::Deserialize;
-
-fn serialize_object_id<S>(
-    object_id: &Option<gix::ObjectId>,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    match object_id {
-        Some(oid) => serializer.serialize_str(&oid.to_string()),
-        None => serializer.serialize_none(),
-    }
-}
-
-fn deserialize_object_id<'de, D>(deserializer: D) -> Result<Option<gix::ObjectId>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let opt = Option::<String>::deserialize(deserializer)?;
-    match opt {
-        Some(s) => gix::ObjectId::from_str(&s)
-            .map(Some)
-            .map_err(serde::de::Error::custom),
-        None => Ok(None),
-    }
-}
+use crate::cache::checkpoint::{deserialize_object_id, serialize_object_id};
 
 /// A cache for a specific branch of a specific repository
 ///

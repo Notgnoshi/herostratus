@@ -163,7 +163,8 @@ mod tests {
         let repo = fixtures::repository::with_empty_commits(&["0123456789", "1234567890"]).unwrap();
         let rules = vec![subject_line_factory(&config)];
         let mut cache = crate::cache::EntryCache::default();
-        let achievements = grant_with_rules("HEAD", &repo.repo, &mut cache, None, rules).unwrap();
+        let achievements =
+            grant_with_rules("HEAD", &repo.repo, &mut cache, None, None, "", rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert!(achievements.is_empty());
     }
@@ -175,7 +176,8 @@ mod tests {
                 .unwrap();
         let rules = vec![Box::new(SubjectLineLength::default()) as Box<dyn Rule>];
         let mut cache = crate::cache::EntryCache::default();
-        let achievements = grant_with_rules("HEAD", &repo.repo, &mut cache, None, rules).unwrap();
+        let achievements =
+            grant_with_rules("HEAD", &repo.repo, &mut cache, None, None, "", rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
 
@@ -199,10 +201,10 @@ mod tests {
 
         let mut cache1 = crate::cache::EntryCache::default();
         let achievements1 =
-            grant_with_rules("HEAD", &repo1.repo, &mut cache1, None, rules1).unwrap();
+            grant_with_rules("HEAD", &repo1.repo, &mut cache1, None, None, "", rules1).unwrap();
         let mut cache2 = crate::cache::EntryCache::default();
         let achievements2 =
-            grant_with_rules("HEAD", &repo2.repo, &mut cache2, None, rules2).unwrap();
+            grant_with_rules("HEAD", &repo2.repo, &mut cache2, None, None, "", rules2).unwrap();
         let achievements1: Vec<_> = achievements1.collect();
         assert_eq!(achievements1.len(), 1);
         let achievements2: Vec<_> = achievements2.collect();
@@ -235,7 +237,8 @@ mod tests {
         .unwrap();
         let rules = vec![subject_line_factory(&config)];
         let mut cache = crate::cache::EntryCache::default();
-        let achievements = grant_with_rules("HEAD", &repo.repo, &mut cache, None, rules).unwrap();
+        let achievements =
+            grant_with_rules("HEAD", &repo.repo, &mut cache, None, None, "", rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 2); // two achievements: one for the shortest and longest
 
@@ -272,7 +275,8 @@ mod tests {
         ])
         .unwrap();
         let rules = vec![subject_line_factory(&config)];
-        let achievements = grant_with_rules("HEAD", &repo.repo, &mut cache, None, rules).unwrap();
+        let achievements =
+            grant_with_rules("HEAD", &repo.repo, &mut cache, None, None, "", rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
 
@@ -281,7 +285,8 @@ mod tests {
         fixtures::repository::add_empty_commit(&repo.repo, "123456").unwrap();
 
         let rules = vec![subject_line_factory(&config)];
-        let achievements = grant_with_rules("HEAD", &repo.repo, &mut cache, None, rules).unwrap();
+        let achievements =
+            grant_with_rules("HEAD", &repo.repo, &mut cache, None, None, "", rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert!(achievements.is_empty());
     }
@@ -303,7 +308,8 @@ mod tests {
         ])
         .unwrap();
         let rules = vec![subject_line_factory(&config)];
-        let achievements = grant_with_rules("HEAD", &repo.repo, &mut cache, None, rules).unwrap();
+        let achievements =
+            grant_with_rules("HEAD", &repo.repo, &mut cache, None, None, "", rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
 
@@ -311,7 +317,8 @@ mod tests {
         let new_shortest = fixtures::repository::add_empty_commit(&repo.repo, "123").unwrap();
 
         let rules = vec![subject_line_factory(&config)];
-        let achievements = grant_with_rules("HEAD", &repo.repo, &mut cache, None, rules).unwrap();
+        let achievements =
+            grant_with_rules("HEAD", &repo.repo, &mut cache, None, None, "", rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
         assert_eq!(achievements[0].commit, new_shortest);

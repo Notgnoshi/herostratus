@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::time::Instant;
 
 use eyre::WrapErr;
@@ -27,6 +28,7 @@ where
     // This cache is to enable short-circuiting processing commits that have already been processed
     // on a previous run.
     entry_cache: &'repo mut crate::cache::EntryCache,
+    checkpoint: crate::cache::CheckpointCache,
     first_commit: Option<gix::ObjectId>,
     // These are rules that were already processed on the previous run and need to be skipped on
     // this run once we get to the last processed commit.
@@ -393,6 +395,7 @@ where
         for rule in &mut self.rules {
             rule.fini_cache(self.entry_cache);
         }
+        self.checkpoint.save().expect("Failed to save checkpoint");
 
         // If we get to here, we've finished generating achievements, and it's time to log summary
         // stats. Use .take() so that the stats are only logged once, even if .next() is repeatedly
@@ -417,11 +420,20 @@ fn process_rules<'repo, Oids>(
     oids: Oids,
     repo: &'repo gix::Repository,
     entry_cache: &'repo mut crate::cache::EntryCache,
+    data_dir: Option<&Path>,
+    name: &str,
     rules: Vec<Box<dyn Rule>>,
 ) -> Achievements<'repo, Oids>
 where
     Oids: Iterator<Item = gix::ObjectId>,
 {
+    let checkpoint = if let Some(dir) = data_dir {
+        crate::cache::CheckpointCache::from_data_dir(dir, "")
+            .expect("Failed to load CheckpointCache from disk")
+    } else {
+        crate::cache::CheckpointCache::in_memory()
+    };
+
     let mut iter = Achievements {
         repo,
         oids,
@@ -433,6 +445,7 @@ where
             .diff_resource_cache_for_tree_diff()
             .expect("Failed to create diff cache"),
         entry_cache,
+        checkpoint,
         first_commit: None,
         suppressed_rules: Vec::new(),
         start_processing: None,
@@ -452,12 +465,16 @@ pub fn grant<'repo>(
     repo: &'repo gix::Repository,
     cache: &'repo mut crate::cache::EntryCache,
     depth: Option<usize>,
+    data_dir: Option<&Path>,
+    name: &str,
 ) -> eyre::Result<Achievements<'repo, Box<dyn Iterator<Item = gix::ObjectId> + 'repo>>> {
     grant_with_rules(
         reference,
         repo,
         cache,
         depth,
+        data_dir,
+        name,
         crate::rules::builtin_rules(config),
     )
 }
@@ -467,6 +484,8 @@ pub fn grant_with_rules<'repo>(
     repo: &'repo gix::Repository,
     cache: &'repo mut crate::cache::EntryCache,
     depth: Option<usize>,
+    data_dir: Option<&Path>,
+    name: &str,
     rules: Vec<Box<dyn Rule>>,
 ) -> eyre::Result<Achievements<'repo, Box<dyn Iterator<Item = gix::ObjectId> + 'repo>>> {
     let rev = crate::git::rev::parse(reference, repo)
@@ -488,10 +507,19 @@ pub fn grant_with_rules<'repo>(
             Box::new(oids.take(depth)),
             repo,
             cache,
+            data_dir,
+            name,
             rules,
         ))
     } else {
-        Ok(process_rules(Box::new(oids), repo, cache, rules))
+        Ok(process_rules(
+            Box::new(oids),
+            repo,
+            cache,
+            data_dir,
+            name,
+            rules,
+        ))
     }
 }
 
@@ -511,7 +539,7 @@ mod tests {
         let rules = Vec::new();
         let mut cache = crate::cache::EntryCache::default();
         let achievements =
-            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, rules).unwrap();
+            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, None, "", rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert!(achievements.is_empty());
     }
@@ -522,7 +550,7 @@ mod tests {
         let rules = vec![Box::new(AlwaysFail::default()) as Box<dyn Rule>];
         let mut cache = crate::cache::EntryCache::default();
         let achievements =
-            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, rules).unwrap();
+            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, None, "", rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert!(achievements.is_empty());
     }
@@ -537,7 +565,7 @@ mod tests {
         ];
         let mut cache = crate::cache::EntryCache::default();
         let achievements =
-            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, rules).unwrap();
+            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, None, "", rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
     }
@@ -549,7 +577,7 @@ mod tests {
         let rules = vec![Box::new(ParticipationTrophy2::default()) as Box<dyn Rule>];
         let mut cache = crate::cache::EntryCache::default();
         let achievements =
-            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, rules).unwrap();
+            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, None, "", rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
 
@@ -568,7 +596,7 @@ mod tests {
             Box::new(ParticipationTrophy::default()) as Box<dyn Rule>,
         ];
         let achievements =
-            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, rules).unwrap();
+            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, None, "", rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
 
@@ -579,7 +607,7 @@ mod tests {
             Box::new(ParticipationTrophy::default()) as Box<dyn Rule>,
         ];
         let achievements =
-            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, rules).unwrap();
+            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, None, "", rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert!(achievements.is_empty());
 
@@ -591,7 +619,7 @@ mod tests {
             Box::new(ParticipationTrophy::default()) as Box<dyn Rule>,
         ];
         let achievements =
-            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, rules).unwrap();
+            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, None, "", rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
         assert_eq!(achievements[0].commit, new_commit);
@@ -608,7 +636,7 @@ mod tests {
             Box::new(ParticipationTrophy::default()) as Box<dyn Rule>, // 2
         ];
         let achievements =
-            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, rules).unwrap();
+            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, None, "", rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
 
@@ -629,7 +657,7 @@ mod tests {
         rules[2].get_descriptors_mut()[0].name = "second instance";
 
         let achievements =
-            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, rules).unwrap();
+            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, None, "", rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 3);
 
@@ -672,7 +700,7 @@ mod tests {
             }) as Box<dyn Rule>,
         ];
         let achievements =
-            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, rules).unwrap();
+            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, None, "", rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(cache.last_processed_rules, [1, 2]);
         assert_eq!(achievements.len(), 1);
@@ -704,7 +732,7 @@ mod tests {
             }) as Box<dyn Rule>,
         ];
         let achievements =
-            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, rules).unwrap();
+            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, None, "", rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
 
         // The new commit should get achievements from both the old and new rule instances
