@@ -26,7 +26,7 @@ color-eyre = "0.6.5"
 ctor = "0.6.0"
 directories = "6.0.0"
 eyre = "0.6.12"
-gix = { version = "0.75.0", features = ["blob-diff", "blocking-network-client", "credentials", "excludes", "index", "mailmap", "revision", "tracing", "tree-editor", "blocking-http-transport-reqwest-rust-tls"] }
+gix = { version = "0.77.0", features = ["blob-diff", "blocking-network-client", "credentials", "excludes", "index", "mailmap", "revision", "tracing", "tree-editor", "blocking-http-transport-reqwest-rust-tls"] }
 gungraun = "0.17.0"
 inventory = "0.3.21"
 predicates = "3.1.3"

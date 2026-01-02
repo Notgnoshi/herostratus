@@ -55,6 +55,13 @@ For example:
 NOTE: This implies persistence of granted achievements. See
 [persistence.md](/docs/design/persistence.md).
 
+GitLab enumerates three types of achievements:
+<https://docs.gitlab.com/user/profile/achievements/#types-of-achievement>
+
+1. Once and irrevocable (e.g., "commit with swears")
+2. Once an revokable (e.g., "longest commit message we've ever seen")
+3. Recurring (e.g., "revert a commit")
+
 ## 4. User awareness
 
 Some achievements need to be aware of which user generated which commit (and be mailmap aware).
