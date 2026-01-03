@@ -21,6 +21,13 @@ where
         Self::default()
     }
 
+    pub fn new_in<P: AsRef<Path>>(path: P, data: T) -> Self {
+        Self {
+            path: Some(path.as_ref().to_path_buf()),
+            data,
+        }
+    }
+
     /// Load the cache from the given file path, or initialize a new cache if the file does not
     /// exist
     pub fn load<P: AsRef<Path>>(path: P) -> eyre::Result<Self> {

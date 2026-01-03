@@ -25,6 +25,8 @@ impl Default for EmptyCommit {
 inventory::submit!(RuleFactory::default::<EmptyCommit>());
 
 impl Rule for EmptyCommit {
+    type Cache = ();
+
     fn get_descriptors(&self) -> &[AchievementDescriptor] {
         &self.descriptors
     }

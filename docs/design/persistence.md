@@ -87,7 +87,7 @@ Things that need to be stored:
 
 ## Remember which commits/rules have been processed for each repository/branch
 
-**PROPOSAL**
+**IMPLEMENTED**
 
 **Why?** Performance improvement. It can take quite long to process large-ish repositories like
 Linux and Git.
@@ -117,7 +117,7 @@ to implement).
 
 ## Per-rule cached data
 
-**PROPOSAL**
+**IMPLEMENTED**
 
 Some rules (like "longest commit message") require either rejecting the cache, or caching
 rule-specific data. It would be inappropriate (and impossible to do correctly) to share cached data
@@ -155,6 +155,8 @@ cache also gets stored in `~/.local/share/herostratus/cache/<name>/<rule_name>.j
 the user, probably stored in `~/.local/share/herostratus/cache/<name>/users.json`.
 
 ## Cache API for `Rule` implementations
+
+**IMPLEMENTED**
 
 ```rust
 trait Rule {

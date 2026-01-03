@@ -30,6 +30,8 @@ impl Default for WhitespaceOnly {
 inventory::submit!(RuleFactory::default::<WhitespaceOnly>());
 
 impl Rule for WhitespaceOnly {
+    type Cache = ();
+
     fn get_descriptors(&self) -> &[AchievementDescriptor] {
         &self.descriptors
     }

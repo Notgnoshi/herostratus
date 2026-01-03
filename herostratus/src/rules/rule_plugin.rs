@@ -52,9 +52,26 @@ impl RuleFactory {
 /// to have a one-to-many API, but it's intended to improve performance by performing a single
 /// computation, and then sharing the result for different achievements that care about it.
 pub trait RulePlugin {
+    /// Get the name of this [Rule] type
+    ///
+    /// This is not the name of the [Achievement]s granted by this [Rule], but rather of the [Rule]
+    /// itself. This is used for logging, and for caching data specific to particular [Rule]s.
     fn name(&self) -> &'static str;
+    /// Disable granting the [AchievementDescriptor] with the given ID.
+    ///
+    /// This allows individual [AchievementDescriptor]s to be enabled/disabled for any given Rule.
     fn disable_by_id(&mut self, id: usize);
+    /// Enable granting the [AchievementDescriptor] with the given ID.
+    ///
+    /// This allows individual [AchievementDescriptor]s to be enabled/disabled for any given Rule.
     fn enable_by_id(&mut self, id: usize);
+
+    /// Determine if this [RulePlugin] cares about caching
+    fn has_cache(&self) -> bool;
+    /// Initialize the cache for this rule
+    fn init_cache(&mut self, cache: serde_json::Value) -> eyre::Result<()>;
+    /// Finalize the cache for this rule
+    fn fini_cache(&self) -> eyre::Result<serde_json::Value>;
 
     // The following methods are just forwarded to the Rule trait
     //
@@ -79,12 +96,6 @@ impl<R> RulePlugin for R
 where
     R: Rule,
 {
-    /// Get the name of this [Rule] type
-    ///
-    /// This is not the name of the [Achievement]s granted by this [Rule], but rather of the [Rule]
-    /// itself. This is used for logging, and for caching data specific to particular [Rule]s.
-    ///
-    /// You probably don't want to override this.
     fn name(&self) -> &'static str {
         let full_name = std::any::type_name::<Self>();
         match full_name.rsplit_once("::") {
@@ -93,9 +104,6 @@ where
         }
     }
 
-    /// Disable granting the [AchievementDescriptor] with the given ID.
-    ///
-    /// This allows individual [AchievementDescriptor]s to be enabled/disabled for any given Rule.
     fn disable_by_id(&mut self, id: usize) {
         for d in self.get_descriptors_mut() {
             if d.id == id {
@@ -105,9 +113,6 @@ where
         }
     }
 
-    /// Enable granting the [AchievementDescriptor] with the given ID.
-    ///
-    /// This allows individual [AchievementDescriptor]s to be enabled/disabled for any given Rule.
     fn enable_by_id(&mut self, id: usize) {
         for d in self.get_descriptors_mut() {
             if d.id == id {
@@ -115,6 +120,27 @@ where
                 d.enabled = true;
             }
         }
+    }
+
+    fn has_cache(&self) -> bool {
+        std::any::TypeId::of::<R::Cache>() != std::any::TypeId::of::<()>() // () is the default "no cache" type
+    }
+
+    fn init_cache(&mut self, cache: serde_json::Value) -> eyre::Result<()> {
+        let concrete_cache = if let serde_json::Value::Null = cache {
+            // There was nothing cached previously, so we initialize a new cache object
+            R::Cache::default()
+        } else {
+            serde_json::from_value(cache)?
+        };
+        <R>::init_cache(self, concrete_cache);
+        Ok(())
+    }
+
+    fn fini_cache(&self) -> eyre::Result<serde_json::Value> {
+        let concrete_cache = <R>::fini_cache(self);
+        let erased_cache = serde_json::to_value(concrete_cache)?;
+        Ok(erased_cache)
     }
 
     // Everything else is just forwarded to the Rule impl

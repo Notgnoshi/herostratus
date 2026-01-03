@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use eyre::WrapErr;
@@ -12,6 +12,8 @@ pub struct Achievements<'repo, Oids>
 where
     Oids: Iterator<Item = gix::ObjectId>,
 {
+    data_dir: Option<PathBuf>,
+    repo_name: String,
     repo: &'repo gix::Repository,
     oids: Oids,
     rules: Vec<Box<dyn RulePlugin>>,
@@ -385,14 +387,33 @@ where
         if let Some(achievement) = self.get_next_accumulated() {
             return Some(achievement);
         }
-        self.checkpoint.data.rules = self.get_enabled_rule_ids();
-        self.checkpoint.data.commit = self.first_commit;
 
         // If we get to here, we've finished generating achievements, and it's time to log summary
         // stats. Use .take() so that the stats are only logged once, even if .next() is repeatedly
         // called at the end.
         if let Some(start_timestamp) = self.start_processing.take() {
+            self.checkpoint.data.rules = self.get_enabled_rule_ids();
+            self.checkpoint.data.commit = self.first_commit;
+            // TODO: TOO MANY UNWRAPS
             self.checkpoint.save().expect("Failed to save checkpoint");
+
+            for rule in &self.rules {
+                if self.data_dir.is_none() {
+                    break;
+                }
+                if !rule.has_cache() {
+                    continue;
+                }
+                let erased_cache = rule.fini_cache().expect("Failed to finalize rule cache");
+                let rule_cache = crate::cache::RuleCache::new_for_rule(
+                    self.data_dir.as_ref().unwrap(),
+                    &self.repo_name,
+                    rule.name(),
+                    erased_cache,
+                );
+                rule_cache.save().expect("Failed to save RuleCache to disk");
+            }
+
             tracing::info!(
                 "Generated {} achievements after processing {} commits in {:?}",
                 self.num_achievements_generated,
@@ -413,19 +434,43 @@ fn process_rules<'repo, Oids>(
     repo: &'repo gix::Repository,
     data_dir: Option<&Path>,
     name: &str,
-    rules: Vec<Box<dyn RulePlugin>>,
+    mut rules: Vec<Box<dyn RulePlugin>>,
 ) -> Achievements<'repo, Oids>
 where
     Oids: Iterator<Item = gix::ObjectId>,
 {
-    let checkpoint = if let Some(dir) = data_dir {
+    let data_dir = data_dir.map(|d| d.to_path_buf());
+
+    let checkpoint = if let Some(dir) = &data_dir {
         crate::cache::CheckpointCache::from_data_dir(dir, name)
             .expect("Failed to load CheckpointCache from disk")
     } else {
         crate::cache::CheckpointCache::in_memory()
     };
 
+    for rule in &mut rules {
+        if !rule.has_cache() {
+            continue;
+        }
+
+        let cache = if let Some(dir) = &data_dir {
+            crate::cache::RuleCache::from_rule_name(dir, name, rule.name())
+                .wrap_err(format!("Failed to load cache for rule '{}'", rule.name()))
+                .unwrap()
+        } else {
+            crate::cache::RuleCache::in_memory()
+        };
+        rule.init_cache(cache.data)
+            .wrap_err(format!(
+                "Failed to initialize cache for rule '{}'",
+                rule.name()
+            ))
+            .unwrap()
+    }
+
     Achievements {
+        data_dir,
+        repo_name: name.to_string(),
         repo,
         oids,
         rule_diff_interest: rules.iter().map(|r| r.is_interested_in_diffs()).collect(),

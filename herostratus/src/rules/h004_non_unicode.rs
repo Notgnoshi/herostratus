@@ -21,6 +21,8 @@ impl Default for NonUnicode {
 inventory::submit!(RuleFactory::default::<NonUnicode>());
 
 impl Rule for NonUnicode {
+    type Cache = ();
+
     fn get_descriptors(&self) -> &[AchievementDescriptor] {
         &self.descriptors
     }

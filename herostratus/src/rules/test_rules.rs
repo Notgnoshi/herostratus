@@ -19,6 +19,8 @@ impl Default for AlwaysFail {
     }
 }
 impl Rule for AlwaysFail {
+    type Cache = ();
+
     fn get_descriptors(&self) -> &[AchievementDescriptor] {
         &self.desc
     }
@@ -47,6 +49,8 @@ impl Default for ParticipationTrophy {
     }
 }
 impl Rule for ParticipationTrophy {
+    type Cache = ();
+
     fn get_descriptors(&self) -> &[AchievementDescriptor] {
         &self.desc
     }
@@ -79,6 +83,8 @@ impl Default for ParticipationTrophy2 {
     }
 }
 impl Rule for ParticipationTrophy2 {
+    type Cache = ();
+
     fn get_descriptors(&self) -> &[AchievementDescriptor] {
         &self.desc
     }
@@ -104,6 +110,8 @@ pub struct FlexibleRule {
 }
 
 impl Rule for FlexibleRule {
+    type Cache = ();
+
     fn get_descriptors(&self) -> &[AchievementDescriptor] {
         &self.descriptors
     }

@@ -33,6 +33,8 @@ const FIXUP_PREFIXES: &[&str] = &[
 ];
 
 impl Rule for Fixup {
+    type Cache = ();
+
     fn get_descriptors(&self) -> &[AchievementDescriptor] {
         &self.descriptors
     }

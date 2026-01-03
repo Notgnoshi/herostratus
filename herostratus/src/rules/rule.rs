@@ -2,6 +2,35 @@ use crate::achievement::{Achievement, AchievementDescriptor};
 
 /// Defines a [Rule] to grant [Achievement]s
 pub trait Rule {
+    /// If a [Rule] needs to cache data between runes, it can define a cache type here.
+    ///
+    /// An example of a rule that needs to cache data is one that calculates the shortest commit
+    /// message encountered so far. The rule processing algorithm uses a cache to avoid
+    /// reprocessing commits it's already processed, so such a rule must cache the shortest commit
+    /// it has encountered so far so that subsequent runs work correctly.
+    ///
+    /// If a [Rule] does not need to cache data, define this associated type as `()`.
+    /// Unfortunately, using a `Rule<Cache = ()>` generic parameter doesn't work with the
+    /// `RulePlugin` blanket implementation, so we unfortunately can't provide a default type of
+    /// `()` (since most rules won't need a cache).
+    type Cache: Default + serde::Serialize + for<'de> serde::Deserialize<'de> + 'static;
+
+    /// Initialize the [Rule] with the given cache.
+    ///
+    /// The rule is expected to store the cache, use it during processing, and then return it from
+    /// [Rule::fini_cache] once processing is done.
+    ///
+    /// This method will be called once after the [Rule] is constructed, but before any
+    /// [Rule::process] calls are made.
+    fn init_cache(&mut self, _cache: Self::Cache) {}
+
+    /// Finalize the cache for this [Rule]
+    ///
+    /// This method will only be called once after [Rule::finalize] has been called.
+    fn fini_cache(&self) -> Self::Cache {
+        Self::Cache::default()
+    }
+
     /// Get the list of [AchievementDescriptor]s that this [Rule] can grant
     ///
     /// This allows one [Rule] to grant multiple different types of [Achievement]s, which is useful

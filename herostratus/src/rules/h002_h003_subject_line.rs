@@ -2,13 +2,27 @@ use crate::achievement::{Achievement, AchievementDescriptor};
 use crate::config::RulesConfig;
 use crate::rules::{Rule, RuleFactory, RulePlugin};
 
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
+pub struct LengthCache {
+    shortest_length: usize,
+    longest_length: usize,
+}
+
+impl Default for LengthCache {
+    fn default() -> Self {
+        Self {
+            shortest_length: usize::MAX,
+            longest_length: usize::MIN,
+        }
+    }
+}
+
 /// The shortest subject line in a branch
 pub struct SubjectLineLength {
     descriptors: [AchievementDescriptor; 2],
     h2_config: H002Config,
     h3_config: H003Config,
-    shortest_length: usize,
-    longest_length: usize,
+    cache: LengthCache,
     shortest_so_far: Option<gix::ObjectId>,
     longest_so_far: Option<gix::ObjectId>,
 }
@@ -34,8 +48,7 @@ impl Default for SubjectLineLength {
             ],
             h2_config: H002Config::default(),
             h3_config: H003Config::default(),
-            shortest_length: usize::MAX,
-            longest_length: usize::MIN,
+            cache: LengthCache::default(),
             shortest_so_far: None,
             longest_so_far: None,
         }
@@ -86,6 +99,16 @@ fn subject_length(commit: &gix::Commit) -> usize {
 }
 
 impl Rule for SubjectLineLength {
+    type Cache = LengthCache;
+
+    fn init_cache(&mut self, cache: Self::Cache) {
+        self.cache = cache;
+    }
+
+    fn fini_cache(&self) -> Self::Cache {
+        self.cache.clone()
+    }
+
     fn get_descriptors(&self) -> &[AchievementDescriptor] {
         &self.descriptors
     }
@@ -95,12 +118,12 @@ impl Rule for SubjectLineLength {
 
     fn process(&mut self, commit: &gix::Commit, _repo: &gix::Repository) -> Vec<Achievement> {
         let length = subject_length(commit);
-        if length < self.h2_config.length_threshold && length < self.shortest_length {
-            self.shortest_length = length;
+        if length < self.h2_config.length_threshold && length < self.cache.shortest_length {
+            self.cache.shortest_length = length;
             self.shortest_so_far = Some(commit.id);
         }
-        if length > self.h3_config.length_threshold && length > self.longest_length {
-            self.longest_length = length;
+        if length > self.h3_config.length_threshold && length > self.cache.longest_length {
+            self.cache.longest_length = length;
             self.longest_so_far = Some(commit.id);
         }
 
@@ -252,7 +275,8 @@ mod tests {
         ])
         .unwrap();
         let rules = vec![subject_line_factory(&config)];
-        let achievements = grant_with_rules("HEAD", &repo.repo, None, None, "", rules).unwrap();
+        let achievements =
+            grant_with_rules("HEAD", &repo.repo, None, Some(repo.path()), "", rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
 
@@ -261,7 +285,8 @@ mod tests {
         fixtures::repository::add_empty_commit(&repo.repo, "123456").unwrap();
 
         let rules = vec![subject_line_factory(&config)];
-        let achievements = grant_with_rules("HEAD", &repo.repo, None, None, "", rules).unwrap();
+        let achievements =
+            grant_with_rules("HEAD", &repo.repo, None, Some(repo.path()), "", rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert!(achievements.is_empty());
     }
@@ -281,7 +306,8 @@ mod tests {
         ])
         .unwrap();
         let rules = vec![subject_line_factory(&config)];
-        let achievements = grant_with_rules("HEAD", &repo.repo, None, None, "", rules).unwrap();
+        let achievements =
+            grant_with_rules("HEAD", &repo.repo, None, Some(repo.path()), "", rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
 
@@ -289,7 +315,8 @@ mod tests {
         let new_shortest = fixtures::repository::add_empty_commit(&repo.repo, "123").unwrap();
 
         let rules = vec![subject_line_factory(&config)];
-        let achievements = grant_with_rules("HEAD", &repo.repo, None, None, "", rules).unwrap();
+        let achievements =
+            grant_with_rules("HEAD", &repo.repo, None, Some(repo.path()), "", rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
         assert_eq!(achievements[0].commit, new_shortest);
