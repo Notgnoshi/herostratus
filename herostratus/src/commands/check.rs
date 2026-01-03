@@ -43,19 +43,7 @@ pub fn check(args: &CheckArgs, config: Option<&Config>) -> eyre::Result<CheckSta
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or("".into());
 
-    // Use an ephemeral in-memory cache that gets discarded immediately after processing
-    let mut cache = crate::cache::EntryCache::default();
-    let data_dir = None;
-
-    check_impl(
-        config,
-        &name,
-        &args.path,
-        &args.reference,
-        args.depth,
-        &mut cache,
-        data_dir,
-    )
+    check_impl(config, &name, &args.path, &args.reference, args.depth, None)
 }
 
 fn check_impl(
@@ -64,8 +52,6 @@ fn check_impl(
     path: &Path,
     reference: &str,
     depth: Option<usize>,
-    // TODO: Replace the EntryCache with the data_dir once GlobalCache/EntryCache are removed
-    cache: &mut crate::cache::EntryCache,
     data_dir: Option<&Path>,
 ) -> eyre::Result<CheckStat> {
     tracing::info!("Checking repository {path:?}, reference {reference:?} for achievements ...");
@@ -75,7 +61,7 @@ fn check_impl(
     };
     let start = Instant::now();
     let repo = find_local_repository(path)?;
-    let mut achievements = grant(config, reference, &repo, cache, depth, data_dir, name)?;
+    let mut achievements = grant(config, reference, &repo, depth, data_dir, name)?;
 
     process_achievements(&mut achievements)?;
 
@@ -151,9 +137,6 @@ pub fn check_all(
         fetch_stats = crate::commands::fetch_all(&args.into(), config, data_dir)?;
     }
 
-    // Use a persistent JSON cache stored in the application data directory
-    let mut cache = crate::cache::GlobalCache::from_data_dir(data_dir)?;
-
     tracing::info!("Checking repositories ...");
     let start = Instant::now();
     for (name, repo_config) in config.repositories.iter() {
@@ -161,19 +144,16 @@ pub fn check_all(
             .reference
             .clone()
             .unwrap_or_else(|| String::from("HEAD"));
-        let cache = cache.get_entry_cache(name);
         let check_stat = check_impl(
             Some(config),
             name,
             &repo_config.path,
             &reference,
             args.depth,
-            cache,
             Some(data_dir),
         )?;
         check_stats.push(check_stat);
     }
-    cache.save()?;
     tracing::info!(
         "... checked {} repositories after {:.2?}",
         config.repositories.len(),

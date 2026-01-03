@@ -25,9 +25,6 @@ where
     // But we shouldn't *never* reset it, because then we'd end up holding the whole history in
     // memory. So we reset it every N commits processed.
     diff_cache: gix::diff::blob::Platform,
-    // This cache is to enable short-circuiting processing commits that have already been processed
-    // on a previous run.
-    entry_cache: &'repo mut crate::cache::EntryCache,
     checkpoint: crate::cache::CheckpointCache,
     first_commit: Option<gix::ObjectId>,
     // These are rules that were already processed on the previous run and need to be skipped on
@@ -389,9 +386,6 @@ where
         }
         self.checkpoint.data.rules = self.get_enabled_rule_ids();
         self.checkpoint.data.commit = self.first_commit;
-        for rule in &mut self.rules {
-            rule.fini_cache(self.entry_cache);
-        }
 
         // If we get to here, we've finished generating achievements, and it's time to log summary
         // stats. Use .take() so that the stats are only logged once, even if .next() is repeatedly
@@ -416,7 +410,6 @@ where
 fn process_rules<'repo, Oids>(
     oids: Oids,
     repo: &'repo gix::Repository,
-    entry_cache: &'repo mut crate::cache::EntryCache,
     data_dir: Option<&Path>,
     name: &str,
     rules: Vec<Box<dyn Rule>>,
@@ -425,13 +418,13 @@ where
     Oids: Iterator<Item = gix::ObjectId>,
 {
     let checkpoint = if let Some(dir) = data_dir {
-        crate::cache::CheckpointCache::from_data_dir(dir, "")
+        crate::cache::CheckpointCache::from_data_dir(dir, name)
             .expect("Failed to load CheckpointCache from disk")
     } else {
         crate::cache::CheckpointCache::in_memory()
     };
 
-    let mut iter = Achievements {
+    Achievements {
         repo,
         oids,
         rule_diff_interest: rules.iter().map(|r| r.is_interested_in_diffs()).collect(),
@@ -441,26 +434,19 @@ where
         diff_cache: repo
             .diff_resource_cache_for_tree_diff()
             .expect("Failed to create diff cache"),
-        entry_cache,
         checkpoint,
         first_commit: None,
         suppressed_rules: Vec::new(),
         start_processing: None,
         num_commits_processed: 0,
         num_achievements_generated: 0,
-    };
-    for rule in &mut iter.rules {
-        rule.init_cache(iter.entry_cache);
     }
-
-    iter
 }
 
 pub fn grant<'repo>(
     config: Option<&Config>,
     reference: &str,
     repo: &'repo gix::Repository,
-    cache: &'repo mut crate::cache::EntryCache,
     depth: Option<usize>,
     data_dir: Option<&Path>,
     name: &str,
@@ -468,7 +454,6 @@ pub fn grant<'repo>(
     grant_with_rules(
         reference,
         repo,
-        cache,
         depth,
         data_dir,
         name,
@@ -479,7 +464,6 @@ pub fn grant<'repo>(
 pub fn grant_with_rules<'repo>(
     reference: &str,
     repo: &'repo gix::Repository,
-    cache: &'repo mut crate::cache::EntryCache,
     depth: Option<usize>,
     data_dir: Option<&Path>,
     name: &str,
@@ -503,20 +487,12 @@ pub fn grant_with_rules<'repo>(
         Ok(process_rules(
             Box::new(oids.take(depth)),
             repo,
-            cache,
             data_dir,
             name,
             rules,
         ))
     } else {
-        Ok(process_rules(
-            Box::new(oids),
-            repo,
-            cache,
-            data_dir,
-            name,
-            rules,
-        ))
+        Ok(process_rules(Box::new(oids), repo, data_dir, name, rules))
     }
 }
 
@@ -534,9 +510,8 @@ mod tests {
     fn test_no_rules() {
         let temp_repo = fixtures::repository::simplest().unwrap();
         let rules = Vec::new();
-        let mut cache = crate::cache::EntryCache::default();
         let achievements =
-            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, None, "", rules).unwrap();
+            grant_with_rules("HEAD", &temp_repo.repo, None, None, "", rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert!(achievements.is_empty());
     }
@@ -545,9 +520,8 @@ mod tests {
     fn test_iterator_no_matches() {
         let temp_repo = fixtures::repository::simplest().unwrap();
         let rules = vec![Box::new(AlwaysFail::default()) as Box<dyn Rule>];
-        let mut cache = crate::cache::EntryCache::default();
         let achievements =
-            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, None, "", rules).unwrap();
+            grant_with_rules("HEAD", &temp_repo.repo, None, None, "", rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert!(achievements.is_empty());
     }
@@ -560,9 +534,8 @@ mod tests {
             Box::new(AlwaysFail::default()) as Box<dyn Rule>,
             Box::new(ParticipationTrophy::default()) as Box<dyn Rule>,
         ];
-        let mut cache = crate::cache::EntryCache::default();
         let achievements =
-            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, None, "", rules).unwrap();
+            grant_with_rules("HEAD", &temp_repo.repo, None, None, "", rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
     }
@@ -572,9 +545,8 @@ mod tests {
         let temp_repo = fixtures::repository::simplest().unwrap();
 
         let rules = vec![Box::new(ParticipationTrophy2::default()) as Box<dyn Rule>];
-        let mut cache = crate::cache::EntryCache::default();
         let mut achievements =
-            grant_with_rules("HEAD", &temp_repo.repo, &mut cache, None, None, "", rules).unwrap();
+            grant_with_rules("HEAD", &temp_repo.repo, None, None, "", rules).unwrap();
         let mut granted = Vec::new();
         for a in &mut achievements {
             granted.push(a);
@@ -589,7 +561,6 @@ mod tests {
     #[test]
     fn test_early_exit_no_new_rules() {
         let temp_repo = fixtures::repository::simplest().unwrap();
-        let mut cache = crate::cache::EntryCache::default();
 
         let rules = vec![
             Box::new(AlwaysFail::default()) as Box<dyn Rule>,
@@ -598,7 +569,6 @@ mod tests {
         let achievements = grant_with_rules(
             "HEAD",
             &temp_repo.repo,
-            &mut cache,
             None,
             Some(temp_repo.path()),
             "",
@@ -617,7 +587,6 @@ mod tests {
         let achievements = grant_with_rules(
             "HEAD",
             &temp_repo.repo,
-            &mut cache,
             None,
             Some(temp_repo.path()),
             "",
@@ -637,7 +606,6 @@ mod tests {
         let achievements = grant_with_rules(
             "HEAD",
             &temp_repo.repo,
-            &mut cache,
             None,
             Some(temp_repo.path()),
             "",
@@ -653,7 +621,6 @@ mod tests {
     fn test_continue_processing_with_new_rules() {
         let temp_repo = fixtures::repository::simplest().unwrap();
         let first_commit = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
-        let mut cache = crate::cache::EntryCache::default();
 
         let rules = vec![
             Box::new(AlwaysFail::default()) as Box<dyn Rule>, // 1
@@ -662,7 +629,6 @@ mod tests {
         let achievements = grant_with_rules(
             "HEAD",
             &temp_repo.repo,
-            &mut cache,
             None,
             Some(temp_repo.path()),
             "",
@@ -691,7 +657,6 @@ mod tests {
         let achievements = grant_with_rules(
             "HEAD",
             &temp_repo.repo,
-            &mut cache,
             None,
             Some(temp_repo.path()),
             "",
@@ -738,11 +703,9 @@ mod tests {
                 ],
             }) as Box<dyn Rule>,
         ];
-        let mut cache = crate::cache::EntryCache::default();
         let mut achievements = grant_with_rules(
             "HEAD",
             &temp_repo.repo,
-            &mut cache,
             None,
             Some(temp_repo.path()),
             "",
@@ -782,11 +745,9 @@ mod tests {
                 ],
             }) as Box<dyn Rule>,
         ];
-        let mut cache = crate::cache::EntryCache::default();
         let achievements = grant_with_rules(
             "HEAD",
             &temp_repo.repo,
-            &mut cache,
             None,
             Some(temp_repo.path()),
             "",
