@@ -1,4 +1,5 @@
-pub use crate::achievement::{Achievement, AchievementDescriptor, Rule};
+use crate::achievement::{Achievement, AchievementDescriptor};
+use crate::rules::Rule;
 
 pub struct AlwaysFail {
     desc: [AchievementDescriptor; 1],
@@ -18,6 +19,8 @@ impl Default for AlwaysFail {
     }
 }
 impl Rule for AlwaysFail {
+    type Cache = ();
+
     fn get_descriptors(&self) -> &[AchievementDescriptor] {
         &self.desc
     }
@@ -46,6 +49,8 @@ impl Default for ParticipationTrophy {
     }
 }
 impl Rule for ParticipationTrophy {
+    type Cache = ();
+
     fn get_descriptors(&self) -> &[AchievementDescriptor] {
         &self.desc
     }
@@ -78,6 +83,8 @@ impl Default for ParticipationTrophy2 {
     }
 }
 impl Rule for ParticipationTrophy2 {
+    type Cache = ();
+
     fn get_descriptors(&self) -> &[AchievementDescriptor] {
         &self.desc
     }
@@ -103,6 +110,8 @@ pub struct FlexibleRule {
 }
 
 impl Rule for FlexibleRule {
+    type Cache = ();
+
     fn get_descriptors(&self) -> &[AchievementDescriptor] {
         &self.descriptors
     }
@@ -121,5 +130,18 @@ impl Rule for FlexibleRule {
             }
         }
         achievements
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::rules::RulePlugin;
+
+    #[test]
+    fn test_erased_rule_name() {
+        // You still get the concrete type name even after the rule has been type-erased
+        let rule: Box<dyn RulePlugin> = Box::new(AlwaysFail::default());
+        assert_eq!(rule.name(), "AlwaysFail");
     }
 }

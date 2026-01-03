@@ -1,4 +1,5 @@
-use crate::achievement::{Achievement, AchievementDescriptor, Rule, RuleFactory};
+use crate::achievement::{Achievement, AchievementDescriptor};
+use crate::rules::{Rule, RuleFactory};
 
 /// Grant achievements for commits starting with
 ///
@@ -32,6 +33,8 @@ const FIXUP_PREFIXES: &[&str] = &[
 ];
 
 impl Rule for Fixup {
+    type Cache = ();
+
     fn get_descriptors(&self) -> &[AchievementDescriptor] {
         &self.descriptors
     }

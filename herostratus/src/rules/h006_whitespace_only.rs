@@ -1,5 +1,6 @@
-use crate::achievement::{Achievement, AchievementDescriptor, Rule, RuleFactory};
+use crate::achievement::{Achievement, AchievementDescriptor};
 use crate::bstr::BStr;
+use crate::rules::{Rule, RuleFactory};
 use crate::utils::utf8_whitespace::is_equal_ignoring_whitespace;
 
 pub struct WhitespaceOnly {
@@ -29,6 +30,8 @@ impl Default for WhitespaceOnly {
 inventory::submit!(RuleFactory::default::<WhitespaceOnly>());
 
 impl Rule for WhitespaceOnly {
+    type Cache = ();
+
     fn get_descriptors(&self) -> &[AchievementDescriptor] {
         &self.descriptors
     }

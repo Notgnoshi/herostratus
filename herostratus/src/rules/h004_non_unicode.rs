@@ -1,4 +1,5 @@
-use crate::achievement::{Achievement, AchievementDescriptor, Rule, RuleFactory};
+use crate::achievement::{Achievement, AchievementDescriptor};
+use crate::rules::{Rule, RuleFactory};
 
 pub struct NonUnicode {
     descriptors: [AchievementDescriptor; 1],
@@ -20,6 +21,8 @@ impl Default for NonUnicode {
 inventory::submit!(RuleFactory::default::<NonUnicode>());
 
 impl Rule for NonUnicode {
+    type Cache = ();
+
     fn get_descriptors(&self) -> &[AchievementDescriptor] {
         &self.descriptors
     }

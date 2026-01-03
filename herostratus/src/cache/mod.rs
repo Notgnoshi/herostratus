@@ -1,5 +1,6 @@
-mod entry;
-mod global;
+mod checkpoint;
+mod rule;
+mod utils;
 
-pub use entry::EntryCache;
-pub use global::GlobalCache;
+pub use checkpoint::{Checkpoint, CheckpointCache};
+pub use rule::RuleCache;
