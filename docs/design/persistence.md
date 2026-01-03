@@ -167,6 +167,54 @@ trait Rule {
 }
 ```
 
+There are a number of issues with this design:
+
+* Associated types with defaults aren't stable yet.
+* Associated types aren't object safe, so we can't use `Box<dyn Rule>`.
+* `inventory::submit!` / `inventory::collect!` don't work with _either_ generics / associated types
+  since it generates `impl ::inventory::Collect for RuleFactory { ... }` which is missing any hooks
+  for `impl<T> for Foo<T> {}` generics
+
+Only the implementor of the `Rule` trait cares about the definition of the cache type, so perhaps we
+can type-erase it such that the caller only sees that it's `Serialize + Deserialize + Default`?
+
+It might be possible to define two traits `RulePlugin` and `Rule`, where `RulePlugin` is the
+object-safe trait that `inventory` collects (and `process_rules` operates on), and `Rule` is the
+"simpler" trait that users actually implement, with an associated or generic type for the cache.
+
+```rust
+trait RulePlugin {
+    // serde_json::Value is used for type-erasure; it doesn't actually require the cache is JSON
+    fn init_cache_erased(&mut self, cache: serde_json::Value) -> eyre::Result<()>;
+    fn fini_cache_erased(&self) -> eyre::Result<serde_json::Value>;
+}
+
+trait Rule<Cache = ()> where Cache: Default + serde::Serialize + for<'de> serde::Deserialize<'de> {
+    fn init_cache(&mut self, cache: Cache) -> eyre::Result<()>;
+    fn fini_cache(&self) -> eyre::Result<Cache>;
+}
+```
+
+with a blanket implementation to tie them together
+
+```rust
+impl<R, C> RulePlugin for R where
+    R: Rule<C>,
+    C: Default + serde::Serialize + for<'de> serde::Deserialize<'de>,
+{
+    fn init_cache_erased(&mut self, cache: serde_json::Value) -> eyre::Result<()> {
+        let typed_cache: C = serde_json::from_value(cache)?;
+        self.init_cache(typed_cache)
+    }
+
+    fn fini_cache_erased(&self) -> eyre::Result<serde_json::Value> {
+        let concrete_cache = self.fini_cache()?;
+        let erased_cache = serde_json::to_value(typed_cache)?;
+        Ok(erased_cache)
+    }
+}
+```
+
 ## Remember Granted Achievements
 
 **DRAFT**
