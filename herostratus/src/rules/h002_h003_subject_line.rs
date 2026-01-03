@@ -1,5 +1,6 @@
-use crate::achievement::{Achievement, AchievementDescriptor, Rule, RuleFactory, RulePlugin};
+use crate::achievement::{Achievement, AchievementDescriptor};
 use crate::config::RulesConfig;
+use crate::rules::{Rule, RuleFactory, RulePlugin};
 
 /// The shortest subject line in a branch
 pub struct SubjectLineLength {

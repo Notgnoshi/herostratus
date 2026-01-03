@@ -1,4 +1,5 @@
-use crate::achievement::{Achievement, AchievementDescriptor, Rule, RuleFactory};
+use crate::achievement::{Achievement, AchievementDescriptor};
+use crate::rules::{Rule, RuleFactory};
 
 /// Grant achievements for `git commit --allow-empty` (not merge) commits
 pub struct EmptyCommit {

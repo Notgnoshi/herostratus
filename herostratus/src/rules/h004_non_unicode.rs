@@ -1,4 +1,5 @@
-use crate::achievement::{Achievement, AchievementDescriptor, Rule, RuleFactory};
+use crate::achievement::{Achievement, AchievementDescriptor};
+use crate::rules::{Rule, RuleFactory};
 
 pub struct NonUnicode {
     descriptors: [AchievementDescriptor; 1],

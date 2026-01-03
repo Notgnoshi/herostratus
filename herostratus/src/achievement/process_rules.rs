@@ -3,8 +3,9 @@ use std::time::Instant;
 
 use eyre::WrapErr;
 
-use crate::achievement::{Achievement, RulePlugin};
+use crate::achievement::Achievement;
 use crate::config::Config;
+use crate::rules::RulePlugin;
 
 /// An iterator of [Achievement]s
 pub struct Achievements<'repo, Oids>

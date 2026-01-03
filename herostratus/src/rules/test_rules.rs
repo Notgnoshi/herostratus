@@ -1,4 +1,5 @@
-use crate::achievement::{Achievement, AchievementDescriptor, Rule};
+use crate::achievement::{Achievement, AchievementDescriptor};
+use crate::rules::Rule;
 
 pub struct AlwaysFail {
     desc: [AchievementDescriptor; 1],
@@ -127,7 +128,7 @@ impl Rule for FlexibleRule {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::achievement::RulePlugin;
+    use crate::rules::RulePlugin;
 
     #[test]
     fn test_erased_rule_name() {
