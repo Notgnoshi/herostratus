@@ -22,7 +22,8 @@ pub fn exclude_all_rules_except(rule: &str) -> Config {
     }
 }
 
-/// Get a [`Command`] for the herostratus binary and the [`TempDir`] data dir used in the test
+/// Get a [`assert_cmd::Command`] for the herostratus binary and the [`TempDir`] data dir used in
+/// the test
 ///
 /// If the `config` is given, generate a config file in the data dir before returning the command,
 /// otherwise use whatever is present in the data dir.

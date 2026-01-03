@@ -34,18 +34,19 @@ impl RuleFactory {
 
 /// The external interface for [Rule]s
 ///
-/// We split the implementation of rules into two different traits: RulePlugin and Rule.
+/// We split the implementation of rules into two different traits: [RulePlugin] and [Rule].
 ///
-/// We use inventory::{submit, collect} to register RuleFactory instances that create the
-/// RulePlugins. Then the outside world interacts with rules through the RulePlugin trait. The
-/// inventory trait requires object-safe Box<dyn RulePlugin> types, so RulePlugin can't have
-/// associated types or generic types, but that's what's most convenient for Rule implementors,
+/// We use `inventory::{submit, collect}` to register [RuleFactory] instances that create the
+/// [RulePlugin]s. Then the outside world interacts with rules through the [RulePlugin] trait. The
+/// inventory trait requires object-safe `Box<dyn RulePlugin>` types, so [RulePlugin] can't have
+/// associated types or generic types, but that's what's most convenient for [Rule] implementors,
 /// especially when it comes to caching.
 ///
-/// So RulePlugin doesn't know about the Cache type, and type-erases it using serde_json::Value
-/// (which isn't JSON-specific, it's just a common type erasure method) while implementors of
-/// Rule<Config=()> can use the concrete Config type for their rule, without needing to worry about
-/// the serialization/deserialization, type erasure, or object-safety requirements.
+/// So [RulePlugin] doesn't know about the `Cache` type, and type-erases it using
+/// [serde_json::Value] (which isn't JSON-specific, it's just a common type erasure method) while
+/// implementors of `Rule<Config=()>` can use the concrete `Config` type for their rule, without
+/// needing to worry about the serialization/deserialization, type erasure, or object-safety
+/// requirements.
 ///
 /// A [Rule] is a collection of similar business logic that visits commits in a repository to
 /// grant zero or more achievements for each commit visited. It unfortunately complicates the API

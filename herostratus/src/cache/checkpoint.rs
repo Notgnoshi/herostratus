@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::cache::utils::JsonFileCache;
 
-/// A [Checkpoint] identifies a commit and what [Rule](crate::achievement::Rule)s have been
+/// A [Checkpoint] identifies a commit and what [RulePlugin](crate::rules::RulePlugin)s have been
 /// processed on all ancestors up to and including that commit.
 ///
 /// This cache is provided to enable avoiding re-processing commits that have already been

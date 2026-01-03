@@ -6,35 +6,33 @@ pub struct Achievement {
     // TODO: Identify the repository somehow
 }
 
-/// Describes an [Achivement] that a [Rule] can grant
+/// Describes an [Achievement] that a [RulePlugin](crate::rules::RulePlugin) can grant
 #[derive(Clone, Debug)]
 pub struct AchievementDescriptor {
-    /// Whether the [Rule] this descriptor belongs to will grant achievements described by this
-    /// descriptor
+    /// Whether the [RulePlugin](crate::rules::RulePlugin) this descriptor belongs to will grant
+    /// achievements described by this descriptor
     pub enabled: bool,
 
-    /// The numeric ID of this [Rule]
+    /// The numeric ID of this [Achievement]
     ///
     /// Must be unique per-rule. Either the [id](Self::id), [human_id](Self::human_id), or
-    /// [pretty_id](Self::pretty_id) may be used to identify a [Rule].
+    /// [pretty_id](Self::pretty_id) may be used to identify an [Achievement].
     pub id: usize,
 
-    /// The human ID of this [Rule]
+    /// The human ID of this [Achievement]
     ///
     /// Example: `longest-commit-subject-line`
     ///
     /// Must be unique per-rule. Either the [id](Self::id), [human_id](Self::human_id), or
-    /// [pretty_id](Self::pretty_id) may be used to identify a [Rule].
+    /// [pretty_id](Self::pretty_id) may be used to identify an [Achievement].
     pub human_id: &'static str,
 
     /// The name of the [Achievement] that this rule generates
     ///
     /// The name should generally be humorous, even if the [description](Self::description) isn't.
-    ///
-    /// There is expected to be a 1-1 correspondence between [Achievement]s and [Rule]s.
     pub name: &'static str,
 
-    /// A short flavor text describing what this [Rule] is all about
+    /// A short flavor text describing what this [Achievement] is all about
     ///
     /// Imagine the short one-sentence descriptions of Steam achievements.
     ///
@@ -61,7 +59,7 @@ impl AchievementDescriptor {
     /// Example: `H42-whats-the-question`
     ///
     /// Must be unique per-rule. Either the [id](Self::id), [human_id](Self::human_id), or
-    /// [pretty_id](Self::pretty_id) may be used to identify a [Rule].
+    /// [pretty_id](Self::pretty_id) may be used to identify an [Achievement].
     pub fn pretty_id(&self) -> String {
         format!("H{}-{}", self.id, self.human_id)
     }
