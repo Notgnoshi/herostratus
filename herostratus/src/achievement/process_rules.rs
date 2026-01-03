@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use eyre::WrapErr;
 
-use crate::achievement::{Achievement, Rule};
+use crate::achievement::{Achievement, RulePlugin};
 use crate::config::Config;
 
 /// An iterator of [Achievement]s
@@ -13,7 +13,7 @@ where
 {
     repo: &'repo gix::Repository,
     oids: Oids,
-    rules: Vec<Box<dyn Rule>>,
+    rules: Vec<Box<dyn RulePlugin>>,
     // INVARIANT: 1-1 index correspondence with `rules`
     rule_diff_interest: Vec<bool>,
 
@@ -67,7 +67,7 @@ where
             // CASE 2: New rules were added since the last time we ran; we need to suppress the old
             //         rules and continue processing commits with just the new rules.
             //
-            // PATHOLOGICAL CASE: From the last time we ran, an existing `Rule` gained a new
+            // PATHOLOGICAL CASE: From the last time we ran, an existing `RulePlugin` gained a new
             //                    `AchievementDescriptor`. Because of this edge case, we keep track
             //                    of any rules we had to suppressed, disable them here, and then
             //                    when we finalize, we can re-enable the suppressed rules
@@ -412,7 +412,7 @@ fn process_rules<'repo, Oids>(
     repo: &'repo gix::Repository,
     data_dir: Option<&Path>,
     name: &str,
-    rules: Vec<Box<dyn Rule>>,
+    rules: Vec<Box<dyn RulePlugin>>,
 ) -> Achievements<'repo, Oids>
 where
     Oids: Iterator<Item = gix::ObjectId>,
@@ -467,7 +467,7 @@ pub fn grant_with_rules<'repo>(
     depth: Option<usize>,
     data_dir: Option<&Path>,
     name: &str,
-    rules: Vec<Box<dyn Rule>>,
+    rules: Vec<Box<dyn RulePlugin>>,
 ) -> eyre::Result<Achievements<'repo, Box<dyn Iterator<Item = gix::ObjectId> + 'repo>>> {
     let rev = crate::git::rev::parse(reference, repo)
         .wrap_err(format!("Failed to rev-parse: {reference:?}"))?;
@@ -519,7 +519,7 @@ mod tests {
     #[test]
     fn test_iterator_no_matches() {
         let temp_repo = fixtures::repository::simplest().unwrap();
-        let rules = vec![Box::new(AlwaysFail::default()) as Box<dyn Rule>];
+        let rules = vec![Box::new(AlwaysFail::default()) as Box<dyn RulePlugin>];
         let achievements =
             grant_with_rules("HEAD", &temp_repo.repo, None, None, "", rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
@@ -531,8 +531,8 @@ mod tests {
         let temp_repo = fixtures::repository::simplest().unwrap();
 
         let rules = vec![
-            Box::new(AlwaysFail::default()) as Box<dyn Rule>,
-            Box::new(ParticipationTrophy::default()) as Box<dyn Rule>,
+            Box::new(AlwaysFail::default()) as Box<dyn RulePlugin>,
+            Box::new(ParticipationTrophy::default()) as Box<dyn RulePlugin>,
         ];
         let achievements =
             grant_with_rules("HEAD", &temp_repo.repo, None, None, "", rules).unwrap();
@@ -544,7 +544,7 @@ mod tests {
     fn test_awards_on_finalize() {
         let temp_repo = fixtures::repository::simplest().unwrap();
 
-        let rules = vec![Box::new(ParticipationTrophy2::default()) as Box<dyn Rule>];
+        let rules = vec![Box::new(ParticipationTrophy2::default()) as Box<dyn RulePlugin>];
         let mut achievements =
             grant_with_rules("HEAD", &temp_repo.repo, None, None, "", rules).unwrap();
         let mut granted = Vec::new();
@@ -563,8 +563,8 @@ mod tests {
         let temp_repo = fixtures::repository::simplest().unwrap();
 
         let rules = vec![
-            Box::new(AlwaysFail::default()) as Box<dyn Rule>,
-            Box::new(ParticipationTrophy::default()) as Box<dyn Rule>,
+            Box::new(AlwaysFail::default()) as Box<dyn RulePlugin>,
+            Box::new(ParticipationTrophy::default()) as Box<dyn RulePlugin>,
         ];
         let achievements = grant_with_rules(
             "HEAD",
@@ -581,8 +581,8 @@ mod tests {
         // Run the same rules again on the same repo; should early exit without granting any new
         // achievements.
         let rules = vec![
-            Box::new(AlwaysFail::default()) as Box<dyn Rule>,
-            Box::new(ParticipationTrophy::default()) as Box<dyn Rule>,
+            Box::new(AlwaysFail::default()) as Box<dyn RulePlugin>,
+            Box::new(ParticipationTrophy::default()) as Box<dyn RulePlugin>,
         ];
         let achievements = grant_with_rules(
             "HEAD",
@@ -600,8 +600,8 @@ mod tests {
         let new_commit =
             fixtures::repository::add_empty_commit(&temp_repo.repo, "new-commit").unwrap();
         let rules = vec![
-            Box::new(AlwaysFail::default()) as Box<dyn Rule>,
-            Box::new(ParticipationTrophy::default()) as Box<dyn Rule>,
+            Box::new(AlwaysFail::default()) as Box<dyn RulePlugin>,
+            Box::new(ParticipationTrophy::default()) as Box<dyn RulePlugin>,
         ];
         let achievements = grant_with_rules(
             "HEAD",
@@ -623,8 +623,8 @@ mod tests {
         let first_commit = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
 
         let rules = vec![
-            Box::new(AlwaysFail::default()) as Box<dyn Rule>, // 1
-            Box::new(ParticipationTrophy::default()) as Box<dyn Rule>, // 2
+            Box::new(AlwaysFail::default()) as Box<dyn RulePlugin>, // 1
+            Box::new(ParticipationTrophy::default()) as Box<dyn RulePlugin>, // 2
         ];
         let achievements = grant_with_rules(
             "HEAD",
@@ -645,9 +645,9 @@ mod tests {
         // Add a new rule; the new rule should process all commits; the old rules should only
         // process the newly added commit.
         let mut rules = vec![
-            Box::new(AlwaysFail::default()) as Box<dyn Rule>, // 1
-            Box::new(ParticipationTrophy::default()) as Box<dyn Rule>, // 2
-            Box::new(ParticipationTrophy::default()) as Box<dyn Rule>, // 3
+            Box::new(AlwaysFail::default()) as Box<dyn RulePlugin>, // 1
+            Box::new(ParticipationTrophy::default()) as Box<dyn RulePlugin>, // 2
+            Box::new(ParticipationTrophy::default()) as Box<dyn RulePlugin>, // 3
         ];
         rules[1].get_descriptors_mut()[0].id = 2;
         rules[1].get_descriptors_mut()[0].name = "first instance";
@@ -683,7 +683,7 @@ mod tests {
         let first_commit = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
 
         let rules = vec![
-            Box::new(AlwaysFail::default()) as Box<dyn Rule>, // 1
+            Box::new(AlwaysFail::default()) as Box<dyn RulePlugin>, // 1
             Box::new(FlexibleRule {
                 descriptors: vec![
                     AchievementDescriptor {
@@ -701,7 +701,7 @@ mod tests {
                         description: "",
                     },
                 ],
-            }) as Box<dyn Rule>,
+            }) as Box<dyn RulePlugin>,
         ];
         let mut achievements = grant_with_rules(
             "HEAD",
@@ -721,11 +721,11 @@ mod tests {
         assert_eq!(granted[0].commit, first_commit);
         assert_eq!(granted[0].name, "rule1");
 
-        // Add a new commit, and a new AchievementDescriptor to the existing Rule implementation
+        // Add a new commit, and a new AchievementDescriptor to the existing RulePlugin implementation
         let second_commit =
             fixtures::repository::add_empty_commit(&temp_repo.repo, "new-commit").unwrap();
         let rules = vec![
-            Box::new(AlwaysFail::default()) as Box<dyn Rule>, // 1
+            Box::new(AlwaysFail::default()) as Box<dyn RulePlugin>, // 1
             Box::new(FlexibleRule {
                 descriptors: vec![
                     AchievementDescriptor {
@@ -743,7 +743,7 @@ mod tests {
                         description: "",
                     },
                 ],
-            }) as Box<dyn Rule>,
+            }) as Box<dyn RulePlugin>,
         ];
         let achievements = grant_with_rules(
             "HEAD",

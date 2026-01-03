@@ -9,11 +9,11 @@ pub(crate) mod test_rules;
 
 pub use h002_h003_subject_line::{H002Config, H003Config};
 
-use crate::achievement::{Rule, RuleFactory};
+use crate::achievement::{RuleFactory, RulePlugin};
 use crate::config::{Config, RulesConfig};
 
 /// Get a new instance of each builtin [Rule]
-pub fn builtin_rules(config: Option<&Config>) -> Vec<Box<dyn Rule>> {
+pub fn builtin_rules(config: Option<&Config>) -> Vec<Box<dyn RulePlugin>> {
     let default_rules_config = RulesConfig::default();
     let rules_config = match config {
         Some(Config {
@@ -64,7 +64,7 @@ pub fn builtin_rules(config: Option<&Config>) -> Vec<Box<dyn Rule>> {
     rules
 }
 
-pub fn builtin_rules_all() -> Vec<Box<dyn Rule>> {
+pub fn builtin_rules_all() -> Vec<Box<dyn RulePlugin>> {
     builtin_rules(None)
 }
 

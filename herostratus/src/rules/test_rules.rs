@@ -1,4 +1,4 @@
-pub use crate::achievement::{Achievement, AchievementDescriptor, Rule};
+use crate::achievement::{Achievement, AchievementDescriptor, Rule};
 
 pub struct AlwaysFail {
     desc: [AchievementDescriptor; 1],
@@ -127,10 +127,12 @@ impl Rule for FlexibleRule {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::achievement::RulePlugin;
 
     #[test]
-    fn test_rule_name() {
-        let rule = AlwaysFail::default();
+    fn test_erased_rule_name() {
+        // You still get the concrete type name even after the rule has been type-erased
+        let rule: Box<dyn RulePlugin> = Box::new(AlwaysFail::default());
         assert_eq!(rule.name(), "AlwaysFail");
     }
 }

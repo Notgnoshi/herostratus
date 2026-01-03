@@ -1,4 +1,4 @@
-use crate::achievement::{Achievement, AchievementDescriptor, Rule, RuleFactory};
+use crate::achievement::{Achievement, AchievementDescriptor, Rule, RuleFactory, RulePlugin};
 use crate::config::RulesConfig;
 
 /// The shortest subject line in a branch
@@ -67,7 +67,7 @@ impl Default for H003Config {
     }
 }
 
-fn subject_line_factory(config: &RulesConfig) -> Box<dyn Rule> {
+fn subject_line_factory(config: &RulesConfig) -> Box<dyn RulePlugin> {
     Box::new(SubjectLineLength {
         h2_config: config.h2_shortest_subject_line.clone().unwrap_or_default(),
         h3_config: config.h3_longest_subject_line.clone().unwrap_or_default(),
@@ -160,7 +160,7 @@ mod tests {
         let repo =
             fixtures::repository::with_empty_commits(&["0123456789", "1234", "1234567", "12345"])
                 .unwrap();
-        let rules = vec![Box::new(SubjectLineLength::default()) as Box<dyn Rule>];
+        let rules = vec![Box::new(SubjectLineLength::default()) as Box<dyn RulePlugin>];
         let achievements = grant_with_rules("HEAD", &repo.repo, None, None, "", rules).unwrap();
         let achievements: Vec<_> = achievements.collect();
         assert_eq!(achievements.len(), 1);
@@ -178,10 +178,10 @@ mod tests {
         let repo2 =
             fixtures::repository::with_empty_commits(&["1234567890", "2345671", "1234"]).unwrap();
 
-        let rules1 = vec![Box::new(SubjectLineLength::default()) as Box<dyn Rule>];
+        let rules1 = vec![Box::new(SubjectLineLength::default()) as Box<dyn RulePlugin>];
         // grant_with_rules() consumes the rules Vec, so there _can't_ be any state held between
         // processing any two repositories
-        let rules2 = vec![Box::new(SubjectLineLength::default()) as Box<dyn Rule>];
+        let rules2 = vec![Box::new(SubjectLineLength::default()) as Box<dyn RulePlugin>];
 
         let achievements1 = grant_with_rules("HEAD", &repo1.repo, None, None, "", rules1).unwrap();
         let achievements2 = grant_with_rules("HEAD", &repo2.repo, None, None, "", rules2).unwrap();
