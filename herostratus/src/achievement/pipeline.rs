@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::{Duration, Instant};
 
 use eyre::WrapErr;
@@ -60,7 +60,7 @@ pub fn grant_with_rules(
 
     if let Some(depth) = depth {
         run_pipeline(
-            Box::new(oids.take(depth)),
+            oids.take(depth),
             repo,
             data_dir,
             name,
@@ -68,7 +68,7 @@ pub fn grant_with_rules(
             on_achievement,
         )
     } else {
-        run_pipeline(Box::new(oids), repo, data_dir, name, rules, on_achievement)
+        run_pipeline(oids, repo, data_dir, name, rules, on_achievement)
     }
 }
 
@@ -81,11 +81,10 @@ fn run_pipeline(
     mut on_achievement: impl FnMut(Achievement),
 ) -> eyre::Result<GrantStats> {
     let start = Instant::now();
-    let data_dir = data_dir.map(|d| d.to_path_buf());
 
     // Load caches
-    let checkpoint = load_checkpoint(&data_dir, name)?;
-    load_rule_caches(&mut rules, &data_dir, name)?;
+    let checkpoint = load_checkpoint(data_dir, name)?;
+    load_rule_caches(&mut rules, data_dir, name)?;
 
     let mut engine = RuleEngine::new(repo, rules);
     let mut strategy = CheckpointStrategy::new(checkpoint);
@@ -108,24 +107,7 @@ fn run_pipeline(
                 }
             }
             Continuation::EarlyExit => {
-                // Re-enable suppressed rules before finalizing
-                for id in strategy.suppressed_rule_ids() {
-                    engine.enable_rule_by_id(*id);
-                }
-                for a in engine.finalize() {
-                    emit(a, &mut num_achievements);
-                }
-                save_caches(&engine, &mut strategy, &data_dir, name)?;
-                let elapsed = start.elapsed();
-                tracing::info!(
-                    "Generated {num_achievements} achievements after processing {} commits in {elapsed:?}",
-                    engine.num_commits_processed()
-                );
-                return Ok(GrantStats {
-                    num_commits_processed: engine.num_commits_processed(),
-                    num_achievements_generated: num_achievements,
-                    elapsed,
-                });
+                break;
             }
             Continuation::SuppressAndContinue {
                 rule_ids_to_suppress,
@@ -143,7 +125,7 @@ fn run_pipeline(
         }
     }
 
-    // Normal finalization (no early exit)
+    // Finalization: re-enable suppressed rules, finalize, save caches
     for id in strategy.suppressed_rule_ids() {
         engine.enable_rule_by_id(*id);
     }
@@ -151,7 +133,7 @@ fn run_pipeline(
         emit(a, &mut num_achievements);
     }
 
-    save_caches(&engine, &mut strategy, &data_dir, name)?;
+    save_caches(&engine, &mut strategy, data_dir, name)?;
 
     let elapsed = start.elapsed();
     tracing::info!(
@@ -167,7 +149,7 @@ fn run_pipeline(
 }
 
 fn load_checkpoint(
-    data_dir: &Option<PathBuf>,
+    data_dir: Option<&Path>,
     name: &str,
 ) -> eyre::Result<crate::cache::CheckpointCache> {
     if let Some(dir) = data_dir {
@@ -179,7 +161,7 @@ fn load_checkpoint(
 
 fn load_rule_caches(
     rules: &mut [Box<dyn RulePlugin>],
-    data_dir: &Option<PathBuf>,
+    data_dir: Option<&Path>,
     name: &str,
 ) -> eyre::Result<()> {
     for rule in rules {
@@ -204,26 +186,22 @@ fn load_rule_caches(
 fn save_caches(
     engine: &RuleEngine,
     strategy: &mut CheckpointStrategy,
-    data_dir: &Option<PathBuf>,
+    data_dir: Option<&Path>,
     name: &str,
 ) -> eyre::Result<()> {
-    strategy.save_checkpoint(engine.get_enabled_rule_ids());
+    strategy.save_checkpoint(engine.get_enabled_rule_ids())?;
 
+    let Some(dir) = data_dir else {
+        return Ok(());
+    };
     for rule in engine.rules() {
-        if data_dir.is_none() {
-            break;
-        }
         if !rule.has_cache() {
             continue;
         }
-        let erased_cache = rule.fini_cache().expect("Failed to finalize rule cache");
-        let rule_cache = crate::cache::RuleCache::new_for_rule(
-            data_dir.as_ref().unwrap(),
-            name,
-            rule.name(),
-            erased_cache,
-        );
-        rule_cache.save().expect("Failed to save RuleCache to disk");
+        let erased_cache = rule.fini_cache()?;
+        let rule_cache =
+            crate::cache::RuleCache::new_for_rule(dir, name, rule.name(), erased_cache);
+        rule_cache.save()?;
     }
 
     Ok(())
@@ -261,10 +239,7 @@ fn apply_suppress_and_continue(
                 // TODO: The debug logs from this enable/disable are noisy and confusing to follow!
                 rule.enable_by_id(*id);
             }
-            let new = rule.finalize(repo);
-            if !new.is_empty() {
-                achievements.extend(new);
-            }
+            achievements.extend(rule.finalize(repo));
             // Mark it as disabled again, so we can filter out any rules that are fully disabled.
             for id in &suppressed {
                 rule.disable_by_id(*id);

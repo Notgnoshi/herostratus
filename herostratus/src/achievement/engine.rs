@@ -41,16 +41,10 @@ impl<'repo> RuleEngine<'repo> {
 
         let mut achievements = Vec::new();
         for rule in &mut self.rules {
-            let new = rule.process(&commit, self.repo);
-            if !new.is_empty() {
-                achievements.extend(new);
-            }
+            achievements.extend(rule.process(&commit, self.repo));
         }
 
-        let new = self.diff_commit(&commit);
-        if !new.is_empty() {
-            achievements.extend(new);
-        }
+        achievements.extend(self.diff_commit(&commit));
 
         const CLEAR_CACHE_EVERY_N: u64 = 50; // SWAG: Scientific Wild Ass Guess
         if self
@@ -76,8 +70,7 @@ impl<'repo> RuleEngine<'repo> {
         tracing::debug!("Finalizing rules ...");
         let mut achievements = Vec::new();
         for rule in &mut self.rules {
-            let mut temp = rule.finalize(self.repo);
-            achievements.append(&mut temp);
+            achievements.extend(rule.finalize(self.repo));
         }
         achievements
     }
@@ -103,6 +96,11 @@ impl<'repo> RuleEngine<'repo> {
 
     pub fn retain_rules(&mut self, f: impl FnMut(&Box<dyn RulePlugin>) -> bool) {
         self.rules.retain(f);
+        self.rule_diff_interest = self
+            .rules
+            .iter()
+            .map(|r| r.is_interested_in_diffs())
+            .collect();
     }
 
     pub fn rules(&self) -> &[Box<dyn RulePlugin>] {
@@ -161,10 +159,7 @@ impl<'repo> RuleEngine<'repo> {
         let mut achievements = Vec::new();
         for rule in &mut self.rules {
             if rule.is_interested_in_diffs() {
-                let new = rule.on_diff_end(commit, self.repo);
-                if !new.is_empty() {
-                    achievements.extend(new);
-                }
+                achievements.extend(rule.on_diff_end(commit, self.repo));
             }
         }
         achievements

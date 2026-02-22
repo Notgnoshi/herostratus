@@ -37,12 +37,10 @@ impl CheckpointStrategy {
             self.first_commit = Some(oid);
         }
 
-        if self.checkpoint.data.commit.is_none() {
+        let Some(last_oid) = self.checkpoint.data.commit else {
             // If there's nothing in the cache, we continue processing and don't early-exit
             return Continuation::Process;
-        }
-
-        let last_oid = self.checkpoint.data.commit.expect("Checked above");
+        };
         if oid != last_oid {
             // We've not processed this commit yet, so keep going
             return Continuation::Process;
@@ -75,15 +73,13 @@ impl CheckpointStrategy {
             .collect();
 
         // After suppressing, will there be any enabled rules left?
-        let remaining_enabled: Vec<usize> = current_enabled_ids
+        let has_remaining = current_enabled_ids
             .iter()
-            .filter(|id| !self.checkpoint.data.rules.contains(id))
-            .copied()
-            .collect();
+            .any(|id| !self.checkpoint.data.rules.contains(id));
 
         self.suppressed_rule_ids.extend(rule_ids_to_suppress.iter());
 
-        if remaining_enabled.is_empty() {
+        if !has_remaining {
             tracing::info!(
                 "No new rules added since last run; finalizing achievements and exiting early ..."
             );
@@ -107,11 +103,10 @@ impl CheckpointStrategy {
     }
 
     /// Save the checkpoint with the given enabled rule IDs.
-    pub fn save_checkpoint(&mut self, enabled_rule_ids: Vec<usize>) {
+    pub fn save_checkpoint(&mut self, enabled_rule_ids: Vec<usize>) -> eyre::Result<()> {
         self.checkpoint.data.rules = enabled_rule_ids;
         self.checkpoint.data.commit = self.first_commit;
-        // TODO: TOO MANY UNWRAPS
-        self.checkpoint.save().expect("Failed to save checkpoint");
+        self.checkpoint.save()
     }
 }
 
@@ -219,7 +214,7 @@ mod tests {
         strategy.on_commit(oid, &[1, 2]);
 
         // save_checkpoint updates internal state; verify via first_commit
-        strategy.save_checkpoint(vec![1, 2]);
+        strategy.save_checkpoint(vec![1, 2]).unwrap();
         assert_eq!(strategy.first_commit(), Some(oid));
     }
 }
