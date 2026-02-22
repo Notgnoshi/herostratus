@@ -101,13 +101,9 @@ impl CheckpointStrategy {
     }
 
     /// The first commit encountered (for checkpoint saving)
+    #[cfg(test)]
     pub fn first_commit(&self) -> Option<gix::ObjectId> {
         self.first_commit
-    }
-
-    /// Access the underlying checkpoint data (for tests and assertions)
-    pub fn checkpoint(&self) -> &CheckpointCache {
-        &self.checkpoint
     }
 
     /// Save the checkpoint with the given enabled rule IDs.

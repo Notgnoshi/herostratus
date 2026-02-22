@@ -3,7 +3,7 @@
 mod achievement;
 pub(crate) mod checkpoint_strategy;
 pub(crate) mod engine;
-mod process_rules;
+mod pipeline;
 
 pub use achievement::{Achievement, AchievementDescriptor};
-pub use process_rules::{grant, grant_with_rules};
+pub use pipeline::{GrantStats, grant, grant_with_rules};

@@ -113,10 +113,6 @@ impl<'repo> RuleEngine<'repo> {
         &mut self.rules
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.rules.is_empty()
-    }
-
     pub fn num_commits_processed(&self) -> u64 {
         self.num_commits_processed
     }
@@ -320,17 +316,5 @@ mod tests {
         engine.retain_rules(|r| r.name() != "AlwaysFail");
         assert_eq!(engine.rules().len(), 1);
         assert_eq!(engine.rules()[0].name(), "ParticipationTrophy");
-    }
-
-    #[test]
-    fn test_is_empty() {
-        let temp_repo = fixtures::repository::simplest().unwrap();
-
-        let engine = RuleEngine::new(&temp_repo.repo, Vec::new());
-        assert!(engine.is_empty());
-
-        let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(AlwaysFail::default())];
-        let engine = RuleEngine::new(&temp_repo.repo, rules);
-        assert!(!engine.is_empty());
     }
 }

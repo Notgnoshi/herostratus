@@ -159,10 +159,26 @@ impl Rule for SubjectLineLength {
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
     use herostratus_tests::fixtures;
 
     use super::*;
-    use crate::achievement::grant_with_rules;
+    use crate::achievement::{Achievement, grant_with_rules};
+
+    fn collect(
+        reference: &str,
+        repo: &gix::Repository,
+        data_dir: Option<&Path>,
+        rules: Vec<Box<dyn RulePlugin>>,
+    ) -> Vec<Achievement> {
+        let mut achievements = Vec::new();
+        grant_with_rules(reference, repo, None, data_dir, "", rules, |a| {
+            achievements.push(a);
+        })
+        .unwrap();
+        achievements
+    }
 
     #[test]
     fn test_all_above_threshold() {
@@ -174,8 +190,7 @@ mod tests {
         };
         let repo = fixtures::repository::with_empty_commits(&["0123456789", "1234567890"]).unwrap();
         let rules = vec![subject_line_factory(&config)];
-        let achievements = grant_with_rules("HEAD", &repo.repo, None, None, "", rules).unwrap();
-        let achievements: Vec<_> = achievements.collect();
+        let achievements = collect("HEAD", &repo.repo, None, rules);
         assert!(achievements.is_empty());
     }
 
@@ -185,8 +200,7 @@ mod tests {
             fixtures::repository::with_empty_commits(&["0123456789", "1234", "1234567", "12345"])
                 .unwrap();
         let rules = vec![Box::new(SubjectLineLength::default()) as Box<dyn RulePlugin>];
-        let achievements = grant_with_rules("HEAD", &repo.repo, None, None, "", rules).unwrap();
-        let achievements: Vec<_> = achievements.collect();
+        let achievements = collect("HEAD", &repo.repo, None, rules);
         assert_eq!(achievements.len(), 1);
 
         let oid = achievements[0].commit;
@@ -207,11 +221,9 @@ mod tests {
         // processing any two repositories
         let rules2 = vec![Box::new(SubjectLineLength::default()) as Box<dyn RulePlugin>];
 
-        let achievements1 = grant_with_rules("HEAD", &repo1.repo, None, None, "", rules1).unwrap();
-        let achievements2 = grant_with_rules("HEAD", &repo2.repo, None, None, "", rules2).unwrap();
-        let achievements1: Vec<_> = achievements1.collect();
+        let achievements1 = collect("HEAD", &repo1.repo, None, rules1);
+        let achievements2 = collect("HEAD", &repo2.repo, None, rules2);
         assert_eq!(achievements1.len(), 1);
-        let achievements2: Vec<_> = achievements2.collect();
         assert_eq!(achievements2.len(), 1);
 
         let oid = achievements1[0].commit;
@@ -240,8 +252,7 @@ mod tests {
         ])
         .unwrap();
         let rules = vec![subject_line_factory(&config)];
-        let achievements = grant_with_rules("HEAD", &repo.repo, None, None, "", rules).unwrap();
-        let achievements: Vec<_> = achievements.collect();
+        let achievements = collect("HEAD", &repo.repo, None, rules);
         assert_eq!(achievements.len(), 2); // two achievements: one for the shortest and longest
 
         assert_eq!(achievements[0].name, "Brevity is the soul of wit");
@@ -275,9 +286,7 @@ mod tests {
         ])
         .unwrap();
         let rules = vec![subject_line_factory(&config)];
-        let achievements =
-            grant_with_rules("HEAD", &repo.repo, None, Some(repo.path()), "", rules).unwrap();
-        let achievements: Vec<_> = achievements.collect();
+        let achievements = collect("HEAD", &repo.repo, Some(repo.path()), rules);
         assert_eq!(achievements.len(), 1);
 
         // Add another commit with a subject line shorter than the threshold, but longer than the
@@ -285,9 +294,7 @@ mod tests {
         fixtures::repository::add_empty_commit(&repo.repo, "123456").unwrap();
 
         let rules = vec![subject_line_factory(&config)];
-        let achievements =
-            grant_with_rules("HEAD", &repo.repo, None, Some(repo.path()), "", rules).unwrap();
-        let achievements: Vec<_> = achievements.collect();
+        let achievements = collect("HEAD", &repo.repo, Some(repo.path()), rules);
         assert!(achievements.is_empty());
     }
 
@@ -306,18 +313,14 @@ mod tests {
         ])
         .unwrap();
         let rules = vec![subject_line_factory(&config)];
-        let achievements =
-            grant_with_rules("HEAD", &repo.repo, None, Some(repo.path()), "", rules).unwrap();
-        let achievements: Vec<_> = achievements.collect();
+        let achievements = collect("HEAD", &repo.repo, Some(repo.path()), rules);
         assert_eq!(achievements.len(), 1);
 
         // Add another commit with a subject line shorter than the shortest so far
         let new_shortest = fixtures::repository::add_empty_commit(&repo.repo, "123").unwrap();
 
         let rules = vec![subject_line_factory(&config)];
-        let achievements =
-            grant_with_rules("HEAD", &repo.repo, None, Some(repo.path()), "", rules).unwrap();
-        let achievements: Vec<_> = achievements.collect();
+        let achievements = collect("HEAD", &repo.repo, Some(repo.path()), rules);
         assert_eq!(achievements.len(), 1);
         assert_eq!(achievements[0].commit, new_shortest);
     }

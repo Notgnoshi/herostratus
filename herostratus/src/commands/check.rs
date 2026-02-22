@@ -55,21 +55,17 @@ fn check_impl(
     data_dir: Option<&Path>,
 ) -> eyre::Result<CheckStat> {
     tracing::info!("Checking repository {path:?}, reference {reference:?} for achievements ...");
-    let mut stat = CheckStat {
-        name: name.to_string(),
-        ..Default::default()
-    };
-    let start = Instant::now();
     let repo = find_local_repository(path)?;
-    let mut achievements = grant(config, reference, &repo, depth, data_dir, name)?;
+    let stats = grant(config, reference, &repo, depth, data_dir, name, |a| {
+        process_achievement(&a);
+    })?;
 
-    process_achievements(&mut achievements)?;
-
-    stat.num_commits_checked = achievements.num_commits_processed;
-    stat.num_achievements_granted = achievements.num_achievements_generated;
-    stat.elapsed = start.elapsed();
-
-    Ok(stat)
+    Ok(CheckStat {
+        name: name.to_string(),
+        num_commits_checked: stats.num_commits_processed,
+        num_achievements_granted: stats.num_achievements_generated,
+        elapsed: stats.elapsed,
+    })
 }
 
 #[derive(Clone, Debug)]
@@ -164,10 +160,7 @@ pub fn check_all(
 }
 
 /// A common achievement sink that both check and check_all can use
-fn process_achievements(achievements: impl Iterator<Item = Achievement>) -> eyre::Result<()> {
+fn process_achievement(achievement: &Achievement) {
     // TODO: Support different output formats
-    for achievement in achievements {
-        println!("{achievement:?}");
-    }
-    Ok(())
+    println!("{achievement:?}");
 }
