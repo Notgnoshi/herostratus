@@ -4,6 +4,7 @@ use std::time::Instant;
 use eyre::WrapErr;
 
 use crate::achievement::Achievement;
+use crate::achievement::engine::RuleEngine;
 use crate::config::Config;
 use crate::rules::RulePlugin;
 
@@ -14,20 +15,12 @@ where
 {
     data_dir: Option<PathBuf>,
     repo_name: String,
-    repo: &'repo gix::Repository,
     oids: Oids,
-    rules: Vec<Box<dyn RulePlugin>>,
-    // INVARIANT: 1-1 index correspondence with `rules`
-    rule_diff_interest: Vec<bool>,
+    engine: RuleEngine<'repo>,
 
     accumulated: std::vec::IntoIter<Achievement>,
     has_finalized: bool,
 
-    // This cache is unbounded and needs to be reset periodically to avoid infinite memory growth.
-    // Don't reset it every commit, because each commit needs to lookup itself and its parent(s).
-    // But we shouldn't *never* reset it, because then we'd end up holding the whole history in
-    // memory. So we reset it every N commits processed.
-    diff_cache: gix::diff::blob::Platform,
     checkpoint: crate::cache::CheckpointCache,
     first_commit: Option<gix::ObjectId>,
     // These are rules that were already processed on the previous run and need to be skipped on
@@ -43,13 +36,6 @@ impl<Oids> Achievements<'_, Oids>
 where
     Oids: Iterator<Item = gix::ObjectId>,
 {
-    fn get_enabled_rule_ids(&self) -> Vec<usize> {
-        let descriptors = self.rules.iter().flat_map(|r| r.get_descriptors());
-        descriptors
-            .filter_map(|d| d.enabled.then_some(d.id))
-            .collect()
-    }
-
     fn try_handle_early_exit(&mut self, oid: gix::ObjectId) -> (Vec<Achievement>, bool) {
         if self.first_commit.is_none() {
             self.first_commit = Some(oid);
@@ -79,7 +65,7 @@ where
 
             // Disable any rules that were already processed from the last run
             for id in &self.checkpoint.data.rules {
-                for rule in &mut self.rules {
+                for rule in self.engine.rules_mut() {
                     for desc in rule.get_descriptors() {
                         if desc.id == *id {
                             self.suppressed_rules.push(*id);
@@ -90,7 +76,7 @@ where
             }
 
             // Do we have any enable rules to keep processing?
-            let continue_processing = !self.get_enabled_rule_ids().is_empty();
+            let continue_processing = !self.engine.get_enabled_rule_ids().is_empty();
             if !continue_processing {
                 tracing::info!(
                     "No new rules added since last run; finalizing achievements and exiting early ..."
@@ -103,7 +89,8 @@ where
             // and remove them from the list of rules to process so we can reduce how many rules
             // need to handle the commits that were already processed.
             let mut achievements = Vec::new();
-            for rule in &mut self.rules {
+            let repo = self.engine.repo();
+            for rule in self.engine.rules_mut() {
                 let is_disabled = rule.get_descriptors().iter().all(|d| !d.enabled);
                 if is_disabled {
                     let names: Vec<_> = rule.get_descriptors().iter().map(|d| d.human_id).collect();
@@ -118,7 +105,7 @@ where
                         // follow!
                         rule.enable_by_id(*suppressed);
                     }
-                    let new = rule.finalize(self.repo);
+                    let new = rule.finalize(repo);
                     if !new.is_empty() {
                         achievements.extend(new);
                     }
@@ -141,8 +128,8 @@ where
             }
 
             // Remove any rules that are fully disabled and finalized.
-            self.rules
-                .retain(|r| !r.get_descriptors().iter().all(|d| !d.enabled));
+            self.engine
+                .retain_rules(|r| !r.get_descriptors().iter().all(|d| !d.enabled));
 
             (achievements, continue_processing)
         } else {
@@ -157,144 +144,13 @@ where
             return achievements;
         }
 
-        let commit = self
-            .repo
-            .find_commit(oid)
-            .expect("Failed to find commit from Oids iterator");
-        self.num_commits_processed += 1;
-
-        for rule in &mut self.rules {
-            let new = rule.process(&commit, self.repo);
-            if !new.is_empty() {
-                achievements.extend(new);
-            }
-        }
-
-        let new = self.diff_commit(&commit);
+        let new = self.engine.process_commit(oid);
+        self.num_commits_processed = self.engine.num_commits_processed();
         if !new.is_empty() {
             achievements.extend(new);
         }
 
-        const CLEAR_CACHE_EVERY_N: u64 = 50; // SWAG: Scientific Wild Ass Guess
-        if self
-            .num_commits_processed
-            .is_multiple_of(CLEAR_CACHE_EVERY_N)
-        {
-            self.diff_cache.clear_resource_cache_keep_allocation();
-        }
-
-        if achievements.len() > 1 {
-            tracing::debug!(
-                "Generated {} achievements for commit {}",
-                achievements.len(),
-                commit.id()
-            );
-        }
-
         achievements
-    }
-
-    fn on_diff_start(&mut self, commit: &gix::Commit) {
-        for (idx, rule) in &mut self.rules.iter_mut().enumerate() {
-            let interest = rule.is_interested_in_diffs();
-            self.rule_diff_interest[idx] = interest;
-            if interest {
-                rule.on_diff_start(commit, self.repo);
-            }
-        }
-    }
-
-    fn on_diff_change(
-        &mut self,
-        commit: &gix::Commit,
-        change: gix::object::tree::diff::Change,
-    ) -> eyre::Result<gix::object::tree::diff::Action> {
-        // Can only cancel the top-level diff processing if all rules agree to cancel. But we want
-        // to stop feeding changes into Rules that have already decided to cancel.
-        let mut all_disinterested = true;
-        for (idx, rule) in &mut self.rules.iter_mut().enumerate() {
-            if self.rule_diff_interest[idx] {
-                let action = rule.on_diff_change(commit, self.repo, &change)?;
-                if let gix::object::tree::diff::Action::Cancel = action {
-                    self.rule_diff_interest[idx] = false;
-                } else {
-                    all_disinterested = false;
-                }
-            }
-        }
-
-        if all_disinterested {
-            Ok(gix::object::tree::diff::Action::Cancel)
-        } else {
-            Ok(gix::object::tree::diff::Action::Continue)
-        }
-    }
-
-    fn on_diff_end(&mut self, commit: &gix::Commit) -> Vec<Achievement> {
-        let mut achievements = Vec::new();
-        for rule in &mut self.rules {
-            if rule.is_interested_in_diffs() {
-                let new = rule.on_diff_end(commit, self.repo);
-                if !new.is_empty() {
-                    achievements.extend(new);
-                }
-            }
-        }
-        achievements
-    }
-
-    fn diff_commit(&mut self, commit: &gix::Commit) -> Vec<Achievement> {
-        self.on_diff_start(commit);
-        let mut parents = commit.parent_ids();
-        let parent = parents.next();
-        if parents.next().is_some() {
-            // This is a merge commit (has multiple parents), and we want to skip it
-            return self.on_diff_end(commit);
-        }
-
-        let commit_tree = commit.tree().unwrap();
-        let parent_tree = match parent {
-            Some(pid) => {
-                match self.repo.find_commit(pid) {
-                    Ok(parent) => parent.tree().unwrap(),
-                    // This could be a shallow clone where the parent commit is missing.
-                    Err(_) => self.repo.empty_tree(),
-                }
-            }
-            None => self.repo.empty_tree(),
-        };
-
-        let mut changes = parent_tree.changes().unwrap();
-        changes.options(|o| {
-            o.track_rewrites(None);
-        });
-
-        // Swap to avoid mutably borrowing self
-        let mut diff_cache = self.repo.diff_resource_cache_for_tree_diff().unwrap();
-        std::mem::swap(&mut diff_cache, &mut self.diff_cache);
-
-        let outcome =
-            changes.for_each_to_obtain_tree_with_cache(&commit_tree, &mut diff_cache, |change| {
-                self.on_diff_change(commit, change)
-            });
-
-        // Put the cache back
-        std::mem::swap(&mut self.diff_cache, &mut diff_cache);
-
-        match outcome {
-            Ok(_) => {}
-            Err(gix::object::tree::diff::for_each::Error::Diff(
-                gix::diff::tree_with_rewrites::Error::Diff(gix::diff::tree::Error::Cancelled),
-            )) => {
-                // It's not an error for on_diff_change to cancel processing! That's actually desirable,
-                // because it means we can short circuit processing.
-            }
-            Err(e) => {
-                panic!("Failed to diff commit {}: {e:?}", commit.id());
-            }
-        }
-
-        self.on_diff_end(commit)
     }
 
     fn process_commits_until_first_achievement(&mut self) {
@@ -311,7 +167,7 @@ where
 
     // Returning None indicates rule processing is finished
     fn get_next_achievement_online(&mut self) -> Option<Achievement> {
-        if self.rules.is_empty() {
+        if self.engine.is_empty() {
             return None;
         }
 
@@ -329,20 +185,12 @@ where
     }
 
     fn get_finalized_achievements(&mut self) -> Vec<Achievement> {
-        tracing::debug!("Finalizing rules ...");
         tracing::debug!("Re-enabling suppressed rules: {:?}", self.suppressed_rules);
         for id in &self.suppressed_rules {
-            for rule in &mut self.rules {
-                rule.enable_by_id(*id);
-            }
+            self.engine.enable_rule_by_id(*id);
         }
 
-        let mut achievements = Vec::new();
-        for rule in &mut self.rules {
-            let mut temp = rule.finalize(self.repo);
-            achievements.append(&mut temp);
-        }
-        achievements
+        self.engine.finalize()
     }
 
     fn get_next_accumulated(&mut self) -> Option<Achievement> {
@@ -392,12 +240,12 @@ where
         // stats. Use .take() so that the stats are only logged once, even if .next() is repeatedly
         // called at the end.
         if let Some(start_timestamp) = self.start_processing.take() {
-            self.checkpoint.data.rules = self.get_enabled_rule_ids();
+            self.checkpoint.data.rules = self.engine.get_enabled_rule_ids();
             self.checkpoint.data.commit = self.first_commit;
             // TODO: TOO MANY UNWRAPS
             self.checkpoint.save().expect("Failed to save checkpoint");
 
-            for rule in &self.rules {
+            for rule in self.engine.rules() {
                 if self.data_dir.is_none() {
                     break;
                 }
@@ -471,15 +319,10 @@ where
     Achievements {
         data_dir,
         repo_name: name.to_string(),
-        repo,
         oids,
-        rule_diff_interest: rules.iter().map(|r| r.is_interested_in_diffs()).collect(),
-        rules,
+        engine: RuleEngine::new(repo, rules),
         accumulated: Vec::new().into_iter(),
         has_finalized: false,
-        diff_cache: repo
-            .diff_resource_cache_for_tree_diff()
-            .expect("Failed to create diff cache"),
         checkpoint,
         first_commit: None,
         suppressed_rules: Vec::new(),
