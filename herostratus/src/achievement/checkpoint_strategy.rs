@@ -17,7 +17,6 @@ pub(crate) enum Continuation {
 pub(crate) struct CheckpointStrategy {
     checkpoint: CheckpointCache,
     first_commit: Option<gix::ObjectId>,
-    suppressed_rule_ids: Vec<usize>,
 }
 
 impl CheckpointStrategy {
@@ -25,7 +24,6 @@ impl CheckpointStrategy {
         Self {
             checkpoint,
             first_commit: None,
-            suppressed_rule_ids: Vec::new(),
         }
     }
 
@@ -54,12 +52,6 @@ impl CheckpointStrategy {
         //
         // CASE 2: New rules were added since the last time we ran; we need to suppress the old
         //         rules and continue processing commits with just the new rules.
-        //
-        // PATHOLOGICAL CASE: From the last time we ran, an existing `RulePlugin` gained a new
-        //                    `AchievementDescriptor`. Because of this edge case, we keep track
-        //                    of any rules we had to suppressed, disable them here, and then
-        //                    when we finalize, we can re-enable the suppressed rules
-        //                    (otherwise, finalization would skip over the disabled rules).
         tracing::debug!("Reached last processed commit {oid}");
 
         // Figure out which rule IDs to suppress (those that were already processed)
@@ -77,8 +69,6 @@ impl CheckpointStrategy {
             .iter()
             .any(|id| !self.checkpoint.data.rules.contains(id));
 
-        self.suppressed_rule_ids.extend(rule_ids_to_suppress.iter());
-
         if !has_remaining {
             tracing::info!(
                 "No new rules added since last run; finalizing achievements and exiting early ..."
@@ -89,11 +79,6 @@ impl CheckpointStrategy {
                 rule_ids_to_suppress,
             }
         }
-    }
-
-    /// Rule IDs that were suppressed (needed for finalization re-enabling)
-    pub fn suppressed_rule_ids(&self) -> &[usize] {
-        &self.suppressed_rule_ids
     }
 
     /// The first commit encountered (for checkpoint saving)
@@ -168,7 +153,6 @@ mod tests {
         // Hit the checkpoint with the same rules that were already processed
         let result = strategy.on_commit(checkpoint_oid, &[1, 2]);
         assert!(matches!(result, Continuation::EarlyExit));
-        assert_eq!(strategy.suppressed_rule_ids(), &[1, 2]);
     }
 
     #[test]
@@ -187,7 +171,6 @@ mod tests {
             }
             _ => panic!("Expected SuppressAndContinue"),
         }
-        assert_eq!(strategy.suppressed_rule_ids(), &[1, 2]);
     }
 
     #[test]

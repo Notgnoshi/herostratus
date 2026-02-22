@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::achievement::Achievement;
 use crate::rules::RulePlugin;
 
@@ -5,6 +7,11 @@ use crate::rules::RulePlugin;
 pub(crate) struct RuleEngine<'repo> {
     repo: &'repo gix::Repository,
     rules: Vec<Box<dyn RulePlugin>>,
+
+    /// Descriptor IDs permanently disabled by config (exclude/include). Never modified after construction.
+    config_disabled: HashSet<usize>,
+    /// Descriptor IDs temporarily suppressed during checkpoint suppress-and-continue.
+    suppressed: HashSet<usize>,
 
     // This cache is unbounded and needs to be reset periodically to avoid infinite memory growth.
     // Don't reset it every commit, because each commit needs to lookup itself and its parent(s).
@@ -15,19 +22,26 @@ pub(crate) struct RuleEngine<'repo> {
 }
 
 impl<'repo> RuleEngine<'repo> {
-    pub fn new(repo: &'repo gix::Repository, rules: Vec<Box<dyn RulePlugin>>) -> Self {
+    pub fn new(
+        repo: &'repo gix::Repository,
+        rules: Vec<Box<dyn RulePlugin>>,
+        config_disabled: HashSet<usize>,
+    ) -> Self {
         let diff_cache = repo
             .diff_resource_cache_for_tree_diff()
             .expect("Failed to create diff cache");
         Self {
             repo,
             rules,
+            config_disabled,
+            suppressed: HashSet::new(),
             diff_cache,
             num_commits_processed: 0,
         }
     }
 
-    /// Apply all enabled rules to a single commit (process + diff)
+    /// Apply all enabled rules to a single commit (process + diff).
+    /// Filters returned achievements by `config_disabled ∪ suppressed`.
     pub fn process_commit(&mut self, oid: gix::ObjectId) -> Vec<Achievement> {
         let commit = self
             .repo
@@ -50,6 +64,12 @@ impl<'repo> RuleEngine<'repo> {
             self.diff_cache.clear_resource_cache_keep_allocation();
         }
 
+        // Filter by config_disabled ∪ suppressed
+        achievements.retain(|a| {
+            !self.config_disabled.contains(&a.descriptor_id)
+                && !self.suppressed.contains(&a.descriptor_id)
+        });
+
         if achievements.len() > 1 {
             tracing::debug!(
                 "Generated {} achievements for commit {}",
@@ -61,35 +81,81 @@ impl<'repo> RuleEngine<'repo> {
         achievements
     }
 
-    /// Call finalize() on all rules, returning accumulated achievements
+    /// Call finalize() on all rules, returning accumulated achievements.
+    /// Filters returned achievements by `config_disabled` only (suppressed rules pass through).
     pub fn finalize(&mut self) -> Vec<Achievement> {
         tracing::debug!("Finalizing rules ...");
         let mut achievements = Vec::new();
         for rule in &mut self.rules {
             achievements.extend(rule.finalize(self.repo));
         }
+        achievements.retain(|a| !self.config_disabled.contains(&a.descriptor_id));
         achievements
     }
 
+    /// Returns descriptor IDs not in `config_disabled` (ignores `suppressed`).
     pub fn get_enabled_rule_ids(&self) -> Vec<usize> {
-        let descriptors = self.rules.iter().flat_map(|r| r.get_descriptors());
+        let descriptors = self.rules.iter().flat_map(|r| r.descriptors());
         descriptors
-            .filter_map(|d| d.enabled.then_some(d.id))
+            .filter_map(|d| (!self.config_disabled.contains(&d.id)).then_some(d.id))
             .collect()
     }
 
-    pub fn disable_rule_by_id(&mut self, id: usize) {
-        for rule in &mut self.rules {
-            rule.disable_by_id(id);
+    /// Add descriptor IDs to the suppressed set.
+    pub fn suppress_descriptors(&mut self, ids: &[usize]) {
+        for id in ids {
+            tracing::debug!("Suppressing descriptor {id}");
+            self.suppressed.insert(*id);
         }
     }
 
-    pub fn enable_rule_by_id(&mut self, id: usize) {
+    /// Finalize rules where ALL descriptors are inactive (config_disabled or suppressed),
+    /// then filter by config_disabled only. Returns achievements from those finalized rules.
+    pub fn finalize_inactive_rules(&mut self) -> Vec<Achievement> {
+        let mut achievements = Vec::new();
+        let repo = self.repo;
         for rule in &mut self.rules {
-            rule.enable_by_id(id);
+            let all_inactive = rule
+                .descriptors()
+                .iter()
+                .all(|d| self.config_disabled.contains(&d.id) || self.suppressed.contains(&d.id));
+            if all_inactive {
+                let names: Vec<_> = rule.descriptors().iter().map(|d| d.human_id).collect();
+                let rule_name = names.join(",");
+                tracing::debug!(
+                    "{rule_name:?} doesn't have any new achievements to process; finalizing ..."
+                );
+                achievements.extend(rule.finalize(repo));
+            } else {
+                let names: Vec<_> = rule
+                    .descriptors()
+                    .iter()
+                    .filter(|d| {
+                        !self.config_disabled.contains(&d.id) && !self.suppressed.contains(&d.id)
+                    })
+                    .map(|d| d.human_id)
+                    .collect();
+                let rule_name = names.join(",");
+                tracing::warn!(
+                    "Continuing to process new rule {rule_name:?} on already-processed commits"
+                );
+            }
         }
+        // Filter by config_disabled only (suppressed rules pass through finalization)
+        achievements.retain(|a| !self.config_disabled.contains(&a.descriptor_id));
+        achievements
     }
 
+    /// Remove rules where ALL descriptors are inactive (config_disabled or suppressed).
+    pub fn retain_active_rules(&mut self) {
+        self.rules.retain(|r| {
+            !r.descriptors()
+                .iter()
+                .all(|d| self.config_disabled.contains(&d.id) || self.suppressed.contains(&d.id))
+        });
+    }
+
+    #[cfg(test)]
     pub fn retain_rules(&mut self, f: impl FnMut(&Box<dyn RulePlugin>) -> bool) {
         self.rules.retain(f);
     }
@@ -98,16 +164,8 @@ impl<'repo> RuleEngine<'repo> {
         &self.rules
     }
 
-    pub fn rules_mut(&mut self) -> &mut [Box<dyn RulePlugin>] {
-        &mut self.rules
-    }
-
     pub fn num_commits_processed(&self) -> u64 {
         self.num_commits_processed
-    }
-
-    pub fn repo(&self) -> &'repo gix::Repository {
-        self.repo
     }
 
     fn diff_commit(&mut self, commit: &gix::Commit) -> Vec<Achievement> {
@@ -218,7 +276,7 @@ mod tests {
         let temp_repo = fixtures::repository::simplest().unwrap();
         let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
 
-        let mut engine = RuleEngine::new(&temp_repo.repo, Vec::new());
+        let mut engine = RuleEngine::new(&temp_repo.repo, Vec::new(), HashSet::new());
         let achievements = engine.process_commit(oid);
         assert!(achievements.is_empty());
         assert_eq!(engine.num_commits_processed(), 1);
@@ -230,7 +288,7 @@ mod tests {
         let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
 
         let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(AlwaysFail::default())];
-        let mut engine = RuleEngine::new(&temp_repo.repo, rules);
+        let mut engine = RuleEngine::new(&temp_repo.repo, rules, HashSet::new());
         let achievements = engine.process_commit(oid);
         assert!(achievements.is_empty());
     }
@@ -244,7 +302,7 @@ mod tests {
             Box::new(AlwaysFail::default()),
             Box::new(ParticipationTrophy::default()),
         ];
-        let mut engine = RuleEngine::new(&temp_repo.repo, rules);
+        let mut engine = RuleEngine::new(&temp_repo.repo, rules, HashSet::new());
         let achievements = engine.process_commit(oid);
         assert_eq!(achievements.len(), 1);
         assert_eq!(achievements[0].commit, oid);
@@ -256,7 +314,7 @@ mod tests {
         let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
 
         let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(ParticipationTrophy2::default())];
-        let mut engine = RuleEngine::new(&temp_repo.repo, rules);
+        let mut engine = RuleEngine::new(&temp_repo.repo, rules, HashSet::new());
 
         // process_commit yields nothing from ParticipationTrophy2
         let achievements = engine.process_commit(oid);
@@ -268,19 +326,43 @@ mod tests {
     }
 
     #[test]
-    fn test_disable_enable_rule_by_id() {
+    fn test_config_disabled_filters_process() {
+        let temp_repo = fixtures::repository::simplest().unwrap();
+        let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
+
+        let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(ParticipationTrophy::default())];
+        let mut engine = RuleEngine::new(&temp_repo.repo, rules, HashSet::from([2]));
+
+        // Achievement is generated but filtered out by config_disabled
+        let achievements = engine.process_commit(oid);
+        assert!(achievements.is_empty());
+    }
+
+    #[test]
+    fn test_suppressed_filters_process_but_not_finalize() {
+        let temp_repo = fixtures::repository::simplest().unwrap();
+
+        let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(ParticipationTrophy2::default())];
+        let mut engine = RuleEngine::new(&temp_repo.repo, rules, HashSet::new());
+        engine.suppress_descriptors(&[3]);
+
+        // finalize still lets suppressed achievements through
+        let achievements = engine.finalize();
+        assert_eq!(achievements.len(), 1);
+    }
+
+    #[test]
+    fn test_get_enabled_rule_ids() {
         let temp_repo = fixtures::repository::simplest().unwrap();
 
         let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(ParticipationTrophy::default())];
-        let mut engine = RuleEngine::new(&temp_repo.repo, rules);
+        let mut engine = RuleEngine::new(&temp_repo.repo, rules, HashSet::new());
 
         assert_eq!(engine.get_enabled_rule_ids(), vec![2]);
 
-        engine.disable_rule_by_id(2);
+        // config_disabled removes from enabled
+        engine.config_disabled.insert(2);
         assert!(engine.get_enabled_rule_ids().is_empty());
-
-        engine.enable_rule_by_id(2);
-        assert_eq!(engine.get_enabled_rule_ids(), vec![2]);
     }
 
     #[test]
@@ -291,7 +373,7 @@ mod tests {
             Box::new(AlwaysFail::default()),
             Box::new(ParticipationTrophy::default()),
         ];
-        let mut engine = RuleEngine::new(&temp_repo.repo, rules);
+        let mut engine = RuleEngine::new(&temp_repo.repo, rules, HashSet::new());
         assert_eq!(engine.rules().len(), 2);
 
         engine.retain_rules(|r| r.name() != "AlwaysFail");

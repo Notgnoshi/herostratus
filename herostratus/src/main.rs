@@ -41,7 +41,7 @@ fn main() -> eyre::Result<()> {
 
     if args.list_rules {
         let rules = herostratus::rules::builtin_rules_all();
-        let mut descriptors: Vec<_> = rules.iter().flat_map(|r| r.get_descriptors()).collect();
+        let mut descriptors: Vec<_> = rules.iter().flat_map(|r| r.descriptors()).collect();
 
         descriptors.sort_by_key(|d| d.id);
         for desc in descriptors {

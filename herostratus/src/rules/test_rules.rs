@@ -1,95 +1,64 @@
 use crate::achievement::{Achievement, AchievementDescriptor};
 use crate::rules::Rule;
 
-pub struct AlwaysFail {
-    desc: [AchievementDescriptor; 1],
-}
+const ALWAYS_FAIL_DESCRIPTORS: [AchievementDescriptor; 1] = [AchievementDescriptor {
+    id: 1,
+    human_id: "always-fail",
+    name: "Always Fail",
+    description: "This rule always fails to grant an achievement",
+}];
 
-impl Default for AlwaysFail {
-    fn default() -> Self {
-        Self {
-            desc: [AchievementDescriptor {
-                enabled: true,
-                id: 1,
-                human_id: "always-fail",
-                name: "Always Fail",
-                description: "This rule always fails to grant an achievement",
-            }],
-        }
-    }
-}
+#[derive(Default)]
+pub struct AlwaysFail;
+
 impl Rule for AlwaysFail {
     type Cache = ();
 
-    fn get_descriptors(&self) -> &[AchievementDescriptor] {
-        &self.desc
-    }
-    fn get_descriptors_mut(&mut self) -> &mut [AchievementDescriptor] {
-        &mut self.desc
+    fn descriptors(&self) -> &[AchievementDescriptor] {
+        &ALWAYS_FAIL_DESCRIPTORS
     }
     fn process(&mut self, _commit: &gix::Commit, _repo: &gix::Repository) -> Vec<Achievement> {
         Vec::new()
     }
 }
 
-pub struct ParticipationTrophy {
-    desc: [AchievementDescriptor; 1],
-}
-impl Default for ParticipationTrophy {
-    fn default() -> Self {
-        Self {
-            desc: [AchievementDescriptor {
-                enabled: true,
-                id: 2,
-                human_id: "participation-trophy",
-                name: "Always succeed",
-                description: "This rule always grants an achievement",
-            }],
-        }
-    }
-}
+const PARTICIPATION_TROPHY_DESCRIPTORS: [AchievementDescriptor; 1] = [AchievementDescriptor {
+    id: 2,
+    human_id: "participation-trophy",
+    name: "Always succeed",
+    description: "This rule always grants an achievement",
+}];
+
+#[derive(Default)]
+pub struct ParticipationTrophy;
+
 impl Rule for ParticipationTrophy {
     type Cache = ();
 
-    fn get_descriptors(&self) -> &[AchievementDescriptor] {
-        &self.desc
-    }
-    fn get_descriptors_mut(&mut self) -> &mut [AchievementDescriptor] {
-        &mut self.desc
+    fn descriptors(&self) -> &[AchievementDescriptor] {
+        &PARTICIPATION_TROPHY_DESCRIPTORS
     }
     fn process(&mut self, commit: &gix::Commit, _repo: &gix::Repository) -> Vec<Achievement> {
         tracing::debug!("Granting {:?} a participation trophy", commit.id());
-        vec![Achievement {
-            name: self.desc[0].name,
-            commit: commit.id,
-        }]
+        vec![PARTICIPATION_TROPHY_DESCRIPTORS[0].grant(commit.id)]
     }
 }
 
-pub struct ParticipationTrophy2 {
-    desc: [AchievementDescriptor; 1],
-}
-impl Default for ParticipationTrophy2 {
-    fn default() -> Self {
-        Self {
-            desc: [AchievementDescriptor {
-                enabled: true,
-                id: 3,
-                human_id: "participation-trophy-2",
-                name: "Always succeed at finalize",
-                description: "This rule always grants an achievement at finalize",
-            }],
-        }
-    }
-}
+const PARTICIPATION_TROPHY2_DESCRIPTORS: [AchievementDescriptor; 1] = [AchievementDescriptor {
+    id: 3,
+    human_id: "participation-trophy-2",
+    name: "Always succeed at finalize",
+    description: "This rule always grants an achievement at finalize",
+}];
+
+#[derive(Default)]
+pub struct ParticipationTrophy2;
+
 impl Rule for ParticipationTrophy2 {
     type Cache = ();
 
-    fn get_descriptors(&self) -> &[AchievementDescriptor] {
-        &self.desc
-    }
-    fn get_descriptors_mut(&mut self) -> &mut [AchievementDescriptor] {
-        &mut self.desc
+    fn descriptors(&self) -> &[AchievementDescriptor] {
+        &PARTICIPATION_TROPHY2_DESCRIPTORS
     }
 
     fn process(&mut self, _commit: &gix::Commit, _repo: &gix::Repository) -> Vec<Achievement> {
@@ -98,10 +67,10 @@ impl Rule for ParticipationTrophy2 {
 
     fn finalize(&mut self, _repo: &gix::Repository) -> Vec<Achievement> {
         tracing::debug!("Finalizing ParticipationTrophy2");
-        vec![Achievement {
-            name: self.desc[0].name,
-            commit: gix::ObjectId::null(gix::index::hash::Kind::Sha1),
-        }]
+        vec![
+            PARTICIPATION_TROPHY2_DESCRIPTORS[0]
+                .grant(gix::ObjectId::null(gix::index::hash::Kind::Sha1)),
+        ]
     }
 }
 
@@ -112,24 +81,15 @@ pub struct FlexibleRule {
 impl Rule for FlexibleRule {
     type Cache = ();
 
-    fn get_descriptors(&self) -> &[AchievementDescriptor] {
+    fn descriptors(&self) -> &[AchievementDescriptor] {
         &self.descriptors
-    }
-    fn get_descriptors_mut(&mut self) -> &mut [AchievementDescriptor] {
-        &mut self.descriptors
     }
 
     fn process(&mut self, commit: &gix::Commit, _repo: &gix::Repository) -> Vec<Achievement> {
-        let mut achievements = Vec::new();
-        for d in &self.descriptors {
-            if d.enabled {
-                achievements.push(Achievement {
-                    name: d.name,
-                    commit: commit.id,
-                });
-            }
-        }
-        achievements
+        self.descriptors
+            .iter()
+            .map(|d| d.grant(commit.id))
+            .collect()
     }
 }
 

@@ -1,5 +1,6 @@
 #[derive(Debug)]
 pub struct Achievement {
+    pub descriptor_id: usize,
     pub name: &'static str,
     pub commit: gix::ObjectId,
     // TODO: Add the user (how to accommodate mailmaps?)
@@ -9,10 +10,6 @@ pub struct Achievement {
 /// Describes an [Achievement] that a [RulePlugin](crate::rules::RulePlugin) can grant
 #[derive(Clone, Debug)]
 pub struct AchievementDescriptor {
-    /// Whether the [RulePlugin](crate::rules::RulePlugin) this descriptor belongs to will grant
-    /// achievements described by this descriptor
-    pub enabled: bool,
-
     /// The numeric ID of this [Achievement]
     ///
     /// Must be unique per-rule. Either the [id](Self::id), [human_id](Self::human_id), or
@@ -62,5 +59,14 @@ impl AchievementDescriptor {
     /// [pretty_id](Self::pretty_id) may be used to identify an [Achievement].
     pub fn pretty_id(&self) -> String {
         format!("H{}-{}", self.id, self.human_id)
+    }
+
+    /// Create an [Achievement] from this descriptor for the given commit
+    pub fn grant(&self, commit: gix::ObjectId) -> Achievement {
+        Achievement {
+            descriptor_id: self.id,
+            name: self.name,
+            commit,
+        }
     }
 }

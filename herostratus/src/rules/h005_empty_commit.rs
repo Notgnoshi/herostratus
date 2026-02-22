@@ -1,22 +1,21 @@
 use crate::achievement::{Achievement, AchievementDescriptor};
 use crate::rules::{Rule, RuleFactory};
 
+const DESCRIPTORS: [AchievementDescriptor; 1] = [AchievementDescriptor {
+    id: 5,
+    human_id: "empty-commit",
+    name: "You can always add more later",
+    description: "Create an empty commit containing no changes",
+}];
+
 /// Grant achievements for `git commit --allow-empty` (not merge) commits
 pub struct EmptyCommit {
-    descriptors: [AchievementDescriptor; 1],
     found_any_change: bool,
 }
 
 impl Default for EmptyCommit {
     fn default() -> Self {
         Self {
-            descriptors: [AchievementDescriptor {
-                enabled: true,
-                id: 5,
-                human_id: "empty-commit",
-                name: "You can always add more later",
-                description: "Create an empty commit containing no changes",
-            }],
             found_any_change: false,
         }
     }
@@ -27,11 +26,8 @@ inventory::submit!(RuleFactory::default::<EmptyCommit>());
 impl Rule for EmptyCommit {
     type Cache = ();
 
-    fn get_descriptors(&self) -> &[AchievementDescriptor] {
-        &self.descriptors
-    }
-    fn get_descriptors_mut(&mut self) -> &mut [AchievementDescriptor] {
-        &mut self.descriptors
+    fn descriptors(&self) -> &[AchievementDescriptor] {
+        &DESCRIPTORS
     }
 
     fn is_interested_in_diffs(&self) -> bool {
@@ -63,10 +59,7 @@ impl Rule for EmptyCommit {
         if self.found_any_change {
             Vec::new()
         } else {
-            vec![Achievement {
-                name: self.descriptors[0].name,
-                commit: commit.id,
-            }]
+            vec![DESCRIPTORS[0].grant(commit.id)]
         }
     }
 }

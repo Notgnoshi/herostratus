@@ -2,6 +2,21 @@ use crate::achievement::{Achievement, AchievementDescriptor};
 use crate::config::RulesConfig;
 use crate::rules::{Rule, RuleFactory, RulePlugin};
 
+const DESCRIPTORS: [AchievementDescriptor; 2] = [
+    AchievementDescriptor {
+        id: 2,
+        human_id: "shortest-subject-line",
+        name: "Brevity is the soul of wit",
+        description: "The shortest subject line",
+    },
+    AchievementDescriptor {
+        id: 3,
+        human_id: "longest-subject-line",
+        name: "50 characters was more of a suggestion anyways",
+        description: "The longest subject line",
+    },
+];
+
 #[derive(Clone, serde::Deserialize, serde::Serialize)]
 pub struct LengthCache {
     shortest_length: usize,
@@ -19,7 +34,6 @@ impl Default for LengthCache {
 
 /// The shortest subject line in a branch
 pub struct SubjectLineLength {
-    descriptors: [AchievementDescriptor; 2],
     h2_config: H002Config,
     h3_config: H003Config,
     cache: LengthCache,
@@ -30,22 +44,6 @@ pub struct SubjectLineLength {
 impl Default for SubjectLineLength {
     fn default() -> Self {
         Self {
-            descriptors: [
-                AchievementDescriptor {
-                    enabled: true,
-                    id: 2,
-                    human_id: "shortest-subject-line",
-                    name: "Brevity is the soul of wit",
-                    description: "The shortest subject line",
-                },
-                AchievementDescriptor {
-                    enabled: true,
-                    id: 3,
-                    human_id: "longest-subject-line",
-                    name: "50 characters was more of a suggestion anyways",
-                    description: "The longest subject line",
-                },
-            ],
             h2_config: H002Config::default(),
             h3_config: H003Config::default(),
             cache: LengthCache::default(),
@@ -109,11 +107,8 @@ impl Rule for SubjectLineLength {
         self.cache.clone()
     }
 
-    fn get_descriptors(&self) -> &[AchievementDescriptor] {
-        &self.descriptors
-    }
-    fn get_descriptors_mut(&mut self) -> &mut [AchievementDescriptor] {
-        &mut self.descriptors
+    fn descriptors(&self) -> &[AchievementDescriptor] {
+        &DESCRIPTORS
     }
 
     fn process(&mut self, commit: &gix::Commit, _repo: &gix::Repository) -> Vec<Achievement> {
@@ -134,23 +129,13 @@ impl Rule for SubjectLineLength {
         let mut achievements = Vec::new();
 
         // shortest subject line
-        if self.descriptors[0].enabled
-            && let Some(oid) = self.shortest_so_far
-        {
-            achievements.push(Achievement {
-                name: self.descriptors[0].name,
-                commit: oid,
-            });
+        if let Some(oid) = self.shortest_so_far {
+            achievements.push(DESCRIPTORS[0].grant(oid));
         }
 
         // longest subject line
-        if self.descriptors[1].enabled
-            && let Some(oid) = self.longest_so_far
-        {
-            achievements.push(Achievement {
-                name: self.descriptors[1].name,
-                commit: oid,
-            });
+        if let Some(oid) = self.longest_so_far {
+            achievements.push(DESCRIPTORS[1].grant(oid));
         }
 
         achievements

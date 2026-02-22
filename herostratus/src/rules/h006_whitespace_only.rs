@@ -3,8 +3,14 @@ use crate::bstr::BStr;
 use crate::rules::{Rule, RuleFactory};
 use crate::utils::utf8_whitespace::is_equal_ignoring_whitespace;
 
+const DESCRIPTORS: [AchievementDescriptor; 1] = [AchievementDescriptor {
+    id: 6,
+    human_id: "whitespace-only",
+    name: "Whitespace Warrior",
+    description: "Make a whitespace-only change",
+}];
+
 pub struct WhitespaceOnly {
-    descriptors: [AchievementDescriptor; 1],
     /// Whether any non-whitespace change was found
     found_non_whitespace_difference: bool,
     /// Whether any change was found at all
@@ -14,13 +20,6 @@ pub struct WhitespaceOnly {
 impl Default for WhitespaceOnly {
     fn default() -> Self {
         Self {
-            descriptors: [AchievementDescriptor {
-                enabled: true,
-                id: 6,
-                human_id: "whitespace-only",
-                name: "Whitespace Warrior",
-                description: "Make a whitespace-only change",
-            }],
             found_non_whitespace_difference: false,
             found_any_change: false,
         }
@@ -32,11 +31,8 @@ inventory::submit!(RuleFactory::default::<WhitespaceOnly>());
 impl Rule for WhitespaceOnly {
     type Cache = ();
 
-    fn get_descriptors(&self) -> &[AchievementDescriptor] {
-        &self.descriptors
-    }
-    fn get_descriptors_mut(&mut self) -> &mut [AchievementDescriptor] {
-        &mut self.descriptors
+    fn descriptors(&self) -> &[AchievementDescriptor] {
+        &DESCRIPTORS
     }
 
     fn is_interested_in_diffs(&self) -> bool {
@@ -86,10 +82,7 @@ impl Rule for WhitespaceOnly {
         if self.found_non_whitespace_difference || !self.found_any_change {
             Vec::new()
         } else {
-            vec![Achievement {
-                name: self.descriptors[0].name,
-                commit: commit.id,
-            }]
+            vec![DESCRIPTORS[0].grant(commit.id)]
         }
     }
 }

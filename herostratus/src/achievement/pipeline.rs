@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
@@ -24,13 +25,15 @@ pub fn grant(
     name: &str,
     on_achievement: impl FnMut(Achievement),
 ) -> eyre::Result<GrantStats> {
-    grant_with_rules(
+    let (rules, config_disabled) = crate::rules::builtin_rules(config);
+    grant_with_rules_and_disabled(
         reference,
         repo,
         depth,
         data_dir,
         name,
-        crate::rules::builtin_rules(config),
+        rules,
+        config_disabled,
         on_achievement,
     )
 }
@@ -42,6 +45,28 @@ pub fn grant_with_rules(
     data_dir: Option<&Path>,
     name: &str,
     rules: Vec<Box<dyn RulePlugin>>,
+    on_achievement: impl FnMut(Achievement),
+) -> eyre::Result<GrantStats> {
+    grant_with_rules_and_disabled(
+        reference,
+        repo,
+        depth,
+        data_dir,
+        name,
+        rules,
+        HashSet::new(),
+        on_achievement,
+    )
+}
+
+fn grant_with_rules_and_disabled(
+    reference: &str,
+    repo: &gix::Repository,
+    depth: Option<usize>,
+    data_dir: Option<&Path>,
+    name: &str,
+    rules: Vec<Box<dyn RulePlugin>>,
+    config_disabled: HashSet<usize>,
     on_achievement: impl FnMut(Achievement),
 ) -> eyre::Result<GrantStats> {
     let rev = crate::git::rev::parse(reference, repo)
@@ -65,10 +90,19 @@ pub fn grant_with_rules(
             data_dir,
             name,
             rules,
+            config_disabled,
             on_achievement,
         )
     } else {
-        run_pipeline(oids, repo, data_dir, name, rules, on_achievement)
+        run_pipeline(
+            oids,
+            repo,
+            data_dir,
+            name,
+            rules,
+            config_disabled,
+            on_achievement,
+        )
     }
 }
 
@@ -78,6 +112,7 @@ fn run_pipeline(
     data_dir: Option<&Path>,
     name: &str,
     mut rules: Vec<Box<dyn RulePlugin>>,
+    config_disabled: HashSet<usize>,
     mut on_achievement: impl FnMut(Achievement),
 ) -> eyre::Result<GrantStats> {
     let start = Instant::now();
@@ -86,7 +121,7 @@ fn run_pipeline(
     let checkpoint = load_checkpoint(data_dir, name)?;
     load_rule_caches(&mut rules, data_dir, name)?;
 
-    let mut engine = RuleEngine::new(repo, rules);
+    let mut engine = RuleEngine::new(repo, rules, config_disabled);
     let mut strategy = CheckpointStrategy::new(checkpoint);
     let mut num_achievements: u64 = 0;
 
@@ -112,8 +147,7 @@ fn run_pipeline(
             Continuation::SuppressAndContinue {
                 rule_ids_to_suppress,
             } => {
-                let early =
-                    apply_suppress_and_continue(&mut engine, &strategy, &rule_ids_to_suppress);
+                let early = apply_suppress_and_continue(&mut engine, &rule_ids_to_suppress);
                 for a in early {
                     emit(a, &mut num_achievements);
                 }
@@ -125,10 +159,7 @@ fn run_pipeline(
         }
     }
 
-    // Finalization: re-enable suppressed rules, finalize, save caches
-    for id in strategy.suppressed_rule_ids() {
-        engine.enable_rule_by_id(*id);
-    }
+    // Finalization
     for a in engine.finalize() {
         emit(a, &mut num_achievements);
     }
@@ -207,59 +238,15 @@ fn save_caches(
     Ok(())
 }
 
-/// Apply the SuppressAndContinue directive: disable old rules, early-finalize fully-disabled
-/// rules, and remove them from the engine.
+/// Apply the SuppressAndContinue directive: suppress old descriptors, early-finalize
+/// fully-inactive rules, and remove them from the engine.
 fn apply_suppress_and_continue(
     engine: &mut RuleEngine,
-    strategy: &CheckpointStrategy,
     rule_ids_to_suppress: &[usize],
 ) -> Vec<Achievement> {
-    // Disable the previously-processed rules
-    for id in rule_ids_to_suppress {
-        engine.disable_rule_by_id(*id);
-    }
-
-    // As an optimization, if there are any rules we can skip entirely, finalize them now
-    // and remove them from the list of rules to process so we can reduce how many rules
-    // need to handle the commits that were already processed.
-    let mut achievements = Vec::new();
-    let suppressed = strategy.suppressed_rule_ids().to_vec();
-    let repo = engine.repo();
-    for rule in engine.rules_mut() {
-        let is_disabled = rule.get_descriptors().iter().all(|d| !d.enabled);
-        if is_disabled {
-            let names: Vec<_> = rule.get_descriptors().iter().map(|d| d.human_id).collect();
-            let rule_name = names.join(",");
-
-            tracing::debug!(
-                "{rule_name:?} doesn't have any new achievements to process; finalizing ..."
-            );
-            // Need to re-enable it temporarily so that finalizing it works as expected.
-            for id in &suppressed {
-                // TODO: The debug logs from this enable/disable are noisy and confusing to follow!
-                rule.enable_by_id(*id);
-            }
-            achievements.extend(rule.finalize(repo));
-            // Mark it as disabled again, so we can filter out any rules that are fully disabled.
-            for id in &suppressed {
-                rule.disable_by_id(*id);
-            }
-        } else {
-            let names: Vec<_> = rule
-                .get_descriptors()
-                .iter()
-                .filter_map(|d| d.enabled.then_some(d.human_id))
-                .collect();
-            let rule_name = names.join(",");
-            tracing::warn!(
-                "Continuing to process new rule {rule_name:?} on already-processed commits"
-            );
-        }
-    }
-
-    // Remove any rules that are fully disabled and finalized.
-    engine.retain_rules(|r| !r.get_descriptors().iter().all(|d| !d.enabled));
-
+    engine.suppress_descriptors(rule_ids_to_suppress);
+    let achievements = engine.finalize_inactive_rules();
+    engine.retain_active_rules();
     achievements
 }
 
@@ -378,15 +365,25 @@ mod tests {
 
         // Add a new rule; the new rule should process all commits; the old rules should only
         // process the newly added commit.
-        let mut rules = vec![
+        let rules = vec![
             Box::new(AlwaysFail::default()) as Box<dyn RulePlugin>, // 1
-            Box::new(ParticipationTrophy::default()) as Box<dyn RulePlugin>, // 2
-            Box::new(ParticipationTrophy::default()) as Box<dyn RulePlugin>, // 3
+            Box::new(FlexibleRule {
+                descriptors: vec![AchievementDescriptor {
+                    id: 2,
+                    human_id: "participation-trophy",
+                    name: "first instance",
+                    description: "This rule always grants an achievement",
+                }],
+            }) as Box<dyn RulePlugin>,
+            Box::new(FlexibleRule {
+                descriptors: vec![AchievementDescriptor {
+                    id: 3,
+                    human_id: "participation-trophy-2",
+                    name: "second instance",
+                    description: "This rule always grants an achievement",
+                }],
+            }) as Box<dyn RulePlugin>,
         ];
-        rules[1].get_descriptors_mut()[0].id = 2;
-        rules[1].get_descriptors_mut()[0].name = "first instance";
-        rules[2].get_descriptors_mut()[0].id = 3;
-        rules[2].get_descriptors_mut()[0].name = "second instance";
 
         let (achievements, _) =
             collect_achievements("HEAD", &temp_repo.repo, Some(temp_repo.path()), rules);
@@ -408,25 +405,16 @@ mod tests {
         let temp_repo = fixtures::repository::simplest().unwrap();
         let first_commit = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
 
+        // First run: FlexibleRule only has descriptor id=2
         let rules = vec![
             Box::new(AlwaysFail::default()) as Box<dyn RulePlugin>, // 1
             Box::new(FlexibleRule {
-                descriptors: vec![
-                    AchievementDescriptor {
-                        enabled: true,
-                        id: 2,
-                        human_id: "rule1",
-                        name: "rule1",
-                        description: "",
-                    },
-                    AchievementDescriptor {
-                        enabled: false,
-                        id: 3,
-                        human_id: "rule2",
-                        name: "rule2",
-                        description: "",
-                    },
-                ],
+                descriptors: vec![AchievementDescriptor {
+                    id: 2,
+                    human_id: "rule1",
+                    name: "rule1",
+                    description: "first rule descriptor",
+                }],
             }) as Box<dyn RulePlugin>,
         ];
         let (granted, _) =
@@ -438,23 +426,22 @@ mod tests {
         // Add a new commit, and a new AchievementDescriptor to the existing RulePlugin implementation
         let second_commit =
             fixtures::repository::add_empty_commit(&temp_repo.repo, "new-commit").unwrap();
+        // Second run: FlexibleRule now has both descriptor id=2 and id=3
         let rules = vec![
             Box::new(AlwaysFail::default()) as Box<dyn RulePlugin>, // 1
             Box::new(FlexibleRule {
                 descriptors: vec![
                     AchievementDescriptor {
-                        enabled: true,
                         id: 2,
                         human_id: "rule1",
                         name: "rule1",
-                        description: "",
+                        description: "first rule descriptor",
                     },
                     AchievementDescriptor {
-                        enabled: true,
                         id: 3,
                         human_id: "rule2",
                         name: "rule2",
-                        description: "",
+                        description: "second rule descriptor",
                     },
                 ],
             }) as Box<dyn RulePlugin>,

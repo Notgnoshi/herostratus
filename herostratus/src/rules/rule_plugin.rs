@@ -58,14 +58,6 @@ pub trait RulePlugin {
     /// This is not the name of the [Achievement]s granted by this [Rule], but rather of the [Rule]
     /// itself. This is used for logging, and for caching data specific to particular [Rule]s.
     fn name(&self) -> &'static str;
-    /// Disable granting the [AchievementDescriptor] with the given ID.
-    ///
-    /// This allows individual [AchievementDescriptor]s to be enabled/disabled for any given Rule.
-    fn disable_by_id(&mut self, id: usize);
-    /// Enable granting the [AchievementDescriptor] with the given ID.
-    ///
-    /// This allows individual [AchievementDescriptor]s to be enabled/disabled for any given Rule.
-    fn enable_by_id(&mut self, id: usize);
 
     /// Determine if this [RulePlugin] cares about caching
     fn has_cache(&self) -> bool;
@@ -78,8 +70,7 @@ pub trait RulePlugin {
     //
     // We don't do a RulePlugin: Rule super trait to inherit these methods; we use a blanket impl
     // instead so that Rule can use generics that the inventory system can't handle.
-    fn get_descriptors(&self) -> &[AchievementDescriptor];
-    fn get_descriptors_mut(&mut self) -> &mut [AchievementDescriptor];
+    fn descriptors(&self) -> &[AchievementDescriptor];
     fn process(&mut self, commit: &gix::Commit, repo: &gix::Repository) -> Vec<Achievement>;
     fn finalize(&mut self, repo: &gix::Repository) -> Vec<Achievement>;
     fn is_interested_in_diffs(&self) -> bool;
@@ -105,24 +96,6 @@ where
         }
     }
 
-    fn disable_by_id(&mut self, id: usize) {
-        for d in self.get_descriptors_mut() {
-            if d.id == id {
-                tracing::debug!("Disabling achievement {:?}", d.pretty_id());
-                d.enabled = false;
-            }
-        }
-    }
-
-    fn enable_by_id(&mut self, id: usize) {
-        for d in self.get_descriptors_mut() {
-            if d.id == id {
-                tracing::debug!("Enabling achievement {:?}", d.pretty_id());
-                d.enabled = true;
-            }
-        }
-    }
-
     fn has_cache(&self) -> bool {
         std::any::TypeId::of::<R::Cache>() != std::any::TypeId::of::<()>() // () is the default "no cache" type
     }
@@ -145,11 +118,8 @@ where
     }
 
     // Everything else is just forwarded to the Rule impl
-    fn get_descriptors(&self) -> &[AchievementDescriptor] {
-        <R>::get_descriptors(self)
-    }
-    fn get_descriptors_mut(&mut self) -> &mut [AchievementDescriptor] {
-        <R>::get_descriptors_mut(self)
+    fn descriptors(&self) -> &[AchievementDescriptor] {
+        <R>::descriptors(self)
     }
     fn process(&mut self, commit: &gix::Commit, repo: &gix::Repository) -> Vec<Achievement> {
         <R>::process(self, commit, repo)
