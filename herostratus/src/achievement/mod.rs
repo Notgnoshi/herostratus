@@ -1,6 +1,7 @@
 //! The API that defines an achievement, and its parsing rules
 #[allow(clippy::module_inception)]
 mod achievement;
+pub(crate) mod checkpoint_strategy;
 pub(crate) mod engine;
 mod process_rules;
 
