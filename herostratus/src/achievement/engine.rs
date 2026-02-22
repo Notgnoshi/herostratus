@@ -155,16 +155,13 @@ impl<'repo> RuleEngine<'repo> {
             o.track_rewrites(None);
         });
 
-        // Swap to avoid mutably borrowing self
-        let mut diff_cache = self.repo.diff_resource_cache_for_tree_diff().unwrap();
-        std::mem::swap(&mut diff_cache, &mut self.diff_cache);
-
         // Use partial borrows so the closure can capture individual fields instead of &mut self
         let rules = &mut self.rules;
         let repo = self.repo;
+        let diff_cache = &mut self.diff_cache;
 
         let outcome =
-            changes.for_each_to_obtain_tree_with_cache(&commit_tree, &mut diff_cache, |change| {
+            changes.for_each_to_obtain_tree_with_cache(&commit_tree, diff_cache, |change| {
                 // Can only cancel the top-level diff processing if all rules agree to cancel.
                 // But we want to stop feeding changes into Rules that have already cancelled.
                 let mut all_disinterested = true;
@@ -185,9 +182,6 @@ impl<'repo> RuleEngine<'repo> {
                     Ok::<_, eyre::Report>(gix::object::tree::diff::Action::Continue)
                 }
             });
-
-        // Put the cache back
-        std::mem::swap(&mut self.diff_cache, &mut diff_cache);
 
         match outcome {
             Ok(_) => {}
