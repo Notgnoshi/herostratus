@@ -33,24 +33,13 @@ impl Default for LengthCache {
 }
 
 /// The shortest subject line in a branch
+#[derive(Default)]
 pub struct SubjectLineLength {
     h2_config: H002Config,
     h3_config: H003Config,
     cache: LengthCache,
     shortest_so_far: Option<gix::ObjectId>,
     longest_so_far: Option<gix::ObjectId>,
-}
-
-impl Default for SubjectLineLength {
-    fn default() -> Self {
-        Self {
-            h2_config: H002Config::default(),
-            h3_config: H003Config::default(),
-            cache: LengthCache::default(),
-            shortest_so_far: None,
-            longest_so_far: None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]

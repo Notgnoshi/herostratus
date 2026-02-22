@@ -9,16 +9,9 @@ const DESCRIPTORS: [AchievementDescriptor; 1] = [AchievementDescriptor {
 }];
 
 /// Grant achievements for `git commit --allow-empty` (not merge) commits
+#[derive(Default)]
 pub struct EmptyCommit {
     found_any_change: bool,
-}
-
-impl Default for EmptyCommit {
-    fn default() -> Self {
-        Self {
-            found_any_change: false,
-        }
-    }
 }
 
 inventory::submit!(RuleFactory::default::<EmptyCommit>());

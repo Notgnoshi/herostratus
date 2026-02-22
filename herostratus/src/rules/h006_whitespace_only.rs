@@ -10,20 +10,12 @@ const DESCRIPTORS: [AchievementDescriptor; 1] = [AchievementDescriptor {
     description: "Make a whitespace-only change",
 }];
 
+#[derive(Default)]
 pub struct WhitespaceOnly {
     /// Whether any non-whitespace change was found
     found_non_whitespace_difference: bool,
     /// Whether any change was found at all
     found_any_change: bool,
-}
-
-impl Default for WhitespaceOnly {
-    fn default() -> Self {
-        Self {
-            found_non_whitespace_difference: false,
-            found_any_change: false,
-        }
-    }
 }
 
 inventory::submit!(RuleFactory::default::<WhitespaceOnly>());

@@ -101,7 +101,7 @@ mod tests {
     #[test]
     fn test_erased_rule_name() {
         // You still get the concrete type name even after the rule has been type-erased
-        let rule: Box<dyn RulePlugin> = Box::new(AlwaysFail::default());
+        let rule: Box<dyn RulePlugin> = Box::new(AlwaysFail);
         assert_eq!(rule.name(), "AlwaysFail");
     }
 }

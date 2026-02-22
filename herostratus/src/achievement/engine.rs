@@ -287,7 +287,7 @@ mod tests {
         let temp_repo = fixtures::repository::simplest().unwrap();
         let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
 
-        let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(AlwaysFail::default())];
+        let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(AlwaysFail)];
         let mut engine = RuleEngine::new(&temp_repo.repo, rules, HashSet::new());
         let achievements = engine.process_commit(oid);
         assert!(achievements.is_empty());
@@ -298,10 +298,8 @@ mod tests {
         let temp_repo = fixtures::repository::simplest().unwrap();
         let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
 
-        let rules: Vec<Box<dyn RulePlugin>> = vec![
-            Box::new(AlwaysFail::default()),
-            Box::new(ParticipationTrophy::default()),
-        ];
+        let rules: Vec<Box<dyn RulePlugin>> =
+            vec![Box::new(AlwaysFail), Box::new(ParticipationTrophy)];
         let mut engine = RuleEngine::new(&temp_repo.repo, rules, HashSet::new());
         let achievements = engine.process_commit(oid);
         assert_eq!(achievements.len(), 1);
@@ -313,7 +311,7 @@ mod tests {
         let temp_repo = fixtures::repository::simplest().unwrap();
         let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
 
-        let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(ParticipationTrophy2::default())];
+        let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(ParticipationTrophy2)];
         let mut engine = RuleEngine::new(&temp_repo.repo, rules, HashSet::new());
 
         // process_commit yields nothing from ParticipationTrophy2
@@ -330,7 +328,7 @@ mod tests {
         let temp_repo = fixtures::repository::simplest().unwrap();
         let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
 
-        let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(ParticipationTrophy::default())];
+        let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(ParticipationTrophy)];
         let mut engine = RuleEngine::new(&temp_repo.repo, rules, HashSet::from([2]));
 
         // Achievement is generated but filtered out by config_disabled
@@ -342,7 +340,7 @@ mod tests {
     fn test_suppressed_filters_process_but_not_finalize() {
         let temp_repo = fixtures::repository::simplest().unwrap();
 
-        let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(ParticipationTrophy2::default())];
+        let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(ParticipationTrophy2)];
         let mut engine = RuleEngine::new(&temp_repo.repo, rules, HashSet::new());
         engine.suppress_descriptors(&[3]);
 
@@ -355,7 +353,7 @@ mod tests {
     fn test_get_enabled_rule_ids() {
         let temp_repo = fixtures::repository::simplest().unwrap();
 
-        let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(ParticipationTrophy::default())];
+        let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(ParticipationTrophy)];
         let mut engine = RuleEngine::new(&temp_repo.repo, rules, HashSet::new());
 
         assert_eq!(engine.get_enabled_rule_ids(), vec![2]);
@@ -369,10 +367,8 @@ mod tests {
     fn test_retain_rules() {
         let temp_repo = fixtures::repository::simplest().unwrap();
 
-        let rules: Vec<Box<dyn RulePlugin>> = vec![
-            Box::new(AlwaysFail::default()),
-            Box::new(ParticipationTrophy::default()),
-        ];
+        let rules: Vec<Box<dyn RulePlugin>> =
+            vec![Box::new(AlwaysFail), Box::new(ParticipationTrophy)];
         let mut engine = RuleEngine::new(&temp_repo.repo, rules, HashSet::new());
         assert_eq!(engine.rules().len(), 2);
 
