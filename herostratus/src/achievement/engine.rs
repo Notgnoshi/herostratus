@@ -226,7 +226,7 @@ impl<'repo> RuleEngine<'repo> {
                 for (idx, rule) in rules.iter_mut().enumerate() {
                     if diff_active[idx] {
                         let action = rule.on_diff_change(commit, repo, &change)?;
-                        if let gix::object::tree::diff::Action::Cancel = action {
+                        if let gix::object::tree::diff::Action::Break(()) = action {
                             diff_active[idx] = false;
                         } else {
                             all_disinterested = false;
@@ -235,9 +235,9 @@ impl<'repo> RuleEngine<'repo> {
                 }
 
                 if all_disinterested {
-                    Ok::<_, eyre::Report>(gix::object::tree::diff::Action::Cancel)
+                    Ok::<_, eyre::Report>(gix::object::tree::diff::Action::Break(()))
                 } else {
-                    Ok::<_, eyre::Report>(gix::object::tree::diff::Action::Continue)
+                    Ok::<_, eyre::Report>(gix::object::tree::diff::Action::Continue(()))
                 }
             });
 

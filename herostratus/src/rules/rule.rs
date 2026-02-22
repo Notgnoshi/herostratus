@@ -83,7 +83,7 @@ pub trait Rule {
         _repo: &gix::Repository,
         _change: &gix::object::tree::diff::Change,
     ) -> eyre::Result<gix::object::tree::diff::Action> {
-        Ok(gix::object::tree::diff::Action::Cancel)
+        Ok(gix::object::tree::diff::Action::Break(()))
     }
 
     /// Handle the end of the diff for the given commit

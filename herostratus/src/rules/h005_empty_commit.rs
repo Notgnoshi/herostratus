@@ -52,7 +52,7 @@ impl Rule for EmptyCommit {
         _change: &gix::object::tree::diff::Change,
     ) -> eyre::Result<gix::object::tree::diff::Action> {
         self.found_any_change = true;
-        Ok(gix::object::tree::diff::Action::Cancel)
+        Ok(gix::object::tree::diff::Action::Break(()))
     }
 
     fn on_diff_end(&mut self, commit: &gix::Commit, _repo: &gix::Repository) -> Vec<Achievement> {

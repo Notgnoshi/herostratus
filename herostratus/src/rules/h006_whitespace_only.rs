@@ -62,7 +62,7 @@ impl Rule for WhitespaceOnly {
                 if entry_mode.is_commit() {
                     // Submodule updates look like commit entry modes
                     self.found_non_whitespace_difference = true;
-                    return Ok(gix::object::tree::diff::Action::Cancel);
+                    return Ok(gix::object::tree::diff::Action::Break(()));
                 }
                 self.on_modification(commit, repo, *previous_id, *id)
             }
@@ -72,7 +72,7 @@ impl Rule for WhitespaceOnly {
             | gix::object::tree::diff::Change::Deletion { .. }
             | gix::object::tree::diff::Change::Rewrite { .. } => {
                 self.found_non_whitespace_difference = true;
-                Ok(gix::object::tree::diff::Action::Cancel)
+                Ok(gix::object::tree::diff::Action::Break(()))
             }
         }
     }
@@ -112,7 +112,7 @@ impl WhitespaceOnly {
             })
             .unwrap();
         if before.kind == gix::object::Kind::Tree {
-            return Ok(gix::object::tree::diff::Action::Continue);
+            return Ok(gix::object::tree::diff::Action::Continue(()));
         }
 
         let before_s = BStr::new(&before.data);
@@ -120,9 +120,9 @@ impl WhitespaceOnly {
 
         if !is_equal_ignoring_whitespace(before_s, after_s) {
             self.found_non_whitespace_difference = true;
-            Ok(gix::object::tree::diff::Action::Cancel)
+            Ok(gix::object::tree::diff::Action::Break(()))
         } else {
-            Ok(gix::object::tree::diff::Action::Continue)
+            Ok(gix::object::tree::diff::Action::Continue(()))
         }
     }
 }
