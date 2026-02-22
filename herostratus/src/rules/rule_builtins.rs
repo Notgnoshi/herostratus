@@ -50,7 +50,7 @@ pub fn builtin_rules(config: Option<&Config>) -> Vec<Box<dyn RulePlugin>> {
     }
 
     // Only keep rules that have at least one enabled descriptor
-    rules.retain(|r| r.get_descriptors().iter().all(|d| d.enabled));
+    rules.retain(|r| r.get_descriptors().iter().any(|d| d.enabled));
 
     rules
 }

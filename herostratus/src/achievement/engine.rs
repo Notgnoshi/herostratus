@@ -5,8 +5,6 @@ use crate::rules::RulePlugin;
 pub(crate) struct RuleEngine<'repo> {
     repo: &'repo gix::Repository,
     rules: Vec<Box<dyn RulePlugin>>,
-    // INVARIANT: 1-1 index correspondence with `rules`
-    rule_diff_interest: Vec<bool>,
 
     // This cache is unbounded and needs to be reset periodically to avoid infinite memory growth.
     // Don't reset it every commit, because each commit needs to lookup itself and its parent(s).
@@ -18,14 +16,12 @@ pub(crate) struct RuleEngine<'repo> {
 
 impl<'repo> RuleEngine<'repo> {
     pub fn new(repo: &'repo gix::Repository, rules: Vec<Box<dyn RulePlugin>>) -> Self {
-        let rule_diff_interest = rules.iter().map(|r| r.is_interested_in_diffs()).collect();
         let diff_cache = repo
             .diff_resource_cache_for_tree_diff()
             .expect("Failed to create diff cache");
         Self {
             repo,
             rules,
-            rule_diff_interest,
             diff_cache,
             num_commits_processed: 0,
         }
@@ -96,11 +92,6 @@ impl<'repo> RuleEngine<'repo> {
 
     pub fn retain_rules(&mut self, f: impl FnMut(&Box<dyn RulePlugin>) -> bool) {
         self.rules.retain(f);
-        self.rule_diff_interest = self
-            .rules
-            .iter()
-            .map(|r| r.is_interested_in_diffs())
-            .collect();
     }
 
     pub fn rules(&self) -> &[Box<dyn RulePlugin>] {
@@ -119,59 +110,32 @@ impl<'repo> RuleEngine<'repo> {
         self.repo
     }
 
-    fn on_diff_start(&mut self, commit: &gix::Commit) {
-        for (idx, rule) in &mut self.rules.iter_mut().enumerate() {
-            let interest = rule.is_interested_in_diffs();
-            self.rule_diff_interest[idx] = interest;
-            if interest {
+    fn diff_commit(&mut self, commit: &gix::Commit) -> Vec<Achievement> {
+        // Per-commit tracking of which rules are still active for diff changes.
+        // A rule starts active if interested in diffs, and becomes inactive if it
+        // returns Action::Cancel from on_diff_change.
+        let mut diff_active: Vec<bool> = self
+            .rules
+            .iter()
+            .map(|r| r.is_interested_in_diffs())
+            .collect();
+        for (idx, rule) in self.rules.iter_mut().enumerate() {
+            if diff_active[idx] {
                 rule.on_diff_start(commit, self.repo);
             }
         }
-    }
 
-    fn on_diff_change(
-        &mut self,
-        commit: &gix::Commit,
-        change: gix::object::tree::diff::Change,
-    ) -> eyre::Result<gix::object::tree::diff::Action> {
-        // Can only cancel the top-level diff processing if all rules agree to cancel. But we want
-        // to stop feeding changes into Rules that have already decided to cancel.
-        let mut all_disinterested = true;
-        for (idx, rule) in &mut self.rules.iter_mut().enumerate() {
-            if self.rule_diff_interest[idx] {
-                let action = rule.on_diff_change(commit, self.repo, &change)?;
-                if let gix::object::tree::diff::Action::Cancel = action {
-                    self.rule_diff_interest[idx] = false;
-                } else {
-                    all_disinterested = false;
-                }
-            }
-        }
-
-        if all_disinterested {
-            Ok(gix::object::tree::diff::Action::Cancel)
-        } else {
-            Ok(gix::object::tree::diff::Action::Continue)
-        }
-    }
-
-    fn on_diff_end(&mut self, commit: &gix::Commit) -> Vec<Achievement> {
-        let mut achievements = Vec::new();
-        for rule in &mut self.rules {
-            if rule.is_interested_in_diffs() {
-                achievements.extend(rule.on_diff_end(commit, self.repo));
-            }
-        }
-        achievements
-    }
-
-    fn diff_commit(&mut self, commit: &gix::Commit) -> Vec<Achievement> {
-        self.on_diff_start(commit);
         let mut parents = commit.parent_ids();
         let parent = parents.next();
         if parents.next().is_some() {
             // This is a merge commit (has multiple parents), and we want to skip it
-            return self.on_diff_end(commit);
+            let mut achievements = Vec::new();
+            for rule in &mut self.rules {
+                if rule.is_interested_in_diffs() {
+                    achievements.extend(rule.on_diff_end(commit, self.repo));
+                }
+            }
+            return achievements;
         }
 
         let commit_tree = commit.tree().unwrap();
@@ -195,9 +159,31 @@ impl<'repo> RuleEngine<'repo> {
         let mut diff_cache = self.repo.diff_resource_cache_for_tree_diff().unwrap();
         std::mem::swap(&mut diff_cache, &mut self.diff_cache);
 
+        // Use partial borrows so the closure can capture individual fields instead of &mut self
+        let rules = &mut self.rules;
+        let repo = self.repo;
+
         let outcome =
             changes.for_each_to_obtain_tree_with_cache(&commit_tree, &mut diff_cache, |change| {
-                self.on_diff_change(commit, change)
+                // Can only cancel the top-level diff processing if all rules agree to cancel.
+                // But we want to stop feeding changes into Rules that have already cancelled.
+                let mut all_disinterested = true;
+                for (idx, rule) in rules.iter_mut().enumerate() {
+                    if diff_active[idx] {
+                        let action = rule.on_diff_change(commit, repo, &change)?;
+                        if let gix::object::tree::diff::Action::Cancel = action {
+                            diff_active[idx] = false;
+                        } else {
+                            all_disinterested = false;
+                        }
+                    }
+                }
+
+                if all_disinterested {
+                    Ok::<_, eyre::Report>(gix::object::tree::diff::Action::Cancel)
+                } else {
+                    Ok::<_, eyre::Report>(gix::object::tree::diff::Action::Continue)
+                }
             });
 
         // Put the cache back
@@ -216,7 +202,13 @@ impl<'repo> RuleEngine<'repo> {
             }
         }
 
-        self.on_diff_end(commit)
+        let mut achievements = Vec::new();
+        for rule in &mut self.rules {
+            if rule.is_interested_in_diffs() {
+                achievements.extend(rule.on_diff_end(commit, self.repo));
+            }
+        }
+        achievements
     }
 }
 
