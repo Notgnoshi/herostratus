@@ -64,7 +64,8 @@ fn main() -> eyre::Result<()> {
             }
             let config = args
                 .data_dir
-                .map(|d| herostratus::config::read_config(&d).unwrap());
+                .map(|d| herostratus::config::read_config(&d))
+                .transpose()?;
             let stats = herostratus::commands::check(&cargs, config.as_ref()).wrap_err(format!(
                 "Failed to check repository {:?} reference {:?}",
                 cargs.path.display(),

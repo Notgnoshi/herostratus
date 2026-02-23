@@ -82,27 +82,13 @@ impl Rule for WhitespaceOnly {
 impl WhitespaceOnly {
     fn on_modification(
         &mut self,
-        commit: &gix::Commit,
+        _commit: &gix::Commit,
         repo: &gix::Repository,
         previous_id: gix::Id,
         id: gix::Id,
     ) -> eyre::Result<gix::object::tree::diff::Action> {
-        let before = repo
-            .find_object(previous_id)
-            .inspect_err(|e| {
-                tracing::error!(
-                    "Commit: {commit:?} previous: {previous_id:?} current: {id:?} error: {e:?}"
-                )
-            })
-            .unwrap();
-        let after = repo
-            .find_object(id)
-            .inspect_err(|e| {
-                tracing::error!(
-                    "Commit: {commit:?} previous: {previous_id:?} current: {id:?} error: {e:?}"
-                )
-            })
-            .unwrap();
+        let before = repo.find_object(previous_id)?;
+        let after = repo.find_object(id)?;
         if before.kind == gix::object::Kind::Tree {
             return Ok(gix::object::tree::diff::Action::Continue(()));
         }

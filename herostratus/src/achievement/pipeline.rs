@@ -122,7 +122,7 @@ fn run_pipeline(
     let checkpoint = load_checkpoint(data_dir, name)?;
     load_rule_caches(&mut rules, data_dir, name)?;
 
-    let mut engine = RuleEngine::new(repo, rules, config_disabled);
+    let mut engine = RuleEngine::new(repo, rules, config_disabled)?;
     let mut strategy = CheckpointStrategy::new(checkpoint);
     let mut num_achievements: u64 = 0;
 
@@ -138,7 +138,7 @@ fn run_pipeline(
 
         match directive {
             Continuation::Process => {
-                for a in engine.process_commit(oid) {
+                for a in engine.process_commit(oid)? {
                     emit(a, &mut num_achievements);
                 }
             }
@@ -153,7 +153,7 @@ fn run_pipeline(
                     emit(a, &mut num_achievements);
                 }
                 // Process the checkpoint commit with the remaining (new) rules
-                for a in engine.process_commit(oid) {
+                for a in engine.process_commit(oid)? {
                     emit(a, &mut num_achievements);
                 }
             }
