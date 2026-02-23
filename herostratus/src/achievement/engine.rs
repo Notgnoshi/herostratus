@@ -1,5 +1,7 @@
 use std::collections::HashSet;
 
+use eyre::WrapErr;
+
 use crate::achievement::Achievement;
 use crate::rules::RulePlugin;
 
@@ -26,27 +28,27 @@ impl<'repo> RuleEngine<'repo> {
         repo: &'repo gix::Repository,
         rules: Vec<Box<dyn RulePlugin>>,
         config_disabled: HashSet<usize>,
-    ) -> Self {
+    ) -> eyre::Result<Self> {
         let diff_cache = repo
             .diff_resource_cache_for_tree_diff()
-            .expect("Failed to create diff cache");
-        Self {
+            .wrap_err("Failed to create diff cache")?;
+        Ok(Self {
             repo,
             rules,
             config_disabled,
             suppressed: HashSet::new(),
             diff_cache,
             num_commits_processed: 0,
-        }
+        })
     }
 
     /// Apply all enabled rules to a single commit (process + diff).
     /// Filters returned achievements by `config_disabled ∪ suppressed`.
-    pub fn process_commit(&mut self, oid: gix::ObjectId) -> Vec<Achievement> {
+    pub fn process_commit(&mut self, oid: gix::ObjectId) -> eyre::Result<Vec<Achievement>> {
         let commit = self
             .repo
             .find_commit(oid)
-            .expect("Failed to find commit from Oids iterator");
+            .wrap_err_with(|| format!("Failed to find commit {oid}"))?;
         self.num_commits_processed += 1;
 
         let mut achievements = Vec::new();
@@ -54,7 +56,7 @@ impl<'repo> RuleEngine<'repo> {
             achievements.extend(rule.process(&commit, self.repo));
         }
 
-        achievements.extend(self.diff_commit(&commit));
+        achievements.extend(self.diff_commit(&commit)?);
 
         const CLEAR_CACHE_EVERY_N: u64 = 50; // SWAG: Scientific Wild Ass Guess
         if self
@@ -78,7 +80,7 @@ impl<'repo> RuleEngine<'repo> {
             );
         }
 
-        achievements
+        Ok(achievements)
     }
 
     /// Call finalize() on all rules, returning accumulated achievements.
@@ -163,7 +165,7 @@ impl<'repo> RuleEngine<'repo> {
         self.num_commits_processed
     }
 
-    fn diff_commit(&mut self, commit: &gix::Commit) -> Vec<Achievement> {
+    fn diff_commit(&mut self, commit: &gix::Commit) -> eyre::Result<Vec<Achievement>> {
         // Per-commit tracking of which rules are still active for diff changes.
         // A rule starts active if interested in diffs, and becomes inactive if it
         // returns Action::Cancel from on_diff_change.
@@ -188,14 +190,18 @@ impl<'repo> RuleEngine<'repo> {
                     achievements.extend(rule.on_diff_end(commit, self.repo));
                 }
             }
-            return achievements;
+            return Ok(achievements);
         }
 
-        let commit_tree = commit.tree().unwrap();
+        let commit_tree = commit
+            .tree()
+            .wrap_err_with(|| format!("Failed to get tree for commit {}", commit.id()))?;
         let parent_tree = match parent {
             Some(pid) => {
                 match self.repo.find_commit(pid) {
-                    Ok(parent) => parent.tree().unwrap(),
+                    Ok(parent) => parent
+                        .tree()
+                        .wrap_err_with(|| format!("Failed to get tree for parent commit {pid}"))?,
                     // This could be a shallow clone where the parent commit is missing.
                     Err(_) => self.repo.empty_tree(),
                 }
@@ -203,7 +209,9 @@ impl<'repo> RuleEngine<'repo> {
             None => self.repo.empty_tree(),
         };
 
-        let mut changes = parent_tree.changes().unwrap();
+        let mut changes = parent_tree
+            .changes()
+            .wrap_err("Failed to create tree changes iterator")?;
         changes.options(|o| {
             o.track_rewrites(None);
         });
@@ -245,7 +253,7 @@ impl<'repo> RuleEngine<'repo> {
                 // because it means we can short circuit processing.
             }
             Err(e) => {
-                panic!("Failed to diff commit {}: {e:?}", commit.id());
+                return Err(e).wrap_err_with(|| format!("Failed to diff commit {}", commit.id()));
             }
         }
 
@@ -255,7 +263,7 @@ impl<'repo> RuleEngine<'repo> {
                 achievements.extend(rule.on_diff_end(commit, self.repo));
             }
         }
-        achievements
+        Ok(achievements)
     }
 }
 
@@ -271,8 +279,8 @@ mod tests {
         let temp_repo = fixtures::repository::simplest().unwrap();
         let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
 
-        let mut engine = RuleEngine::new(&temp_repo.repo, Vec::new(), HashSet::new());
-        let achievements = engine.process_commit(oid);
+        let mut engine = RuleEngine::new(&temp_repo.repo, Vec::new(), HashSet::new()).unwrap();
+        let achievements = engine.process_commit(oid).unwrap();
         assert!(achievements.is_empty());
         assert_eq!(engine.num_commits_processed(), 1);
     }
@@ -283,8 +291,8 @@ mod tests {
         let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
 
         let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(AlwaysFail)];
-        let mut engine = RuleEngine::new(&temp_repo.repo, rules, HashSet::new());
-        let achievements = engine.process_commit(oid);
+        let mut engine = RuleEngine::new(&temp_repo.repo, rules, HashSet::new()).unwrap();
+        let achievements = engine.process_commit(oid).unwrap();
         assert!(achievements.is_empty());
     }
 
@@ -295,8 +303,8 @@ mod tests {
 
         let rules: Vec<Box<dyn RulePlugin>> =
             vec![Box::new(AlwaysFail), Box::new(ParticipationTrophy)];
-        let mut engine = RuleEngine::new(&temp_repo.repo, rules, HashSet::new());
-        let achievements = engine.process_commit(oid);
+        let mut engine = RuleEngine::new(&temp_repo.repo, rules, HashSet::new()).unwrap();
+        let achievements = engine.process_commit(oid).unwrap();
         assert_eq!(achievements.len(), 1);
         assert_eq!(achievements[0].commit, oid);
     }
@@ -307,10 +315,10 @@ mod tests {
         let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
 
         let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(ParticipationTrophy2)];
-        let mut engine = RuleEngine::new(&temp_repo.repo, rules, HashSet::new());
+        let mut engine = RuleEngine::new(&temp_repo.repo, rules, HashSet::new()).unwrap();
 
         // process_commit yields nothing from ParticipationTrophy2
-        let achievements = engine.process_commit(oid);
+        let achievements = engine.process_commit(oid).unwrap();
         assert!(achievements.is_empty());
 
         // finalize yields the achievement
@@ -324,10 +332,10 @@ mod tests {
         let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
 
         let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(ParticipationTrophy)];
-        let mut engine = RuleEngine::new(&temp_repo.repo, rules, HashSet::from([2]));
+        let mut engine = RuleEngine::new(&temp_repo.repo, rules, HashSet::from([2])).unwrap();
 
         // Achievement is generated but filtered out by config_disabled
-        let achievements = engine.process_commit(oid);
+        let achievements = engine.process_commit(oid).unwrap();
         assert!(achievements.is_empty());
     }
 
@@ -336,7 +344,7 @@ mod tests {
         let temp_repo = fixtures::repository::simplest().unwrap();
 
         let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(ParticipationTrophy2)];
-        let mut engine = RuleEngine::new(&temp_repo.repo, rules, HashSet::new());
+        let mut engine = RuleEngine::new(&temp_repo.repo, rules, HashSet::new()).unwrap();
         engine.suppress_descriptors(&[3]);
 
         // finalize still lets suppressed achievements through
@@ -349,7 +357,7 @@ mod tests {
         let temp_repo = fixtures::repository::simplest().unwrap();
 
         let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(ParticipationTrophy)];
-        let mut engine = RuleEngine::new(&temp_repo.repo, rules, HashSet::new());
+        let mut engine = RuleEngine::new(&temp_repo.repo, rules, HashSet::new()).unwrap();
 
         assert_eq!(engine.get_enabled_rule_ids(), vec![2]);
 

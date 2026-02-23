@@ -18,7 +18,11 @@ pub struct CheckStat {
 
 impl CheckStat {
     pub fn print_summary(&self) {
-        let time_per_commit = self.elapsed / self.num_commits_checked as u32;
+        let time_per_commit = if self.num_commits_checked == 0 {
+            Duration::ZERO
+        } else {
+            self.elapsed / self.num_commits_checked as u32
+        };
         // Marker to distinguish between achievements and summary, both on stdout
         println!("## Summary");
         println!("| Name | # Commits | # Achievements | Time | Time per commit |");

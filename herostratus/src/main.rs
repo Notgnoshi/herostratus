@@ -64,7 +64,8 @@ fn main() -> eyre::Result<()> {
             }
             let config = args
                 .data_dir
-                .map(|d| herostratus::config::read_config(&d).unwrap());
+                .map(|d| herostratus::config::read_config(&d))
+                .transpose()?;
             let stats = herostratus::commands::check(&cargs, config.as_ref()).wrap_err(format!(
                 "Failed to check repository {:?} reference {:?}",
                 cargs.path.display(),
@@ -82,10 +83,6 @@ fn main() -> eyre::Result<()> {
                 herostratus::cli::Command::Add(args) => {
                     herostratus::commands::add(&args, &mut config, &data_dir)
                         .wrap_err(format!("Failed to add repository with url: {:?}", args.url))?;
-                }
-                herostratus::cli::Command::Remove(args) => {
-                    herostratus::commands::remove(&args, &mut config, &data_dir)
-                        .wrap_err(format!("Failed to remove repository: {:?}", args.url))?;
                 }
                 herostratus::cli::Command::CheckAll(args) => {
                     let stats = herostratus::commands::check_all(&args, &config, &data_dir)

@@ -29,12 +29,6 @@ pub struct Args {
     #[clap(long)]
     pub get_data_dir: bool,
 
-    /// Override the application config file
-    ///
-    /// Will default to `herostratus.toml` located in the application data directory.
-    #[clap(short = 'C', long)]
-    pub config_file: Option<PathBuf>,
-
     // TODO: Add a get_default_config?
     /// Query the current application configuration and exit
     ///
@@ -56,7 +50,6 @@ pub enum Command {
     Add(AddArgs),
     CheckAll(CheckAllArgs),
     FetchAll(FetchAllArgs),
-    Remove(RemoveArgs),
 }
 
 /// Statelessly process the given file path and reference
@@ -187,11 +180,4 @@ impl From<&CheckAllArgs> for FetchAllArgs {
     fn from(_args: &CheckAllArgs) -> FetchAllArgs {
         FetchAllArgs
     }
-}
-
-/// Remove the given repository
-#[derive(Debug, clap::Args)]
-pub struct RemoveArgs {
-    pub url: Option<String>,
-    pub path: Option<PathBuf>,
 }
