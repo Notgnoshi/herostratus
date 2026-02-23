@@ -155,11 +155,6 @@ impl<'repo> RuleEngine<'repo> {
         });
     }
 
-    #[cfg(test)]
-    pub fn retain_rules(&mut self, f: impl FnMut(&Box<dyn RulePlugin>) -> bool) {
-        self.rules.retain(f);
-    }
-
     pub fn rules(&self) -> &[Box<dyn RulePlugin>] {
         &self.rules
     }
@@ -361,19 +356,5 @@ mod tests {
         // config_disabled removes from enabled
         engine.config_disabled.insert(2);
         assert!(engine.get_enabled_rule_ids().is_empty());
-    }
-
-    #[test]
-    fn test_retain_rules() {
-        let temp_repo = fixtures::repository::simplest().unwrap();
-
-        let rules: Vec<Box<dyn RulePlugin>> =
-            vec![Box::new(AlwaysFail), Box::new(ParticipationTrophy)];
-        let mut engine = RuleEngine::new(&temp_repo.repo, rules, HashSet::new());
-        assert_eq!(engine.rules().len(), 2);
-
-        engine.retain_rules(|r| r.name() != "AlwaysFail");
-        assert_eq!(engine.rules().len(), 1);
-        assert_eq!(engine.rules()[0].name(), "ParticipationTrophy");
     }
 }
