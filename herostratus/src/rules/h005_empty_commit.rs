@@ -1,25 +1,17 @@
 use crate::achievement::{Achievement, AchievementDescriptor};
 use crate::rules::{Rule, RuleFactory};
 
-/// Grant achievements for `git commit --allow-empty` (not merge) commits
-pub struct EmptyCommit {
-    descriptors: [AchievementDescriptor; 1],
-    found_any_change: bool,
-}
+const DESCRIPTORS: [AchievementDescriptor; 1] = [AchievementDescriptor {
+    id: 5,
+    human_id: "empty-commit",
+    name: "You can always add more later",
+    description: "Create an empty commit containing no changes",
+}];
 
-impl Default for EmptyCommit {
-    fn default() -> Self {
-        Self {
-            descriptors: [AchievementDescriptor {
-                enabled: true,
-                id: 5,
-                human_id: "empty-commit",
-                name: "You can always add more later",
-                description: "Create an empty commit containing no changes",
-            }],
-            found_any_change: false,
-        }
-    }
+/// Grant achievements for `git commit --allow-empty` (not merge) commits
+#[derive(Default)]
+pub struct EmptyCommit {
+    found_any_change: bool,
 }
 
 inventory::submit!(RuleFactory::default::<EmptyCommit>());
@@ -27,11 +19,8 @@ inventory::submit!(RuleFactory::default::<EmptyCommit>());
 impl Rule for EmptyCommit {
     type Cache = ();
 
-    fn get_descriptors(&self) -> &[AchievementDescriptor] {
-        &self.descriptors
-    }
-    fn get_descriptors_mut(&mut self) -> &mut [AchievementDescriptor] {
-        &mut self.descriptors
+    fn descriptors(&self) -> &[AchievementDescriptor] {
+        &DESCRIPTORS
     }
 
     fn is_interested_in_diffs(&self) -> bool {
@@ -56,17 +45,14 @@ impl Rule for EmptyCommit {
         _change: &gix::object::tree::diff::Change,
     ) -> eyre::Result<gix::object::tree::diff::Action> {
         self.found_any_change = true;
-        Ok(gix::object::tree::diff::Action::Cancel)
+        Ok(gix::object::tree::diff::Action::Break(()))
     }
 
     fn on_diff_end(&mut self, commit: &gix::Commit, _repo: &gix::Repository) -> Vec<Achievement> {
         if self.found_any_change {
             Vec::new()
         } else {
-            vec![Achievement {
-                name: self.descriptors[0].name,
-                commit: commit.id,
-            }]
+            vec![DESCRIPTORS[0].grant(commit.id)]
         }
     }
 }

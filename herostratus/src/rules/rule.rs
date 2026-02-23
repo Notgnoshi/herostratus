@@ -36,8 +36,7 @@ pub trait Rule {
     /// This allows one [Rule] to grant multiple different types of [Achievement]s, which is useful
     /// for achievement types that can share computation (e.g., shortest commit, longest commit,
     /// etc).
-    fn get_descriptors(&self) -> &[AchievementDescriptor];
-    fn get_descriptors_mut(&mut self) -> &mut [AchievementDescriptor];
+    fn descriptors(&self) -> &[AchievementDescriptor];
 
     /// Process the given [gix::Commit] to generate an [Achievement]
     ///
@@ -84,7 +83,7 @@ pub trait Rule {
         _repo: &gix::Repository,
         _change: &gix::object::tree::diff::Change,
     ) -> eyre::Result<gix::object::tree::diff::Action> {
-        Ok(gix::object::tree::diff::Action::Cancel)
+        Ok(gix::object::tree::diff::Action::Break(()))
     }
 
     /// Handle the end of the diff for the given commit

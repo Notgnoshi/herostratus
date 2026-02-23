@@ -1,43 +1,30 @@
 use crate::achievement::{Achievement, AchievementDescriptor};
 use crate::rules::{Rule, RuleFactory};
 
-pub struct NonUnicode {
-    descriptors: [AchievementDescriptor; 1],
-}
+const DESCRIPTORS: [AchievementDescriptor; 1] = [AchievementDescriptor {
+    id: 4,
+    human_id: "non-unicode",
+    name: "But ... How?!",
+    description: "Make a commit message containing a non UTF-8 byte",
+}];
 
-impl Default for NonUnicode {
-    fn default() -> Self {
-        Self {
-            descriptors: [AchievementDescriptor {
-                enabled: true,
-                id: 4,
-                human_id: "non-unicode",
-                name: "But ... How?!",
-                description: "Make a commit message containing a non UTF-8 byte",
-            }],
-        }
-    }
-}
+#[derive(Default)]
+pub struct NonUnicode;
+
 inventory::submit!(RuleFactory::default::<NonUnicode>());
 
 impl Rule for NonUnicode {
     type Cache = ();
 
-    fn get_descriptors(&self) -> &[AchievementDescriptor] {
-        &self.descriptors
-    }
-    fn get_descriptors_mut(&mut self) -> &mut [AchievementDescriptor] {
-        &mut self.descriptors
+    fn descriptors(&self) -> &[AchievementDescriptor] {
+        &DESCRIPTORS
     }
 
     fn process(&mut self, commit: &gix::Commit, _repo: &gix::Repository) -> Vec<Achievement> {
         let bytes = commit.message_raw_sloppy();
         let msg = str::from_utf8(bytes);
         if msg.is_err() {
-            return vec![Achievement {
-                name: self.descriptors[0].name,
-                commit: commit.id,
-            }];
+            return vec![DESCRIPTORS[0].grant(commit.id)];
         }
         Vec::new()
     }

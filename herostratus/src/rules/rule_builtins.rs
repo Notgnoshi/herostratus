@@ -1,10 +1,14 @@
+use std::collections::HashSet;
+
 use crate::config::{Config, RulesConfig};
 use crate::rules::{RuleFactory, RulePlugin};
 
 inventory::collect!(crate::rules::rule_plugin::RuleFactory);
 
-/// Get a new instance of each builtin [RulePlugin] with the given configuration
-pub fn builtin_rules(config: Option<&Config>) -> Vec<Box<dyn RulePlugin>> {
+/// Get a new instance of each builtin [RulePlugin] with the given configuration.
+///
+/// Returns the rules and a set of descriptor IDs that are disabled by config.
+pub fn builtin_rules(config: Option<&Config>) -> (Vec<Box<dyn RulePlugin>>, HashSet<usize>) {
     let default_rules_config = RulesConfig::default();
     let rules_config = match config {
         Some(Config {
@@ -23,41 +27,32 @@ pub fn builtin_rules(config: Option<&Config>) -> Vec<Box<dyn RulePlugin>> {
         rules.push(rule);
     }
 
-    for rule in &mut rules {
-        let mut ids_to_disable = Vec::new();
-        let mut ids_to_enable = Vec::new();
+    let mut disabled = HashSet::new();
 
-        // Check each rule for matching excludes/includes
-        for desc in rule.get_descriptors() {
+    for rule in &rules {
+        for desc in rule.descriptors() {
             for exclude in excludes {
                 if exclude == "all" || desc.id_matches(exclude) {
-                    ids_to_disable.push(desc.id);
+                    disabled.insert(desc.id);
                 }
             }
             for include in includes {
                 if desc.id_matches(include) {
-                    ids_to_enable.push(desc.id);
+                    disabled.remove(&desc.id);
                 }
             }
         }
-
-        for id in ids_to_disable {
-            rule.disable_by_id(id);
-        }
-        for id in ids_to_enable {
-            rule.enable_by_id(id);
-        }
     }
 
-    // Only keep rules that have at least one enabled descriptor
-    rules.retain(|r| r.get_descriptors().iter().all(|d| d.enabled));
+    // Only keep rules that have at least one non-disabled descriptor
+    rules.retain(|r| r.descriptors().iter().any(|d| !disabled.contains(&d.id)));
 
-    rules
+    (rules, disabled)
 }
 
 /// Get a new instance of each builtin [RulePlugin] with default configuration
 pub fn builtin_rules_all() -> Vec<Box<dyn RulePlugin>> {
-    builtin_rules(None)
+    builtin_rules(None).0
 }
 
 #[cfg(test)]
@@ -70,7 +65,7 @@ mod tests {
         let rules = builtin_rules_all();
         let descs: Vec<_> = rules
             .iter()
-            .flat_map(|r| r.get_descriptors())
+            .flat_map(|r| r.descriptors())
             .cloned()
             .collect();
         assert!(!descs.is_empty());
@@ -156,7 +151,7 @@ mod tests {
         let all_rules = builtin_rules_all();
         let all_ids: Vec<_> = all_rules
             .iter()
-            .flat_map(|r| r.get_descriptors())
+            .flat_map(|r| r.descriptors())
             .map(|d| d.id)
             .collect();
         assert!(all_ids.contains(&1));
@@ -164,10 +159,11 @@ mod tests {
         assert!(all_ids.contains(&3));
         assert!(all_ids.contains(&4));
 
-        let rules = builtin_rules(Some(&config));
+        let (rules, disabled) = builtin_rules(Some(&config));
         let ids: Vec<_> = rules
             .iter()
-            .flat_map(|r| r.get_descriptors())
+            .flat_map(|r| r.descriptors())
+            .filter(|d| !disabled.contains(&d.id))
             .map(|d| d.id)
             .collect();
 
@@ -189,7 +185,7 @@ mod tests {
             ..Default::default()
         };
 
-        let rules = builtin_rules(Some(&config));
+        let (rules, _) = builtin_rules(Some(&config));
         assert!(rules.is_empty());
     }
 
@@ -205,11 +201,8 @@ mod tests {
             ..Default::default()
         };
 
-        let rules = builtin_rules(Some(&config));
+        let (rules, _) = builtin_rules(Some(&config));
         assert_eq!(rules.len(), 1);
-        assert_eq!(
-            rules[0].get_descriptors().first().unwrap().human_id,
-            "fixup"
-        );
+        assert_eq!(rules[0].descriptors().first().unwrap().human_id, "fixup");
     }
 }
