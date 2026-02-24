@@ -1,15 +1,13 @@
 # Performance considerations
 
-# Status
-
-**DRAFT**
-
 # Scope
 
 One of the project goals for Herostratus is to be performant. This document discusses various
 methods of improving Herostratus's performance.
 
 # Caching
+
+**IMPLEMENTED**: Caches are saved to `~/.local/share/herostratus/cache/<repository>/*.json`
 
 The best way to improve performance is to do less work. Cache the last commit processed, and stop
 processing commits when you reach it. See [persistence.md](/docs/design/persistence.md).
@@ -22,10 +20,11 @@ figure out, because of how intertwined persistence is with other features.
 
 # Parallelism
 
-See: [parallelism.md](/docs/design/parallelism.md). I expect that the parallelism strategy I pick
-will be to run the achievement `Rule`s in parallel over a serial commit iterator.
+**DRAFT:** [See parallelism.md](/docs/design/parallelism.md).
 
 # Benchmarks
+
+**IMPLEMENTED**
 
 Measure what matters. If performance is important, it should be quantified.
 
@@ -38,6 +37,8 @@ There are two forms of benchmarks in this repository:
 
 # Computation sharing I
 
+**IMPLEMENTED**
+
 There are various `gix` operations that can consume a cache (like diffing trees). Rules could
 conceivable share these caches.
 
@@ -48,6 +49,8 @@ handling `Rule::on_change(&Change)` calls for each modification.
 Then only one diff has to be calculated per commit instead of one per `Rule` per commit.
 
 # Computation sharing II
+
+**IMPLEMENTED**
 
 The computation performed by some `Rule`s may be useful to other `Rule`s. For example, the rules
 `H2-shortest-subject-line` and `H3-longest-subject-line` both need to calculate the length of the

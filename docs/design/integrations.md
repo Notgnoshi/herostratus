@@ -1,10 +1,10 @@
 # Integrations
 
-# Status
-
-**DRAFT**
-
 # GitLab
+
+**REJECTED**: I don't want Herostratus to lose its sense of whimsy by being integrated into an
+"official" achievements system. So I want it to feel like a fun side project, so I'm planning on
+building a static web page instead.
 
 GitLab provides an [Achievements API](https://docs.gitlab.com/ee/user/profile/achievements.html). It
 appears it internally manages a database of achievements, and provides them their own ID when they
@@ -16,61 +16,81 @@ specific.
 
 It does not appear that you can link an achievement to the commit that generated it.
 
-It'd be sweet to run this through a pipeline, although that'd require finding some way to have
-persistent storage, especially caching the bare repositories. Maybe ask Chris D. about effective
-ways to do this.
+# Integration API
+
+**DRAFT**: Regardless of what the integration is, I want there to be a well-defined API that enables
+development of multiple integrations. I'm thinking a Rust trait that defines the interface, and a
+Cargo feature for each integration that implements it. Then users would pick which integration(s)
+they want via CLI arguments.
+
+The API should include:
+
+* What repository is being processed (maybe an instance of the integration object per-repository?
+  but then what if there's a need for cross-repository state?)
+* paths to the data directory, cache directory (for the repository), git directory, etc
+* handle all cached achievement events from before the run
+* handle the cached user database from before the run
+* handle achievement events generated during the run
+* handle the user database after the run
+* handle statistics about the run
 
 # Generate a static web page suitable for GitHub / GitLab pages sites
 
-This leans into the idea of Herostratus's primary use-case being run in CI/CD pipelines. Can I host
-the database as a static asset and make the site dynamic? Or do I just need to regenerate a static
-site each time?
+**DRAFT**: This is the integration I care about the most.
 
-* Custom CSS
-* Allow inserting custom HTML header/footer similar to docs.rs
+This leans into the idea of Herostratus's primary use-case being run in CI/CD pipelines. I had good
+luck on another project hosting static JSON/CSV files and loading them from the SPA's JavaScript.
+
+I think I probably don't want to generate the site directly from Herostratus, but rather generate
+all the data the site needs to load, and have separate tooling for the site itself.
+
+* Prefer vanilla JS to avoid npm / build tools / dependency hell, but maybe use a framework if it
+  makes development easier?
+* Allow injecting custom CSS similar to docs.rs
+* Allow injecting custom HTML header/footer similar to docs.rs
 * Landing page:
-  * Repository list with summary of users/achievements
-  * List of users, each of which gets a page
-    * Summary (number of commits? per repository? activity graph?)
-    * List of achievements
-  * Link to achievement list (and link to users who have them?)
-  * Link back to Herostratus' GitHub repo
+  * List of repositories
+    * Link to page for each repository
+      * More detailed timeline of achievement activity, each achievement links back to the user page
+    * Recent activity for that repository
+  * List of users
+    * User page is a timeline of their achievement activity across all repositories
+    * There's ways to get user profile pictures, use it.
+  * List of achievements
+    * Is this granted achievments? Sorted by number of users who have it? Is this all possible
+      achievements?
 
 Each achievement would need its own icon; perhaps take inspiration from Acha? I bet GenAI could do a
 decent job of helping this unartistic fellow generate them.
 
-This might be more appealing than integrating with GitLab's Achievements API directly, especially
-for a whimsical project like this ($WORK hates fun, and hosting your own site doesn't have the
-appearance of being "official"). An advantage of the GitLab approach though, is that it emails users
-when they get an achievement, which is also perhaps a disadvantage given how silly I want the
-achievements to be.
+The envisioned CI/CD deployment pipeline would look something like:
+
+```mermaid
+flowchart LR
+    subgraph repo1
+        on-merge1[on-merge:trigger]
+    end
+
+    subgraph repo2
+        on-merge2[on-merge:trigger]
+    end
+
+    subgraph integration[herostratus integration repository]
+        on-merge --> check-one[run herostratus check-one] --> save-achievements[(commit achievements)] --> deploy-site
+    end
+    on-merge1 & on-merge2 --> on-merge
+```
+
+so I think the `check` subcommand needs a way to check just a single one of the repositories it's
+configured to run on.
+
+**NOTE:** The bare repository won't persist in the integration's Git repository, so it'll have to
+re-clone it each time. But I think that's just how it's got to be if I run this from CI/CD
+pipelines.
 
 # Spit out achievements as JSON over stdout
 
+**DRAFT**: This is the most basic integration that would be useful for integration tests
+
 This could be an adapter integration that could be useful for integration tests, or for users to
 build their own integrations against if they don't want to use the trait-and-feature API.
-
-# Integration API
-
-The integration is _the_ thing the users of Herostratus care about. So I think making it easy to
-implement / stand up is important.
-
-* Cargo feature with trait-defined interface
-  * I think this is my favorite? It makes sharing the achievements and user database easier? Or at
-    least it makes the interface more clear / well documented. But it does require recompilation
-    (not a big deal) or including the integration in Herostratus itself (more of a big deal).
-* JSON on stdout
-* REST API with `/grant` `/revoke` etc. endpoints
-
-The API should include:
-
-* have typed access to the user database
-* have typed access to the achievements database
-* have typed access to the list of all possible achievements
-* have raw access to the database for its own uses
-* handle granting an achievement
-* handle revoking an achievement
-
-Should it also be able to configure the repositories that Herostratus scans? That's a more complex
-use-case, but it enables using Herostratus as the backend for a custom frontend (something more like
-Acha).

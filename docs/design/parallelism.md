@@ -19,8 +19,17 @@ However, there are several approaches to parallelism, and the right choice depen
 
 # Constraints
 
-My expectation is that achievement processing is likely I/O constrained, and thus I'd want to spool
-up more tasks than cores.
+* My expectation is that achievement processing is likely I/O constrained, and thus I'd want to
+  spool up more tasks than cores.
+* Running Herostratus in CI/CD triggered pipelines suggests that it won't be running on multiple
+  repositories at once, so repository level parallelism is less important, in which case it's more
+  important to process the rules in parallel for each commit.
+
+# Questions
+
+* Is it **necessary** to block advancing to the next commit until all rules have been processed for
+  the current commit? If so, then the longest Rule will always be a bottleneck, and parallelism will
+  only be useful up to a point.
 
 # Approaches
 
@@ -69,8 +78,10 @@ flowchart TD
 
 ## Process the commits serially, but the rules in parallel
 
-**con:** Processing a slow rule could block progress for the other workers. Mitigation could be to
-order the rules by their cost, and try to ensure that each worker has an even load.
+* Rules might not be expensive enough to justify the parallelism overhead being stood up on each
+  commit being processed.
+* The number of rules is likely to increase over time
+* Not all rules will have equal cost
 
 ```mermaid
 flowchart TD
@@ -86,8 +97,5 @@ flowchart TD
 
 # Proposal
 
-I think I'll start by doing things in serial (repository level parallelism) so see if processing the
-rules is too expensive (after caching).
-
-However, in the future, it'd be cool to use NLP techniques for some of the rules, to do, say, NER or
-sentiment analysis, or even to use a LLM backend. This could get quite expensive.
+I think I'll start by doing things in serial so see if processing the rules is too expensive (after
+caching).
