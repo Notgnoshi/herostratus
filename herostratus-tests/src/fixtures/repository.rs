@@ -29,10 +29,18 @@ pub fn add_empty_commit<'r>(repo: &'r gix::Repository, message: &str) -> eyre::R
 }
 
 fn get_signature_at_time(seconds: gix::date::SecondsSinceUnixEpoch) -> gix::actor::Signature {
+    get_signature_at_time_as(seconds, "Herostratus", "Herostratus@example.com")
+}
+
+fn get_signature_at_time_as(
+    seconds: gix::date::SecondsSinceUnixEpoch,
+    name: &str,
+    email: &str,
+) -> gix::actor::Signature {
     let time = gix::date::Time { seconds, offset: 0 };
     gix::actor::Signature {
-        name: "Herostratus".into(),
-        email: "Herostratus@example.com".into(),
+        name: name.into(),
+        email: email.into(),
         time,
     }
 }
@@ -43,7 +51,36 @@ pub fn add_empty_commit_time<'r>(
     message: &str,
     seconds: gix::date::SecondsSinceUnixEpoch,
 ) -> eyre::Result<gix::Id<'r>> {
-    let signature = get_signature_at_time(seconds);
+    add_empty_commit_as_time(
+        repo,
+        message,
+        "Herostratus",
+        "Herostratus@example.com",
+        seconds,
+    )
+}
+
+/// Create an empty commit with the default timestamp and the given author name and email
+pub fn add_empty_commit_as<'r>(
+    repo: &'r gix::Repository,
+    message: &str,
+    author_name: &str,
+    author_email: &str,
+) -> eyre::Result<gix::Id<'r>> {
+    let time = 1711656630;
+    add_empty_commit_as_time(repo, message, author_name, author_email, time)
+}
+
+/// Create an empty commit with the given author name, email, and timestamp
+#[tracing::instrument(level="debug", skip_all, fields(path = %repo.path().display()))]
+pub fn add_empty_commit_as_time<'r>(
+    repo: &'r gix::Repository,
+    message: &str,
+    author_name: &str,
+    author_email: &str,
+    seconds: gix::date::SecondsSinceUnixEpoch,
+) -> eyre::Result<gix::Id<'r>> {
+    let signature = get_signature_at_time_as(seconds, author_name, author_email);
     let mut buf = gix::date::parse::TimeBuf::default();
     let authored = signature.to_ref(&mut buf);
     let mut buf = gix::date::parse::TimeBuf::default();
@@ -287,6 +324,21 @@ mod tests {
         let commit2 = add_empty_commit(&repo.repo, "commit2 on branch2").unwrap();
         let head = repo.repo.head_id().unwrap();
         assert_eq!(head, commit2);
+    }
+
+    #[test]
+    fn test_add_empty_commit_as() {
+        let repo = bare().unwrap();
+
+        let commit =
+            add_empty_commit_as(&repo.repo, "custom author", "Alice", "alice@example.com").unwrap();
+        let head = repo.repo.head_id().unwrap();
+        assert_eq!(head, commit);
+
+        let commit_obj = repo.repo.find_commit(commit).unwrap();
+        let author = commit_obj.author().unwrap();
+        assert_eq!(author.name, "Alice");
+        assert_eq!(author.email, "alice@example.com");
     }
 
     #[test]
