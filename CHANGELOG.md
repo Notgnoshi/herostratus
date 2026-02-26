@@ -14,6 +14,24 @@ focus on the user impact** rather than the actual changes made.
 
 ## Added
 
+Herostratus now resolves commit author identities using Git's
+[mailmap](https://git-scm.com/docs/gitmailmap) mechanism. This maps alternate author names and
+emails to a canonical identity, which is useful when contributors change their name or email over
+time. Herostratus reads `.mailmap` from the repository itself (worktree or `HEAD:.mailmap` for bare
+repos), and additionally supports config-level mailmap files:
+
+```toml
+# Global mailmap applied to all repositories
+mailmap_file = "/home/user/.mailmap"
+
+[repositories.linux]
+url = "https://github.com/torvalds/linux.git"
+# Per-repository mailmap (takes precedence over the global one)
+mailmap_file = "/home/user/linux-mailmap"
+```
+
+---
+
 Herostratus now caches what commits (and what achievements) were processed for each repository. This
 means back-to-back runs of `herostratus check-all` will be faster, and duplicate achievements won't
 be granted!
@@ -29,7 +47,7 @@ $ herostratus check-all --summary
 
 | Name        | # Commits | # Achievements | Time    | Time per commit |
 | ----------- | --------- | -------------- | ------- | --------------- |
-| git         | 79202     | 501            | 64.22s  | 810.84µs        |
+| git         | 79765     | 502            | 14.14s  | 177.25µs        |
 
 # Should exit almost immediately and grant no new achievements
 $ herostratus check-all --summary

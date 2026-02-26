@@ -11,10 +11,7 @@ inventory::collect!(crate::rules::rule_plugin::RuleFactory);
 pub fn builtin_rules(config: Option<&Config>) -> (Vec<Box<dyn RulePlugin>>, HashSet<usize>) {
     let default_rules_config = RulesConfig::default();
     let rules_config = match config {
-        Some(Config {
-            repositories: _,
-            rules: Some(r),
-        }) => r,
+        Some(Config { rules: Some(r), .. }) => r,
         _ => &default_rules_config,
     };
     let excludes = rules_config.exclude.as_deref().unwrap_or_default();

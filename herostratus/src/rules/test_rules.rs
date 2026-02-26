@@ -52,7 +52,9 @@ const PARTICIPATION_TROPHY2_DESCRIPTORS: [AchievementDescriptor; 1] = [Achieveme
 }];
 
 #[derive(Default)]
-pub struct ParticipationTrophy2;
+pub struct ParticipationTrophy2 {
+    last_commit: Option<gix::ObjectId>,
+}
 
 impl Rule for ParticipationTrophy2 {
     type Cache = ();
@@ -61,16 +63,15 @@ impl Rule for ParticipationTrophy2 {
         &PARTICIPATION_TROPHY2_DESCRIPTORS
     }
 
-    fn process(&mut self, _commit: &gix::Commit, _repo: &gix::Repository) -> Vec<Achievement> {
+    fn process(&mut self, commit: &gix::Commit, _repo: &gix::Repository) -> Vec<Achievement> {
+        self.last_commit = Some(commit.id);
         Vec::new()
     }
 
     fn finalize(&mut self, _repo: &gix::Repository) -> Vec<Achievement> {
         tracing::debug!("Finalizing ParticipationTrophy2");
-        vec![
-            PARTICIPATION_TROPHY2_DESCRIPTORS[0]
-                .grant(gix::ObjectId::null(gix::index::hash::Kind::Sha1)),
-        ]
+        let oid = self.last_commit.expect("process() was never called");
+        vec![PARTICIPATION_TROPHY2_DESCRIPTORS[0].grant(oid)]
     }
 }
 

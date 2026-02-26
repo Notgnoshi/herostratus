@@ -3,7 +3,10 @@ pub struct Achievement {
     pub descriptor_id: usize,
     pub name: &'static str,
     pub commit: gix::ObjectId,
-    // TODO: Add the user (how to accommodate mailmaps?)
+    /// The mailmap-resolved author name
+    pub author_name: String,
+    /// The mailmap-resolved author email
+    pub author_email: String,
     // TODO: Identify the repository somehow
 }
 
@@ -67,6 +70,8 @@ impl AchievementDescriptor {
             descriptor_id: self.id,
             name: self.name,
             commit,
+            author_name: String::new(),
+            author_email: String::new(),
         }
     }
 }

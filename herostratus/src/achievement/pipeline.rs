@@ -26,6 +26,10 @@ pub fn grant(
     on_achievement: impl FnMut(Achievement),
 ) -> eyre::Result<GrantStats> {
     let (rules, config_disabled) = crate::rules::builtin_rules(config);
+    let global_mailmap = config.and_then(|c| c.mailmap_file.as_deref());
+    let repo_mailmap = config
+        .and_then(|c| c.repositories.get(name))
+        .and_then(|rc| rc.mailmap_file.as_deref());
     grant_with_rules_and_disabled(
         reference,
         repo,
@@ -34,6 +38,8 @@ pub fn grant(
         name,
         rules,
         config_disabled,
+        global_mailmap,
+        repo_mailmap,
         on_achievement,
     )
 }
@@ -55,6 +61,8 @@ pub fn grant_with_rules(
         name,
         rules,
         HashSet::new(),
+        None,
+        None,
         on_achievement,
     )
 }
@@ -68,6 +76,8 @@ fn grant_with_rules_and_disabled(
     name: &str,
     rules: Vec<Box<dyn RulePlugin>>,
     config_disabled: HashSet<usize>,
+    global_mailmap: Option<&Path>,
+    repo_mailmap: Option<&Path>,
     on_achievement: impl FnMut(Achievement),
 ) -> eyre::Result<GrantStats> {
     let rev = crate::git::rev::parse(reference, repo)
@@ -92,6 +102,8 @@ fn grant_with_rules_and_disabled(
             name,
             rules,
             config_disabled,
+            global_mailmap,
+            repo_mailmap,
             on_achievement,
         )
     } else {
@@ -102,11 +114,14 @@ fn grant_with_rules_and_disabled(
             name,
             rules,
             config_disabled,
+            global_mailmap,
+            repo_mailmap,
             on_achievement,
         )
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_pipeline(
     oids: impl Iterator<Item = gix::ObjectId>,
     repo: &gix::Repository,
@@ -114,6 +129,8 @@ fn run_pipeline(
     name: &str,
     mut rules: Vec<Box<dyn RulePlugin>>,
     config_disabled: HashSet<usize>,
+    global_mailmap: Option<&Path>,
+    repo_mailmap: Option<&Path>,
     mut on_achievement: impl FnMut(Achievement),
 ) -> eyre::Result<GrantStats> {
     let start = Instant::now();
@@ -122,7 +139,10 @@ fn run_pipeline(
     let checkpoint = load_checkpoint(data_dir, name)?;
     load_rule_caches(&mut rules, data_dir, name)?;
 
-    let mut engine = RuleEngine::new(repo, rules, config_disabled)?;
+    let snapshot = repo.open_mailmap();
+    let mailmap =
+        crate::git::mailmap::MailmapResolver::new(snapshot, global_mailmap, repo_mailmap)?;
+    let mut engine = RuleEngine::new(repo, rules, config_disabled, mailmap)?;
     let mut strategy = CheckpointStrategy::new(checkpoint);
     let mut num_achievements: u64 = 0;
 
@@ -305,7 +325,7 @@ mod tests {
     #[test]
     fn test_awards_on_finalize() {
         let temp_repo = fixtures::repository::simplest().unwrap();
-        let rules = vec![Box::new(ParticipationTrophy2) as Box<dyn RulePlugin>];
+        let rules = vec![Box::new(ParticipationTrophy2::default()) as Box<dyn RulePlugin>];
         let (achievements, stats) = collect_achievements("HEAD", &temp_repo.repo, None, rules);
         assert_eq!(achievements.len(), 1);
         assert_eq!(stats.num_achievements_generated, 1);
