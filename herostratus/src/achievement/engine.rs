@@ -76,6 +76,14 @@ impl<'repo> RuleEngine<'repo> {
                 && !self.suppressed.contains(&a.descriptor_id)
         });
 
+        if !achievements.is_empty() {
+            let author = self.mailmap.resolve_author(&commit)?;
+            for a in &mut achievements {
+                a.author_name = author.name.to_string();
+                a.author_email = author.email.to_string();
+            }
+        }
+
         if achievements.len() > 1 {
             tracing::debug!(
                 "Generated {} achievements for commit {}",
@@ -96,6 +104,7 @@ impl<'repo> RuleEngine<'repo> {
             achievements.extend(rule.finalize(self.repo));
         }
         achievements.retain(|a| !self.config_disabled.contains(&a.descriptor_id));
+        self.resolve_authors(&mut achievements);
         achievements
     }
 
@@ -149,6 +158,7 @@ impl<'repo> RuleEngine<'repo> {
         }
         // Filter by config_disabled only (suppressed rules pass through finalization)
         achievements.retain(|a| !self.config_disabled.contains(&a.descriptor_id));
+        self.resolve_authors(&mut achievements);
         achievements
     }
 
@@ -167,6 +177,29 @@ impl<'repo> RuleEngine<'repo> {
 
     pub fn num_commits_processed(&self) -> u64 {
         self.num_commits_processed
+    }
+
+    /// Look up each achievement's commit and resolve the author via the mailmap.
+    fn resolve_authors(&self, achievements: &mut [Achievement]) {
+        for a in achievements {
+            match self.repo.find_commit(a.commit) {
+                Ok(commit) => match self.mailmap.resolve_author(&commit) {
+                    Ok(author) => {
+                        a.author_name = author.name.to_string();
+                        a.author_email = author.email.to_string();
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to resolve author for commit {}: {e}", a.commit);
+                    }
+                },
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to find commit {} for author resolution: {e}",
+                        a.commit
+                    );
+                }
+            }
+        }
     }
 
     fn diff_commit(&mut self, commit: &gix::Commit) -> eyre::Result<Vec<Achievement>> {
@@ -398,7 +431,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_process_commit_resolves_author() {
         let temp_repo = fixtures::repository::simplest().unwrap();
         let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
@@ -413,7 +445,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_process_commit_resolves_author_with_mailmap() {
         let temp_repo = fixtures::repository::simplest().unwrap();
         let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
@@ -439,7 +470,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_finalize_resolves_author() {
         let temp_repo = fixtures::repository::simplest().unwrap();
         let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
