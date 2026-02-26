@@ -122,7 +122,9 @@ fn run_pipeline(
     let checkpoint = load_checkpoint(data_dir, name)?;
     load_rule_caches(&mut rules, data_dir, name)?;
 
-    let mut engine = RuleEngine::new(repo, rules, config_disabled)?;
+    let snapshot = repo.open_mailmap();
+    let mailmap = crate::git::mailmap::MailmapResolver::new(snapshot, None, None)?;
+    let mut engine = RuleEngine::new(repo, rules, config_disabled, mailmap)?;
     let mut strategy = CheckpointStrategy::new(checkpoint);
     let mut num_achievements: u64 = 0;
 
@@ -305,7 +307,7 @@ mod tests {
     #[test]
     fn test_awards_on_finalize() {
         let temp_repo = fixtures::repository::simplest().unwrap();
-        let rules = vec![Box::new(ParticipationTrophy2) as Box<dyn RulePlugin>];
+        let rules = vec![Box::new(ParticipationTrophy2::default()) as Box<dyn RulePlugin>];
         let (achievements, stats) = collect_achievements("HEAD", &temp_repo.repo, None, rules);
         assert_eq!(achievements.len(), 1);
         assert_eq!(stats.num_achievements_generated, 1);
