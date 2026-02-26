@@ -116,6 +116,61 @@ pub fn bare() -> eyre::Result<TempRepository> {
     Ok(TempRepository { tempdir, repo })
 }
 
+pub fn non_bare() -> eyre::Result<TempRepository> {
+    let tempdir = Builder::new().prefix("tmp-").tempdir()?;
+    tracing::debug!(
+        "Creating non-bare repo fixture in '{}'",
+        tempdir.path().display()
+    );
+
+    let options = gix::create::Options {
+        destination_must_be_empty: true,
+        ..Default::default()
+    };
+    let repo =
+        gix::ThreadSafeRepository::init(tempdir.path(), gix::create::Kind::WithWorktree, options)?;
+    let repo = repo.to_thread_local();
+
+    Ok(TempRepository { tempdir, repo })
+}
+
+/// Create a commit whose tree contains a single file with the given name and content.
+///
+/// The new commit's tree is built by taking the current HEAD tree (or empty tree) and upserting the
+/// file into it. The commit is authored by the default Herostratus identity.
+pub fn add_commit_with_file<'r>(
+    repo: &'r gix::Repository,
+    message: &str,
+    filename: &str,
+    content: &[u8],
+) -> eyre::Result<gix::Id<'r>> {
+    let blob_id: gix::ObjectId = repo.write_blob(content)?.into();
+
+    let base_tree_id = repo
+        .head_tree_id()
+        .unwrap_or_else(|_| repo.empty_tree().id());
+
+    let mut editor = repo.edit_tree(base_tree_id)?;
+    editor.upsert(filename, gix::object::tree::EntryKind::Blob, blob_id)?;
+    let tree_id = editor.write()?;
+
+    let time = 1711656630;
+    let signature = get_signature_at_time(time);
+    let mut buf = gix::date::parse::TimeBuf::default();
+    let authored = signature.to_ref(&mut buf);
+    let mut buf = gix::date::parse::TimeBuf::default();
+    let committed = signature.to_ref(&mut buf);
+
+    let parent = repo.head_commit().ok();
+    let parents = if let Some(ref parent) = parent {
+        vec![parent.id()]
+    } else {
+        Vec::new()
+    };
+    let commit_id = repo.commit_as(authored, committed, "HEAD", message, tree_id, parents)?;
+    Ok(commit_id)
+}
+
 pub fn simplest() -> eyre::Result<TempRepository> {
     with_empty_commits(&["Initial commit"])
 }
