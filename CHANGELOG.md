@@ -47,7 +47,7 @@ $ herostratus check-all --summary
 
 | Name        | # Commits | # Achievements | Time    | Time per commit |
 | ----------- | --------- | -------------- | ------- | --------------- |
-| git         | 79202     | 501            | 64.22s  | 810.84µs        |
+| git         | 79765     | 502            | 14.14s  | 177.25µs        |
 
 # Should exit almost immediately and grant no new achievements
 $ herostratus check-all --summary
