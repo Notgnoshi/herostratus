@@ -20,6 +20,7 @@ fn args_to_config(args: &AddArgs, data_dir: &Path) -> eyre::Result<RepositoryCon
         ssh_public_key: args.ssh_public_key.clone(),
         ssh_passphrase: args.ssh_passphrase.clone(),
         https_password: args.https_password.clone(),
+        mailmap_file: None,
     })
 }
 

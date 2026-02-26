@@ -13,6 +13,9 @@ pub struct Config {
     // Name -> Config pairs (Use HashMap over Vec for prettiness of TOML)
     pub repositories: HashMap<String, RepositoryConfig>,
     pub rules: Option<RulesConfig>,
+
+    /// Path to a global mailmap file applied to all repositories.
+    pub mailmap_file: Option<PathBuf>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
@@ -68,6 +71,11 @@ pub struct RepositoryConfig {
     /// If not set for an HTTPS clone URL, Herostratus will attempt to use your configured Git
     /// `credential.helper`.
     pub https_password: Option<String>,
+
+    /// Path to a mailmap file for this repository.
+    ///
+    /// Merged after the global `mailmap_file`, so per-repository entries take precedence.
+    pub mailmap_file: Option<PathBuf>,
 }
 
 pub fn config_path(data_dir: &Path) -> PathBuf {
@@ -220,6 +228,27 @@ mod tests {
                 .unwrap()
                 .length_threshold,
             80
+        );
+    }
+
+    #[test]
+    fn config_mailmap_file() {
+        let config_toml = "mailmap_file = \"/home/user/global-mailmap\"\n\
+                       \n\
+                       [repositories.linux]\n\
+                       path = \"git/torvalds/linux\"\n\
+                       url = \"https://github.com/torvalds/linux.git\"\n\
+                       mailmap_file = \"/home/user/linux-mailmap\"\n\
+                      ";
+
+        let config = deserialize_config(config_toml).unwrap();
+        assert_eq!(
+            config.mailmap_file.unwrap(),
+            PathBuf::from("/home/user/global-mailmap")
+        );
+        assert_eq!(
+            config.repositories["linux"].mailmap_file.as_ref().unwrap(),
+            &PathBuf::from("/home/user/linux-mailmap")
         );
     }
 }
