@@ -17,32 +17,22 @@ jobs:
                 # https://github.com/Notgnoshi/herostratus/settings/secrets/actions
                 # https://github.com/settings/personal-access-tokens
                 token: ${{ secrets.HEROSTRATUS_RELEASE_TOKEN }}
-            - name: Validate SemVer Version
-              shell: bash  # Explicitly setting the shell sets errexit and pipefail flags
+            - name: Extract version from Cargo.toml
+              shell: bash
               run: |
                 VERSION="$(.github/parse-manifest-key.sh Cargo.toml version)"
-                echo "Validating SemVer version '$VERSION' ..."
-                .github/validate-version-is-semver-compliant.sh "$VERSION"
                 echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
-            - name: Check if current version has a Git tag
+            - name: Create tag if version is unreleased
               shell: bash
               if: github.ref_name == github.event.repository.default_branch
-              run: |-
-                # Delete any local tags cached by the runner, and fetch remote tags to ensure we're
-                # up-to-date.
-                git tag --list | xargs git tag --delete
+              run: |
                 git fetch --force --tags
 
-                # Exits with success if tag does not exist, failure if tag _does_ exist.
-                if ! .github/check-if-tag-already-exists.sh \
-                    --tag-prefix 'v' \
-                    --target-branch 'main' \
-                    "$VERSION" \
-                    ; then
-                    echo "Found tag for current version '$VERSION'. Skipping release ..."
+                if git tag -l "v$VERSION" | grep -q .; then
+                    echo "Found tag v$VERSION. Skipping release ..."
                 else
-                    echo "Could not find tag for current version '$VERSION'. Making relese ..."
+                    echo "Could not find tag v$VERSION. Making release ..."
                     git config --global user.name "${{ github.actor }}"
                     git config --global user.email "${{ github.actor }}@users.noreply.github.com"
                     RELEASE_TAG="v$VERSION"
