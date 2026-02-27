@@ -1,10 +1,10 @@
 use herostratus_tests::cmd::{CommandExt, herostratus};
-use herostratus_tests::fixtures;
+use herostratus_tests::fixtures::repository::Builder;
 
 #[test]
 fn add_and_fetch() {
     // 1. Create an upstream repo
-    let temp_upstream_repo = fixtures::repository::simplest().unwrap();
+    let temp_upstream_repo = Builder::new().commit("Initial commit").build().unwrap();
     let url = format!("file://{}", temp_upstream_repo.tempdir.path().display());
 
     // 2. Add it to herostratus, skipping the clone
@@ -21,7 +21,7 @@ fn add_and_fetch() {
     assert!(output.status.success());
 
     // 4. Add a commit to the upstream
-    fixtures::repository::add_empty_commit(&temp_upstream_repo.repo, "Second commit").unwrap();
+    temp_upstream_repo.commit("Second commit").create().unwrap();
 
     // 5. Fetch the new commit
     let (mut cmd, _) = herostratus(Some(data_dir), None);

@@ -369,12 +369,16 @@ pub fn clone_repository(
 #[cfg(test)]
 mod tests {
     use herostratus_tests::fixtures;
+    use herostratus_tests::fixtures::repository;
 
     use super::*;
 
     #[test]
     fn test_find_local_repository() {
-        let temp_repo = fixtures::repository::simplest().unwrap();
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
         let repo = find_local_repository(temp_repo.tempdir.path()).unwrap();
         assert_eq!(repo.path(), temp_repo.tempdir.path());
     }
@@ -403,8 +407,8 @@ mod tests {
     #[test]
     fn test_pull_default_branch_from_empty() {
         let (upstream, downstream) = fixtures::repository::upstream_downstream_empty().unwrap();
-        let commit1 = fixtures::repository::add_empty_commit(&upstream.repo, "commit1").unwrap();
-        let commit2 = fixtures::repository::add_empty_commit(&upstream.repo, "commit2").unwrap();
+        let commit1 = upstream.commit("commit1").create().unwrap();
+        let commit2 = upstream.commit("commit2").create().unwrap();
 
         let remote = downstream.repo.find_remote("origin").unwrap();
         let url = remote
@@ -438,7 +442,7 @@ mod tests {
         assert_eq!(downstream_head.name(), upstream_head.name());
         assert_eq!(downstream_head.id().unwrap(), commit2);
 
-        let commit3 = fixtures::repository::add_empty_commit(&upstream.repo, "commit3").unwrap();
+        let commit3 = upstream.commit("commit3").create().unwrap();
         let fetched_commits = pull_branch(&config, &downstream.repo).unwrap();
         assert_eq!(fetched_commits, 1);
 
@@ -454,10 +458,10 @@ mod tests {
     #[test]
     fn test_pull_custom_default_branch_name() {
         let (upstream, downstream) = fixtures::repository::upstream_downstream_empty().unwrap();
-        fixtures::repository::set_default_branch(&upstream.repo, "trunk").unwrap();
+        upstream.set_branch("trunk").unwrap();
 
-        let commit1 = fixtures::repository::add_empty_commit(&upstream.repo, "commit1").unwrap();
-        let commit2 = fixtures::repository::add_empty_commit(&upstream.repo, "commit2").unwrap();
+        let commit1 = upstream.commit("commit1").create().unwrap();
+        let commit2 = upstream.commit("commit2").create().unwrap();
 
         let remote = downstream.repo.find_remote("origin").unwrap();
         let url = remote
@@ -483,7 +487,7 @@ mod tests {
         assert_eq!(downstream_head.name(), upstream_head.name());
         assert_eq!(downstream_head.id().unwrap(), commit2);
 
-        let commit3 = fixtures::repository::add_empty_commit(&upstream.repo, "commit3").unwrap();
+        let commit3 = upstream.commit("commit3").create().unwrap();
         let fetched_commits = pull_branch(&config, &downstream.repo).unwrap();
         assert_eq!(fetched_commits, 1);
 
@@ -499,10 +503,10 @@ mod tests {
     #[test]
     fn test_pull_specific_branch() {
         let (upstream, downstream) = fixtures::repository::upstream_downstream_empty().unwrap();
-        fixtures::repository::set_default_branch(&upstream.repo, "dev").unwrap();
+        upstream.set_branch("dev").unwrap();
 
-        let commit1 = fixtures::repository::add_empty_commit(&upstream.repo, "commit1").unwrap();
-        let commit2 = fixtures::repository::add_empty_commit(&upstream.repo, "commit2").unwrap();
+        let commit1 = upstream.commit("commit1").create().unwrap();
+        let commit2 = upstream.commit("commit2").create().unwrap();
 
         let remote = downstream.repo.find_remote("origin").unwrap();
         let url = remote
@@ -528,7 +532,7 @@ mod tests {
         assert_eq!(downstream_head.name(), upstream_head.name());
         assert_eq!(downstream_head.id().unwrap(), commit2);
 
-        let commit3 = fixtures::repository::add_empty_commit(&upstream.repo, "commit3").unwrap();
+        let commit3 = upstream.commit("commit3").create().unwrap();
         let fetched_commits = pull_branch(&config, &downstream.repo).unwrap();
         assert_eq!(fetched_commits, 1);
 
@@ -544,8 +548,8 @@ mod tests {
     #[test]
     fn test_pulling_creates_a_local_branch() {
         let (upstream, downstream) = fixtures::repository::upstream_downstream().unwrap();
-        fixtures::repository::set_default_branch(&upstream.repo, "branch1").unwrap();
-        fixtures::repository::add_empty_commit(&upstream.repo, "commit on branch1").unwrap();
+        upstream.set_branch("branch1").unwrap();
+        upstream.commit("commit on branch1").create().unwrap();
 
         let remote = downstream.repo.find_remote("origin").unwrap();
         let url = remote
@@ -568,13 +572,12 @@ mod tests {
     #[test]
     fn test_fast_fetch_single_reference() {
         let (upstream, downstream) = fixtures::repository::upstream_downstream().unwrap();
-        fixtures::repository::set_default_branch(&upstream.repo, "branch1").unwrap();
-        fixtures::repository::set_default_branch(&upstream.repo, "branch2").unwrap();
-        let commit2 =
-            fixtures::repository::add_empty_commit(&upstream.repo, "commit on branch2").unwrap();
+        upstream.set_branch("branch1").unwrap();
+        upstream.set_branch("branch2").unwrap();
+        let commit2 = upstream.commit("commit on branch2").create().unwrap();
 
-        fixtures::repository::set_default_branch(&upstream.repo, "branch1").unwrap();
-        fixtures::repository::add_empty_commit(&upstream.repo, "commit on branch1").unwrap();
+        upstream.set_branch("branch1").unwrap();
+        upstream.commit("commit on branch1").create().unwrap();
 
         let result = upstream.repo.find_reference("branch1");
         assert!(result.is_ok());
@@ -610,8 +613,11 @@ mod tests {
 
     #[test]
     fn test_clone_file_url() {
-        let upstream = fixtures::repository::simplest().unwrap();
-        let commit1 = fixtures::repository::add_empty_commit(&upstream.repo, "commit1").unwrap();
+        let upstream = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
+        let commit1 = upstream.commit("commit1").create().unwrap();
         let tempdir = tempfile::tempdir().unwrap();
         let downstream_dir = tempdir.path().join("downstream");
 
@@ -630,13 +636,16 @@ mod tests {
 
     #[test]
     fn test_clone_fast_fetch_single_branch() {
-        let upstream = fixtures::repository::simplest().unwrap();
+        let upstream = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
 
-        fixtures::repository::set_default_branch(&upstream.repo, "branch1").unwrap();
-        let commit1 = fixtures::repository::add_empty_commit(&upstream.repo, "commit1").unwrap();
-        fixtures::repository::set_default_branch(&upstream.repo, "branch2").unwrap();
-        let commit2 = fixtures::repository::add_empty_commit(&upstream.repo, "commit2").unwrap();
-        fixtures::repository::set_default_branch(&upstream.repo, "branch1").unwrap();
+        upstream.set_branch("branch1").unwrap();
+        let commit1 = upstream.commit("commit1").create().unwrap();
+        upstream.set_branch("branch2").unwrap();
+        let commit2 = upstream.commit("commit2").create().unwrap();
+        upstream.set_branch("branch1").unwrap();
         let tempdir = tempfile::tempdir().unwrap();
         let downstream_dir = tempdir.path().join("downstream");
 
@@ -706,7 +715,10 @@ mod tests {
 
     #[test]
     fn test_clone_directory_already_exists() {
-        let upstream = fixtures::repository::simplest().unwrap();
+        let upstream = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
 
         let tempdir = tempfile::tempdir().unwrap();
         let downstream_dir = tempdir.path().join("downstream");
@@ -736,7 +748,10 @@ mod tests {
 
     #[test]
     fn test_clone_already_cloned_does_a_fetch() {
-        let upstream = fixtures::repository::simplest().unwrap();
+        let upstream = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
         let tempdir = tempfile::tempdir().unwrap();
         let downstream_dir = tempdir.path().join("downstream");
 
@@ -756,8 +771,7 @@ mod tests {
 
         // Now add a new commit to the upstream so we can test that another clone does a fetch
         // instead of failing.
-        let new_commit =
-            fixtures::repository::add_empty_commit(&upstream.repo, "new commit").unwrap();
+        let new_commit = upstream.commit("new commit").create().unwrap();
 
         let downstream = clone_repository(&config, force).unwrap();
         let result = downstream.find_commit(new_commit);

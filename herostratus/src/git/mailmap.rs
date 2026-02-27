@@ -66,13 +66,16 @@ fn merge_file(snapshot: &mut gix::mailmap::Snapshot, path: &Path) -> eyre::Resul
 
 #[cfg(test)]
 mod tests {
-    use herostratus_tests::fixtures;
+    use herostratus_tests::fixtures::repository;
 
     use super::*;
 
     #[test]
     fn no_mailmap_passthrough() {
-        let temp_repo = fixtures::repository::simplest().unwrap();
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
         let resolver = MailmapResolver::new(gix::mailmap::Snapshot::default(), None, None).unwrap();
         let head = temp_repo.repo.head_commit().unwrap();
         let author = resolver.resolve_author(&head).unwrap();
@@ -82,7 +85,10 @@ mod tests {
 
     #[test]
     fn config_mailmap_resolves() {
-        let temp_repo = fixtures::repository::simplest().unwrap();
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
 
         let mailmap_dir = tempfile::tempdir().unwrap();
         let mailmap_path = mailmap_dir.path().join("mailmap");
@@ -104,7 +110,10 @@ mod tests {
 
     #[test]
     fn repo_mailmap_overrides_global() {
-        let temp_repo = fixtures::repository::simplest().unwrap();
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
 
         let global_dir = tempfile::tempdir().unwrap();
         let global_path = global_dir.path().join("global-mailmap");
@@ -137,14 +146,11 @@ mod tests {
 
     #[test]
     fn custom_author_resolved() {
-        let temp_repo = fixtures::repository::bare().unwrap();
-        fixtures::repository::add_empty_commit_as(
-            &temp_repo.repo,
-            "test commit",
-            "Old Name",
-            "old@example.com",
-        )
-        .unwrap();
+        let temp_repo = repository::Builder::new()
+            .commit("test commit")
+            .author("Old Name", "old@example.com")
+            .build()
+            .unwrap();
 
         let mailmap_dir = tempfile::tempdir().unwrap();
         let mailmap_path = mailmap_dir.path().join("mailmap");
@@ -166,14 +172,11 @@ mod tests {
 
     #[test]
     fn unmatched_author_passthrough() {
-        let temp_repo = fixtures::repository::bare().unwrap();
-        fixtures::repository::add_empty_commit_as(
-            &temp_repo.repo,
-            "test commit",
-            "Unmapped",
-            "unmapped@example.com",
-        )
-        .unwrap();
+        let temp_repo = repository::Builder::new()
+            .commit("test commit")
+            .author("Unmapped", "unmapped@example.com")
+            .build()
+            .unwrap();
 
         // Mailmap maps a different author, not the one in the commit
         let mailmap_dir = tempfile::tempdir().unwrap();

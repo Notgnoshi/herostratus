@@ -14,6 +14,18 @@ focus on the user impact** rather than the actual changes made.
 
 ## Added
 
+## Changed
+
+## Deprecated
+
+## Removed
+
+## Fixed
+
+# Herostratus - 0.4.0 - (2026-02-26)
+
+## Added
+
 Herostratus now resolves commit author identities using Git's
 [mailmap](https://git-scm.com/docs/gitmailmap) mechanism. This maps alternate author names and
 emails to a canonical identity, which is useful when contributors change their name or email over
@@ -57,14 +69,6 @@ $ herostratus check-all --summary
 | ---- | --------- | -------------- | ------ | --------------- |
 | git  | 0         | 0              | 1.44ms | 0.00ns          |
 ```
-
-## Changed
-
-## Deprecated
-
-## Removed
-
-## Fixed
 
 # Herostratus - 0.3.0 - (2025-12-16)
 

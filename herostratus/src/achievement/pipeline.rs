@@ -273,7 +273,7 @@ fn apply_suppress_and_continue(
 
 #[cfg(test)]
 mod tests {
-    use herostratus_tests::fixtures;
+    use herostratus_tests::fixtures::repository;
 
     use super::*;
     use crate::achievement::AchievementDescriptor;
@@ -298,14 +298,20 @@ mod tests {
 
     #[test]
     fn test_no_rules() {
-        let temp_repo = fixtures::repository::simplest().unwrap();
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
         let (achievements, _) = collect_achievements("HEAD", &temp_repo.repo, None, Vec::new());
         assert!(achievements.is_empty());
     }
 
     #[test]
     fn test_no_matches() {
-        let temp_repo = fixtures::repository::simplest().unwrap();
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
         let rules = vec![Box::new(AlwaysFail) as Box<dyn RulePlugin>];
         let (achievements, _) = collect_achievements("HEAD", &temp_repo.repo, None, rules);
         assert!(achievements.is_empty());
@@ -313,7 +319,10 @@ mod tests {
 
     #[test]
     fn test_all_matches() {
-        let temp_repo = fixtures::repository::simplest().unwrap();
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
         let rules = vec![
             Box::new(AlwaysFail) as Box<dyn RulePlugin>,
             Box::new(ParticipationTrophy) as Box<dyn RulePlugin>,
@@ -324,7 +333,10 @@ mod tests {
 
     #[test]
     fn test_awards_on_finalize() {
-        let temp_repo = fixtures::repository::simplest().unwrap();
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
         let rules = vec![Box::new(ParticipationTrophy2::default()) as Box<dyn RulePlugin>];
         let (achievements, stats) = collect_achievements("HEAD", &temp_repo.repo, None, rules);
         assert_eq!(achievements.len(), 1);
@@ -334,7 +346,10 @@ mod tests {
 
     #[test]
     fn test_early_exit_no_new_rules() {
-        let temp_repo = fixtures::repository::simplest().unwrap();
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
 
         let rules = vec![
             Box::new(AlwaysFail) as Box<dyn RulePlugin>,
@@ -355,8 +370,7 @@ mod tests {
         assert!(achievements.is_empty());
 
         // Add a new commit to the repo; will generate a single new achievement
-        let new_commit =
-            fixtures::repository::add_empty_commit(&temp_repo.repo, "new-commit").unwrap();
+        let new_commit = temp_repo.commit("new-commit").create().unwrap();
         let rules = vec![
             Box::new(AlwaysFail) as Box<dyn RulePlugin>,
             Box::new(ParticipationTrophy) as Box<dyn RulePlugin>,
@@ -369,7 +383,10 @@ mod tests {
 
     #[test]
     fn test_continue_processing_with_new_rules() {
-        let temp_repo = fixtures::repository::simplest().unwrap();
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
         let first_commit = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
 
         let rules = vec![
@@ -381,8 +398,7 @@ mod tests {
         assert_eq!(achievements.len(), 1);
 
         // Add a new commit to the repo
-        let second_commit =
-            fixtures::repository::add_empty_commit(&temp_repo.repo, "new-commit").unwrap();
+        let second_commit = temp_repo.commit("new-commit").create().unwrap();
 
         // Add a new rule; the new rule should process all commits; the old rules should only
         // process the newly added commit.
@@ -423,7 +439,10 @@ mod tests {
 
     #[test]
     fn test_continue_processing_pathological_case() {
-        let temp_repo = fixtures::repository::simplest().unwrap();
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
         let first_commit = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
 
         // First run: FlexibleRule only has descriptor id=2
@@ -445,8 +464,7 @@ mod tests {
         assert_eq!(granted[0].name, "rule1");
 
         // Add a new commit, and a new AchievementDescriptor to the existing RulePlugin implementation
-        let second_commit =
-            fixtures::repository::add_empty_commit(&temp_repo.repo, "new-commit").unwrap();
+        let second_commit = temp_repo.commit("new-commit").create().unwrap();
         // Second run: FlexibleRule now has both descriptor id=2 and id=3
         let rules = vec![
             Box::new(AlwaysFail) as Box<dyn RulePlugin>, // 1

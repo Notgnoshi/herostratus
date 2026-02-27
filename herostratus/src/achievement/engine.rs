@@ -306,7 +306,7 @@ impl<'repo> RuleEngine<'repo> {
 
 #[cfg(test)]
 mod tests {
-    use herostratus_tests::fixtures;
+    use herostratus_tests::fixtures::repository;
 
     use super::*;
     use crate::rules::test_rules::{AlwaysFail, ParticipationTrophy, ParticipationTrophy2};
@@ -317,7 +317,10 @@ mod tests {
 
     #[test]
     fn test_process_commit_no_rules() {
-        let temp_repo = fixtures::repository::simplest().unwrap();
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
         let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
 
         let mut engine = RuleEngine::new(
@@ -334,7 +337,10 @@ mod tests {
 
     #[test]
     fn test_process_commit_no_matches() {
-        let temp_repo = fixtures::repository::simplest().unwrap();
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
         let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
 
         let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(AlwaysFail)];
@@ -346,7 +352,10 @@ mod tests {
 
     #[test]
     fn test_process_commit_with_match() {
-        let temp_repo = fixtures::repository::simplest().unwrap();
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
         let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
 
         let rules: Vec<Box<dyn RulePlugin>> =
@@ -360,7 +369,10 @@ mod tests {
 
     #[test]
     fn test_finalize_collects_achievements() {
-        let temp_repo = fixtures::repository::simplest().unwrap();
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
         let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
 
         let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(ParticipationTrophy2::default())];
@@ -378,7 +390,10 @@ mod tests {
 
     #[test]
     fn test_config_disabled_filters_process() {
-        let temp_repo = fixtures::repository::simplest().unwrap();
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
         let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
 
         let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(ParticipationTrophy)];
@@ -397,7 +412,10 @@ mod tests {
 
     #[test]
     fn test_suppressed_filters_process_but_not_finalize() {
-        let temp_repo = fixtures::repository::simplest().unwrap();
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
         let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
 
         let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(ParticipationTrophy2::default())];
@@ -417,7 +435,10 @@ mod tests {
 
     #[test]
     fn test_get_enabled_rule_ids() {
-        let temp_repo = fixtures::repository::simplest().unwrap();
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
 
         let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(ParticipationTrophy)];
         let mut engine =
@@ -432,7 +453,10 @@ mod tests {
 
     #[test]
     fn test_process_commit_resolves_author() {
-        let temp_repo = fixtures::repository::simplest().unwrap();
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
         let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
 
         let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(ParticipationTrophy)];
@@ -446,7 +470,10 @@ mod tests {
 
     #[test]
     fn test_process_commit_resolves_author_with_mailmap() {
-        let temp_repo = fixtures::repository::simplest().unwrap();
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
         let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
 
         let mailmap_dir = tempfile::tempdir().unwrap();
@@ -471,7 +498,10 @@ mod tests {
 
     #[test]
     fn test_finalize_resolves_author() {
-        let temp_repo = fixtures::repository::simplest().unwrap();
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
         let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
 
         let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(ParticipationTrophy2::default())];

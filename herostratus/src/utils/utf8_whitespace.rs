@@ -1,7 +1,7 @@
 use crate::bstr::BStr;
 
 /// Do a two-finger comparison of `a` and `b` skipping over all unicode whitespace
-pub fn is_equal_ignoring_whitespace<A: AsRef<BStr>, B: AsRef<BStr>>(a: A, b: B) -> bool {
+pub(crate) fn is_equal_ignoring_whitespace<A: AsRef<BStr>, B: AsRef<BStr>>(a: A, b: B) -> bool {
     let mut a_chunks = a.as_ref().utf8_chunks();
     let mut a_chars = WhiteSpaceSkipper::new(&mut a_chunks);
     let mut b_chunks = b.as_ref().utf8_chunks();
@@ -22,13 +22,13 @@ pub fn is_equal_ignoring_whitespace<A: AsRef<BStr>, B: AsRef<BStr>>(a: A, b: B) 
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CharOrByte {
+enum CharOrByte {
     Char(char),
     Byte(u8),
 }
 
 /// A utility to skip over ascii and unicode whitespace in a [`BStr`]
-pub struct WhiteSpaceSkipper<'a, I> {
+struct WhiteSpaceSkipper<'a, I> {
     chunks: &'a mut I,
     current_valid: std::str::Chars<'a>,
     current_invalid: std::slice::Iter<'a, u8>,
@@ -40,7 +40,7 @@ impl<'a, I> WhiteSpaceSkipper<'a, I>
 where
     I: Iterator<Item = std::str::Utf8Chunk<'a>>,
 {
-    pub fn new(chunks: &'a mut I) -> Self {
+    fn new(chunks: &'a mut I) -> Self {
         let mut this = Self {
             chunks,
             current_valid: "".chars(),

@@ -47,7 +47,8 @@ Achievement { name: "I meant to fix that up later, I swear!", commit: a987013884
 Achievement { name: "I meant to fix that up later, I swear!", commit: 60b480b554dbd5266eec0f2378f72df5170a6702 }
 ```
 
-These commands write their configuration and clone Git repositories to `~/.config/herostratus/`.
+These commands write their configuration and clone Git repositories to
+`~/.local/share/herostratus/`.
 
 > [!WARNING]
 >
