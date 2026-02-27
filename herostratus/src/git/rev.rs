@@ -32,19 +32,22 @@ pub fn walk(
 
 #[cfg(test)]
 mod test {
-    use herostratus_tests::fixtures;
+    use herostratus_tests::fixtures::repository;
 
     use super::*;
 
     #[test]
     fn test_rev_parse_and_walk() {
-        let temp_repo = fixtures::repository::simplest().unwrap();
-        let time = 1711656631;
-        fixtures::repository::add_empty_commit_time(&temp_repo.repo, "commit2", time).unwrap();
-        let time = 1711656633;
-        fixtures::repository::add_empty_commit_time(&temp_repo.repo, "commit3", time).unwrap();
-        let time = 1711656632;
-        fixtures::repository::add_empty_commit_time(&temp_repo.repo, "commit4", time).unwrap();
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .commit("commit2")
+            .time(1711656631)
+            .commit("commit3")
+            .time(1711656633)
+            .commit("commit4")
+            .time(1711656632)
+            .build()
+            .unwrap();
 
         let repo = temp_repo.repo;
 
@@ -65,17 +68,16 @@ mod test {
 
     #[test]
     fn rev_parse_and_walk_tags() {
-        let temp_repo = fixtures::repository::bare().unwrap();
-        let commit = fixtures::repository::add_empty_commit(&temp_repo.repo, "commit1").unwrap();
-        fixtures::repository::create_lightweight_tag(&temp_repo.repo, "LIGHTWEIGHT", commit)
+        let temp_repo = repository::Builder::new()
+            .commit("commit1")
+            .tag("LIGHTWEIGHT")
+            .commit("commit2")
+            .annotated_tag("ANNOTATED", "tag2")
+            .build()
             .unwrap();
 
         let oid = parse("LIGHTWEIGHT", &temp_repo.repo).unwrap();
         let _commits: Vec<_> = walk(oid, &temp_repo.repo).unwrap().collect();
-
-        let commit = fixtures::repository::add_empty_commit(&temp_repo.repo, "commit2").unwrap();
-        fixtures::repository::create_annotated_tag(&temp_repo.repo, "ANNOTATED", commit, "tag2")
-            .unwrap();
 
         let oid = parse("ANNOTATED", &temp_repo.repo).unwrap();
         let _commits: Vec<_> = walk(oid, &temp_repo.repo).unwrap().collect();

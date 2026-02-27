@@ -1,4 +1,4 @@
-use tempfile::{Builder, TempDir};
+use tempfile::{Builder as TempBuilder, TempDir};
 
 pub struct TempRepository {
     pub tempdir: TempDir,
@@ -21,16 +21,346 @@ impl TempRepository {
     pub fn remember(&mut self) {
         self.tempdir.disable_cleanup(false)
     }
+
+    /// Start building a commit on this repository
+    pub fn commit(&self, subject: &str) -> PendingCommit<'_> {
+        PendingCommit {
+            repo: &self.repo,
+            spec: CommitSpec::new(subject),
+        }
+    }
+
+    /// Switch HEAD to the specified branch, creating it at the current HEAD if necessary
+    pub fn set_branch(&self, branch_name: &str) -> eyre::Result<()> {
+        set_default_branch(&self.repo, branch_name)
+    }
+
+    /// Create a branch pointing at the given target (or HEAD)
+    pub fn create_branch(
+        &self,
+        branch_name: &str,
+        target: Option<&str>,
+    ) -> eyre::Result<gix::Reference<'_>> {
+        create_branch(&self.repo, branch_name, target)
+    }
+
+    /// Create a lightweight tag
+    pub fn tag(
+        &self,
+        name: &str,
+        target: impl Into<gix::ObjectId>,
+    ) -> eyre::Result<gix::Reference<'_>> {
+        create_lightweight_tag(&self.repo, name, target)
+    }
+
+    /// Create an annotated tag
+    pub fn annotated_tag(
+        &self,
+        name: &str,
+        target: impl Into<gix::ObjectId>,
+        message: &str,
+    ) -> eyre::Result<gix::Reference<'_>> {
+        create_annotated_tag(&self.repo, name, target, message)
+    }
 }
 
-pub fn add_empty_commit<'r>(repo: &'r gix::Repository, message: &str) -> eyre::Result<gix::Id<'r>> {
-    let time = 1711656630;
-    add_empty_commit_time(repo, message, time)
+const DEFAULT_TIME: gix::date::SecondsSinceUnixEpoch = 1711656630;
+const DEFAULT_NAME: &str = "Herostratus";
+const DEFAULT_EMAIL: &str = "Herostratus@example.com";
+
+struct CommitSpec {
+    subject: String,
+    body: Option<String>,
+    author_name: Option<String>,
+    author_email: Option<String>,
+    committer_name: Option<String>,
+    committer_email: Option<String>,
+    seconds: Option<gix::date::SecondsSinceUnixEpoch>,
+    files: Vec<(String, Vec<u8>)>,
 }
 
-fn get_signature_at_time(seconds: gix::date::SecondsSinceUnixEpoch) -> gix::actor::Signature {
-    get_signature_at_time_as(seconds, "Herostratus", "Herostratus@example.com")
+impl CommitSpec {
+    fn new(subject: &str) -> Self {
+        Self {
+            subject: subject.to_owned(),
+            body: None,
+            author_name: None,
+            author_email: None,
+            committer_name: None,
+            committer_email: None,
+            seconds: None,
+            files: Vec::new(),
+        }
+    }
+
+    fn message(&self) -> String {
+        match &self.body {
+            Some(body) => format!("{}\n\n{body}", self.subject),
+            None => self.subject.clone(),
+        }
+    }
+
+    fn author_signature(&self) -> gix::actor::Signature {
+        let seconds = self.seconds.unwrap_or(DEFAULT_TIME);
+        let name = self.author_name.as_deref().unwrap_or(DEFAULT_NAME);
+        let email = self.author_email.as_deref().unwrap_or(DEFAULT_EMAIL);
+        get_signature_at_time_as(seconds, name, email)
+    }
+
+    fn committer_signature(&self) -> gix::actor::Signature {
+        let seconds = self.seconds.unwrap_or(DEFAULT_TIME);
+        let name = self
+            .committer_name
+            .as_deref()
+            .or(self.author_name.as_deref())
+            .unwrap_or(DEFAULT_NAME);
+        let email = self
+            .committer_email
+            .as_deref()
+            .or(self.author_email.as_deref())
+            .unwrap_or(DEFAULT_EMAIL);
+        get_signature_at_time_as(seconds, name, email)
+    }
+
+    /// Create the commit on the given repository, returning its ID
+    fn execute<'r>(&self, repo: &'r gix::Repository) -> eyre::Result<gix::Id<'r>> {
+        let tree_id = if self.files.is_empty() {
+            repo.head_tree_id()
+                .unwrap_or_else(|_| repo.empty_tree().id())
+        } else {
+            let base_tree_id = repo
+                .head_tree_id()
+                .unwrap_or_else(|_| repo.empty_tree().id());
+            let mut editor = repo.edit_tree(base_tree_id)?;
+            for (path, content) in &self.files {
+                let blob_id: gix::ObjectId = repo.write_blob(content)?.into();
+                editor.upsert(path, gix::object::tree::EntryKind::Blob, blob_id)?;
+            }
+            editor.write()?
+        };
+
+        let author_sig = self.author_signature();
+        let committer_sig = self.committer_signature();
+        let mut buf_a = gix::date::parse::TimeBuf::default();
+        let authored = author_sig.to_ref(&mut buf_a);
+        let mut buf_c = gix::date::parse::TimeBuf::default();
+        let committed = committer_sig.to_ref(&mut buf_c);
+
+        let parent = repo.head_commit().ok();
+        let parents = if let Some(ref parent) = parent {
+            vec![parent.id()]
+        } else {
+            Vec::new()
+        };
+        let message = self.message();
+        let commit_id = repo.commit_as(committed, authored, "HEAD", &message, tree_id, parents)?;
+        Ok(commit_id)
+    }
 }
+
+pub struct PendingCommit<'r> {
+    repo: &'r gix::Repository,
+    spec: CommitSpec,
+}
+
+impl<'r> PendingCommit<'r> {
+    pub fn body(mut self, body: &str) -> Self {
+        self.spec.body = Some(body.to_owned());
+        self
+    }
+
+    pub fn author(mut self, name: &str, email: &str) -> Self {
+        self.spec.author_name = Some(name.to_owned());
+        self.spec.author_email = Some(email.to_owned());
+        self
+    }
+
+    pub fn committer(mut self, name: &str, email: &str) -> Self {
+        self.spec.committer_name = Some(name.to_owned());
+        self.spec.committer_email = Some(email.to_owned());
+        self
+    }
+
+    pub fn time(mut self, seconds: gix::date::SecondsSinceUnixEpoch) -> Self {
+        self.spec.seconds = Some(seconds);
+        self
+    }
+
+    pub fn file(mut self, path: &str, content: &[u8]) -> Self {
+        self.spec.files.push((path.to_owned(), content.to_vec()));
+        self
+    }
+
+    /// Execute: create the commit and return its ID
+    pub fn create(self) -> eyre::Result<gix::Id<'r>> {
+        self.spec.execute(self.repo)
+    }
+}
+
+/// Deferred operations for Builder
+enum BuildOp {
+    Commit(CommitSpec),
+    Branch { name: String },
+    LightweightTag { name: String },
+    AnnotatedTag { name: String, message: String },
+}
+
+pub struct Builder {
+    bare: bool,
+    operations: Vec<BuildOp>,
+}
+
+impl Builder {
+    /// Create a new builder (bare repository by default)
+    pub fn new() -> Self {
+        Self {
+            bare: true,
+            operations: Vec::new(),
+        }
+    }
+
+    /// Make the repository non-bare (has a worktree)
+    pub fn non_bare(mut self) -> Self {
+        self.bare = false;
+        self
+    }
+
+    /// Start building a commit
+    pub fn commit(self, subject: &str) -> CommitBuilder {
+        CommitBuilder {
+            builder: self,
+            spec: CommitSpec::new(subject),
+        }
+    }
+
+    /// Switch HEAD to the named branch
+    pub fn branch(mut self, name: &str) -> Self {
+        self.operations.push(BuildOp::Branch {
+            name: name.to_owned(),
+        });
+        self
+    }
+
+    /// Create a lightweight tag at HEAD
+    pub fn tag(mut self, name: &str) -> Self {
+        self.operations.push(BuildOp::LightweightTag {
+            name: name.to_owned(),
+        });
+        self
+    }
+
+    /// Create an annotated tag at HEAD
+    pub fn annotated_tag(mut self, name: &str, message: &str) -> Self {
+        self.operations.push(BuildOp::AnnotatedTag {
+            name: name.to_owned(),
+            message: message.to_owned(),
+        });
+        self
+    }
+
+    /// Build the repository, executing all deferred operations
+    pub fn build(self) -> eyre::Result<TempRepository> {
+        let temp = if self.bare { bare()? } else { non_bare()? };
+
+        for op in &self.operations {
+            match op {
+                BuildOp::Commit(spec) => {
+                    spec.execute(&temp.repo)?;
+                }
+                BuildOp::Branch { name } => {
+                    set_default_branch(&temp.repo, name)?;
+                }
+                BuildOp::LightweightTag { name } => {
+                    let head = temp.repo.head_id()?;
+                    create_lightweight_tag(&temp.repo, name, head)?;
+                }
+                BuildOp::AnnotatedTag { name, message } => {
+                    let head = temp.repo.head_id()?;
+                    create_annotated_tag(&temp.repo, name, head, message)?;
+                }
+            }
+        }
+
+        Ok(temp)
+    }
+}
+
+impl Default for Builder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub struct CommitBuilder {
+    builder: Builder,
+    spec: CommitSpec,
+}
+
+impl CommitBuilder {
+    pub fn body(mut self, body: &str) -> Self {
+        self.spec.body = Some(body.to_owned());
+        self
+    }
+
+    pub fn author(mut self, name: &str, email: &str) -> Self {
+        self.spec.author_name = Some(name.to_owned());
+        self.spec.author_email = Some(email.to_owned());
+        self
+    }
+
+    pub fn committer(mut self, name: &str, email: &str) -> Self {
+        self.spec.committer_name = Some(name.to_owned());
+        self.spec.committer_email = Some(email.to_owned());
+        self
+    }
+
+    pub fn time(mut self, seconds: gix::date::SecondsSinceUnixEpoch) -> Self {
+        self.spec.seconds = Some(seconds);
+        self
+    }
+
+    pub fn file(mut self, path: &str, content: &[u8]) -> Self {
+        self.spec.files.push((path.to_owned(), content.to_vec()));
+        self
+    }
+
+    /// Explicitly finalize the current commit and return the Builder
+    pub fn finish(mut self) -> Builder {
+        self.builder.operations.push(BuildOp::Commit(self.spec));
+        self.builder
+    }
+
+    // -- Auto-finalize shortcuts --
+
+    /// Finalize the current commit and start building a new one
+    pub fn commit(self, subject: &str) -> CommitBuilder {
+        self.finish().commit(subject)
+    }
+
+    /// Finalize the current commit and switch HEAD to the named branch
+    pub fn branch(self, name: &str) -> Builder {
+        self.finish().branch(name)
+    }
+
+    /// Finalize the current commit and create a lightweight tag at HEAD
+    pub fn tag(self, name: &str) -> Builder {
+        self.finish().tag(name)
+    }
+
+    /// Finalize the current commit and create an annotated tag at HEAD
+    pub fn annotated_tag(self, name: &str, message: &str) -> Builder {
+        self.finish().annotated_tag(name, message)
+    }
+
+    /// Finalize the current commit and build the repository
+    pub fn build(self) -> eyre::Result<TempRepository> {
+        self.finish().build()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
 
 fn get_signature_at_time_as(
     seconds: gix::date::SecondsSinceUnixEpoch,
@@ -45,62 +375,8 @@ fn get_signature_at_time_as(
     }
 }
 
-#[tracing::instrument(level="debug", skip_all, fields(path = %repo.path().display()))]
-pub fn add_empty_commit_time<'r>(
-    repo: &'r gix::Repository,
-    message: &str,
-    seconds: gix::date::SecondsSinceUnixEpoch,
-) -> eyre::Result<gix::Id<'r>> {
-    add_empty_commit_as_time(
-        repo,
-        message,
-        "Herostratus",
-        "Herostratus@example.com",
-        seconds,
-    )
-}
-
-/// Create an empty commit with the default timestamp and the given author name and email
-pub fn add_empty_commit_as<'r>(
-    repo: &'r gix::Repository,
-    message: &str,
-    author_name: &str,
-    author_email: &str,
-) -> eyre::Result<gix::Id<'r>> {
-    let time = 1711656630;
-    add_empty_commit_as_time(repo, message, author_name, author_email, time)
-}
-
-/// Create an empty commit with the given author name, email, and timestamp
-#[tracing::instrument(level="debug", skip_all, fields(path = %repo.path().display()))]
-pub fn add_empty_commit_as_time<'r>(
-    repo: &'r gix::Repository,
-    message: &str,
-    author_name: &str,
-    author_email: &str,
-    seconds: gix::date::SecondsSinceUnixEpoch,
-) -> eyre::Result<gix::Id<'r>> {
-    let signature = get_signature_at_time_as(seconds, author_name, author_email);
-    let mut buf = gix::date::parse::TimeBuf::default();
-    let authored = signature.to_ref(&mut buf);
-    let mut buf = gix::date::parse::TimeBuf::default();
-    let committed = signature.to_ref(&mut buf);
-
-    let tree_id = repo
-        .head_tree_id()
-        .unwrap_or_else(|_| repo.empty_tree().id());
-    let parent = repo.head_commit().ok();
-    let parents = if let Some(ref parent) = parent {
-        vec![parent.id()]
-    } else {
-        Vec::new()
-    };
-    let commit_id = repo.commit_as(authored, committed, "HEAD", message, tree_id, parents)?;
-    Ok(commit_id)
-}
-
-pub fn bare() -> eyre::Result<TempRepository> {
-    let tempdir = Builder::new().prefix("tmp-").suffix(".git").tempdir()?;
+fn bare() -> eyre::Result<TempRepository> {
+    let tempdir = TempBuilder::new().prefix("tmp-").suffix(".git").tempdir()?;
     tracing::debug!(
         "Creating bare repo fixture in '{}'",
         tempdir.path().display()
@@ -116,8 +392,8 @@ pub fn bare() -> eyre::Result<TempRepository> {
     Ok(TempRepository { tempdir, repo })
 }
 
-pub fn non_bare() -> eyre::Result<TempRepository> {
-    let tempdir = Builder::new().prefix("tmp-").tempdir()?;
+fn non_bare() -> eyre::Result<TempRepository> {
+    let tempdir = TempBuilder::new().prefix("tmp-").tempdir()?;
     tracing::debug!(
         "Creating non-bare repo fixture in '{}'",
         tempdir.path().display()
@@ -134,62 +410,11 @@ pub fn non_bare() -> eyre::Result<TempRepository> {
     Ok(TempRepository { tempdir, repo })
 }
 
-/// Create a commit whose tree contains a single file with the given name and content.
-///
-/// The new commit's tree is built by taking the current HEAD tree (or empty tree) and upserting the
-/// file into it. The commit is authored by the default Herostratus identity.
-pub fn add_commit_with_file<'r>(
-    repo: &'r gix::Repository,
-    message: &str,
-    filename: &str,
-    content: &[u8],
-) -> eyre::Result<gix::Id<'r>> {
-    let blob_id: gix::ObjectId = repo.write_blob(content)?.into();
-
-    let base_tree_id = repo
-        .head_tree_id()
-        .unwrap_or_else(|_| repo.empty_tree().id());
-
-    let mut editor = repo.edit_tree(base_tree_id)?;
-    editor.upsert(filename, gix::object::tree::EntryKind::Blob, blob_id)?;
-    let tree_id = editor.write()?;
-
-    let time = 1711656630;
-    let signature = get_signature_at_time(time);
-    let mut buf = gix::date::parse::TimeBuf::default();
-    let authored = signature.to_ref(&mut buf);
-    let mut buf = gix::date::parse::TimeBuf::default();
-    let committed = signature.to_ref(&mut buf);
-
-    let parent = repo.head_commit().ok();
-    let parents = if let Some(ref parent) = parent {
-        vec![parent.id()]
-    } else {
-        Vec::new()
-    };
-    let commit_id = repo.commit_as(authored, committed, "HEAD", message, tree_id, parents)?;
-    Ok(commit_id)
-}
-
-pub fn simplest() -> eyre::Result<TempRepository> {
-    with_empty_commits(&["Initial commit"])
-}
-
-pub fn with_empty_commits(messages: &[&str]) -> eyre::Result<TempRepository> {
-    let repo = bare()?;
-
-    for message in messages {
-        add_empty_commit(&repo.repo, message)?;
-    }
-
-    Ok(repo)
-}
-
 /// Return a pair of empty [TempRepository]s with the upstream configured as the "origin" remote of
 /// the downstream
 pub fn upstream_downstream_empty() -> eyre::Result<(TempRepository, TempRepository)> {
-    let upstream = with_empty_commits(&[])?;
-    let mut downstream = with_empty_commits(&[])?;
+    let upstream = Builder::new().build()?;
+    let mut downstream = Builder::new().build()?;
     tracing::debug!(
         "Setting {:?} as upstream remote of {:?}",
         upstream.tempdir.path(),
@@ -205,12 +430,12 @@ pub fn upstream_downstream_empty() -> eyre::Result<(TempRepository, TempReposito
 
 pub fn upstream_downstream() -> eyre::Result<(TempRepository, TempRepository)> {
     let (upstream, downstream) = upstream_downstream_empty()?;
-    add_empty_commit(&upstream.repo, "Initial upstream commit")?;
-    add_empty_commit(&downstream.repo, "Initial downstream commit")?;
+    upstream.commit("Initial upstream commit").create()?;
+    downstream.commit("Initial downstream commit").create()?;
     Ok((upstream, downstream))
 }
 
-pub fn create_branch<'r>(
+fn create_branch<'r>(
     repo: &'r gix::Repository,
     branch_name: &str,
     target: Option<&str>,
@@ -230,7 +455,7 @@ pub fn create_branch<'r>(
 
 /// Switch to the specified branch, creating it at the current HEAD if necessary
 #[tracing::instrument(level = "debug", skip_all, fields(path = %repo.path().display()))]
-pub fn set_default_branch(repo: &gix::Repository, branch_name: &str) -> eyre::Result<()> {
+fn set_default_branch(repo: &gix::Repository, branch_name: &str) -> eyre::Result<()> {
     tracing::debug!("Switching to branch {branch_name:?}");
     if repo.try_find_reference(branch_name)?.is_none() {
         // If HEAD doesn't exist yet, we can't create the reference it points to
@@ -261,7 +486,7 @@ pub fn set_default_branch(repo: &gix::Repository, branch_name: &str) -> eyre::Re
 }
 
 #[tracing::instrument(level = "debug", skip_all, fields(path = %repo.path().display()))]
-pub fn create_lightweight_tag<'r>(
+fn create_lightweight_tag<'r>(
     repo: &'r gix::Repository,
     name: &str,
     target: impl Into<gix::ObjectId>,
@@ -275,14 +500,13 @@ pub fn create_lightweight_tag<'r>(
 }
 
 #[tracing::instrument(level = "debug", skip_all, fields(path = %repo.path().display()))]
-pub fn create_annotated_tag<'r>(
+fn create_annotated_tag<'r>(
     repo: &'r gix::Repository,
     name: &str,
     target: impl Into<gix::ObjectId>,
     message: &str,
 ) -> eyre::Result<gix::Reference<'r>> {
-    let time = 1711656630;
-    let signature = get_signature_at_time(time);
+    let signature = get_signature_at_time_as(DEFAULT_TIME, DEFAULT_NAME, DEFAULT_EMAIL);
     let mut buf = gix::date::parse::TimeBuf::default();
     let tagger = signature.to_ref(&mut buf);
 
@@ -303,7 +527,7 @@ mod tests {
 
     #[test]
     fn test_forget() {
-        let mut temp = simplest().unwrap();
+        let mut temp = Builder::new().commit("Initial commit").build().unwrap();
         temp.forget();
 
         assert!(temp.repo.path().exists());
@@ -314,7 +538,7 @@ mod tests {
         std::fs::remove_dir_all(&path).unwrap();
         assert!(!path.exists());
 
-        let mut temp = simplest().unwrap();
+        let mut temp = Builder::new().commit("Initial commit").build().unwrap();
         temp.forget();
         temp.remember();
         let path = temp.tempdir.path().to_path_buf();
@@ -324,7 +548,7 @@ mod tests {
 
     #[test]
     fn test_bare_repository() {
-        let repo = bare().unwrap();
+        let repo = Builder::new().build().unwrap();
         assert!(repo.repo.is_bare());
 
         let default_branch = repo.repo.head_name().unwrap();
@@ -336,7 +560,7 @@ mod tests {
 
     #[test]
     fn test_set_default_branch() {
-        let repo = bare().unwrap();
+        let repo = Builder::new().build().unwrap();
         assert!(repo.repo.is_bare());
 
         let default_branch = repo.repo.head_name().unwrap();
@@ -345,7 +569,7 @@ mod tests {
             Some(gix::refs::FullName::try_from("refs/heads/main").unwrap())
         );
 
-        set_default_branch(&repo.repo, "trunk").unwrap();
+        repo.set_branch("trunk").unwrap();
         let default_branch = repo.repo.head_name().unwrap();
         assert_eq!(
             default_branch,
@@ -355,38 +579,41 @@ mod tests {
 
     #[test]
     fn test_add_empty_commits() {
-        let repo = bare().unwrap();
+        let repo = Builder::new().build().unwrap();
 
-        let commit1 = add_empty_commit(&repo.repo, "commit1").unwrap();
+        let commit1 = repo.commit("commit1").create().unwrap();
         let head = repo.repo.head_id().unwrap();
         assert_eq!(head, commit1);
 
-        let commit2 = add_empty_commit(&repo.repo, "commit2").unwrap();
+        let commit2 = repo.commit("commit2").create().unwrap();
         let head = repo.repo.head_id().unwrap();
         assert_eq!(head, commit2);
     }
 
     #[test]
     fn test_commits_on_branches() {
-        let repo = bare().unwrap();
+        let repo = Builder::new().build().unwrap();
 
-        set_default_branch(&repo.repo, "branch1").unwrap();
-        let commit1 = add_empty_commit(&repo.repo, "commit1 on branch1").unwrap();
+        repo.set_branch("branch1").unwrap();
+        let commit1 = repo.commit("commit1 on branch1").create().unwrap();
         let head = repo.repo.head_id().unwrap();
         assert_eq!(head, commit1);
 
-        set_default_branch(&repo.repo, "branch2").unwrap();
-        let commit2 = add_empty_commit(&repo.repo, "commit2 on branch2").unwrap();
+        repo.set_branch("branch2").unwrap();
+        let commit2 = repo.commit("commit2 on branch2").create().unwrap();
         let head = repo.repo.head_id().unwrap();
         assert_eq!(head, commit2);
     }
 
     #[test]
     fn test_add_empty_commit_as() {
-        let repo = bare().unwrap();
+        let repo = Builder::new().build().unwrap();
 
-        let commit =
-            add_empty_commit_as(&repo.repo, "custom author", "Alice", "alice@example.com").unwrap();
+        let commit = repo
+            .commit("custom author")
+            .author("Alice", "alice@example.com")
+            .create()
+            .unwrap();
         let head = repo.repo.head_id().unwrap();
         assert_eq!(head, commit);
 
@@ -398,18 +625,202 @@ mod tests {
 
     #[test]
     fn test_create_tags() {
-        let repo = bare().unwrap();
-        let commit = add_empty_commit(&repo.repo, "commit1").unwrap();
+        let repo = Builder::new().build().unwrap();
+        let commit = repo.commit("commit1").create().unwrap();
 
-        let tag = create_lightweight_tag(&repo.repo, "SMALL_TAG", commit).unwrap();
+        let tag = repo.tag("SMALL_TAG", commit).unwrap();
         assert_eq!(tag.id(), commit);
 
-        let commit = add_empty_commit(&repo.repo, "commit2").unwrap();
-        let mut tag =
-            create_annotated_tag(&repo.repo, "BIG_TAG", commit, "This is an annotated tag")
-                .unwrap();
+        let commit = repo.commit("commit2").create().unwrap();
+        let mut tag = repo
+            .annotated_tag("BIG_TAG", commit, "This is an annotated tag")
+            .unwrap();
         assert_ne!(tag.id(), commit, "Annotated tags have their own object IDs");
         let points_to = tag.peel_to_id().unwrap();
         assert_eq!(points_to, commit);
+    }
+
+    #[test]
+    fn test_builder_empty_bare() {
+        let repo = Builder::new().build().unwrap();
+        assert!(repo.repo.is_bare());
+    }
+
+    #[test]
+    fn test_builder_non_bare() {
+        let repo = Builder::new().non_bare().build().unwrap();
+        assert!(!repo.repo.is_bare());
+    }
+
+    #[test]
+    fn test_builder_single_commit() {
+        let repo = Builder::new().commit("Initial commit").build().unwrap();
+        let head = repo.repo.head_commit().unwrap();
+        assert_eq!(head.message().unwrap().title, "Initial commit");
+    }
+
+    #[test]
+    fn test_builder_multiple_commits() {
+        let repo = Builder::new()
+            .commit("first")
+            .commit("second")
+            .commit("third")
+            .build()
+            .unwrap();
+        let head = repo.repo.head_commit().unwrap();
+        assert_eq!(head.message().unwrap().title, "third");
+    }
+
+    #[test]
+    fn test_builder_commit_with_author() {
+        let repo = Builder::new()
+            .commit("test")
+            .author("Alice", "alice@example.com")
+            .build()
+            .unwrap();
+        let head = repo.repo.head_commit().unwrap();
+        let author = head.author().unwrap();
+        assert_eq!(author.name, "Alice");
+        assert_eq!(author.email, "alice@example.com");
+    }
+
+    #[test]
+    fn test_builder_commit_with_time() {
+        let repo = Builder::new()
+            .commit("test")
+            .time(1234567890)
+            .build()
+            .unwrap();
+        let head = repo.repo.head_commit().unwrap();
+        let author = head.author().unwrap();
+        let time = author.time().unwrap();
+        assert_eq!(time.seconds, 1234567890);
+    }
+
+    #[test]
+    fn test_builder_commit_with_body() {
+        let repo = Builder::new()
+            .commit("subject")
+            .body("This is the body")
+            .build()
+            .unwrap();
+        let head = repo.repo.head_commit().unwrap();
+        let msg = head.message().unwrap();
+        assert_eq!(msg.title, "subject");
+        assert!(msg.body.is_some());
+    }
+
+    #[test]
+    fn test_builder_commit_with_file() {
+        let repo = Builder::new()
+            .commit("add file")
+            .file("test.txt", b"hello world")
+            .build()
+            .unwrap();
+        let head = repo.repo.head_commit().unwrap();
+        let tree = head.tree().unwrap();
+        let entry = tree.find_entry("test.txt").unwrap();
+        let obj = entry.object().unwrap();
+        assert_eq!(obj.data, b"hello world");
+    }
+
+    #[test]
+    fn test_builder_branch() {
+        let repo = Builder::new()
+            .commit("Initial commit")
+            .branch("dev")
+            .commit("on dev")
+            .build()
+            .unwrap();
+        let head_name = repo.repo.head_name().unwrap().unwrap();
+        assert_eq!(head_name.as_bstr(), "refs/heads/dev");
+    }
+
+    #[test]
+    fn test_builder_tags() {
+        let repo = Builder::new()
+            .commit("c1")
+            .tag("v1")
+            .commit("c2")
+            .annotated_tag("v2", "release v2")
+            .build()
+            .unwrap();
+
+        let tag = repo.repo.find_reference("v1").unwrap();
+        assert!(tag.id() != gix::ObjectId::null(gix::hash::Kind::Sha1));
+
+        let mut tag = repo.repo.find_reference("v2").unwrap();
+        let peeled = tag.peel_to_id().unwrap();
+        let head = repo.repo.head_id().unwrap();
+        assert_eq!(peeled, head);
+    }
+
+    #[test]
+    fn test_builder_committer_defaults_to_author() {
+        let repo = Builder::new()
+            .commit("test")
+            .author("Alice", "alice@example.com")
+            .build()
+            .unwrap();
+        let head = repo.repo.head_commit().unwrap();
+        let committer = head.committer().unwrap();
+        assert_eq!(committer.name, "Alice");
+        assert_eq!(committer.email, "alice@example.com");
+    }
+
+    #[test]
+    fn test_builder_separate_committer() {
+        let repo = Builder::new()
+            .commit("test")
+            .author("Alice", "alice@example.com")
+            .committer("Bob", "bob@example.com")
+            .build()
+            .unwrap();
+        let head = repo.repo.head_commit().unwrap();
+        let author = head.author().unwrap();
+        assert_eq!(author.name, "Alice");
+        let committer = head.committer().unwrap();
+        assert_eq!(committer.name, "Bob");
+    }
+
+    #[test]
+    fn test_pending_commit() {
+        let repo = Builder::new().build().unwrap();
+        let id = repo.commit("first").create().unwrap();
+        let head = repo.repo.head_id().unwrap();
+        assert_eq!(head, id);
+    }
+
+    #[test]
+    fn test_pending_commit_with_author() {
+        let repo = Builder::new().build().unwrap();
+        repo.commit("test")
+            .author("Alice", "alice@example.com")
+            .create()
+            .unwrap();
+        let head = repo.repo.head_commit().unwrap();
+        let author = head.author().unwrap();
+        assert_eq!(author.name, "Alice");
+    }
+
+    #[test]
+    fn test_temp_repo_set_branch() {
+        let repo = Builder::new().commit("Initial commit").build().unwrap();
+        repo.set_branch("dev").unwrap();
+        let head_name = repo.repo.head_name().unwrap().unwrap();
+        assert_eq!(head_name.as_bstr(), "refs/heads/dev");
+    }
+
+    #[test]
+    fn test_temp_repo_tags() {
+        let repo = Builder::new().build().unwrap();
+        let id = repo.commit("c1").create().unwrap();
+        let tag = repo.tag("v1", id).unwrap();
+        assert_eq!(tag.id(), id);
+
+        let id2 = repo.commit("c2").create().unwrap();
+        let mut tag = repo.annotated_tag("v2", id2, "release").unwrap();
+        let peeled = tag.peel_to_id().unwrap();
+        assert_eq!(peeled, id2);
     }
 }

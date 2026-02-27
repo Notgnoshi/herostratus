@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use herostratus::config::{RulesConfig, read_config};
 use herostratus_tests::cmd::{CommandExt, herostratus};
-use herostratus_tests::fixtures;
+use herostratus_tests::fixtures::repository::Builder;
 use predicates::prelude::*;
 use predicates::str;
 
@@ -34,9 +34,8 @@ fn add_self_and_then_check_all() {
 
 #[test]
 fn early_exit_cache() {
-    let temp_upstream = fixtures::repository::bare().unwrap();
-    let first_commit =
-        fixtures::repository::add_empty_commit(&temp_upstream.repo, "commit1").unwrap();
+    let temp_upstream = Builder::new().commit("commit1").build().unwrap();
+    let first_commit = temp_upstream.repo.head_id().unwrap();
     let url = format!("file://{}", temp_upstream.tempdir.path().display());
 
     tracing::error!("Adding repository");
@@ -67,8 +66,7 @@ fn early_exit_cache() {
 
     // Add a new commit, and enable a new rule
     tracing::error!("Adding new commit to remote");
-    let second_commit =
-        fixtures::repository::add_empty_commit(&temp_upstream.repo, "fixup!").unwrap();
+    let second_commit = temp_upstream.commit("fixup!").create().unwrap();
     let mut config = read_config(data_dir).unwrap();
     config.rules = Some(RulesConfig {
         exclude: Some(vec!["all".into()]),
