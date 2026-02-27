@@ -39,7 +39,7 @@ impl CheckpointCache {
     }
 }
 
-pub fn serialize_object_id<S>(
+fn serialize_object_id<S>(
     object_id: &Option<gix::ObjectId>,
     serializer: S,
 ) -> Result<S::Ok, S::Error>
@@ -52,7 +52,7 @@ where
     }
 }
 
-pub fn deserialize_object_id<'de, D>(deserializer: D) -> Result<Option<gix::ObjectId>, D::Error>
+fn deserialize_object_id<'de, D>(deserializer: D) -> Result<Option<gix::ObjectId>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {

@@ -1,1 +1,1 @@
-pub mod utf8_whitespace;
+pub(crate) mod utf8_whitespace;

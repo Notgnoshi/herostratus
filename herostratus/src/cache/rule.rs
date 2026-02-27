@@ -17,7 +17,7 @@ impl RuleCache {
         Self::repo_cache_dir(data_dir, repo_name).join(format!("rule_{rule_name}.json"))
     }
 
-    pub fn new_for_rule<P: AsRef<Path>>(
+    pub(crate) fn new_for_rule<P: AsRef<Path>>(
         data_dir: P,
         repo_name: &str,
         rule_name: &str,
@@ -27,7 +27,7 @@ impl RuleCache {
         Self::new_in(path, data)
     }
 
-    pub fn from_rule_name<P: AsRef<Path>>(
+    pub(crate) fn from_rule_name<P: AsRef<Path>>(
         data_dir: P,
         repo_name: &str,
         rule_name: &str,
