@@ -38,8 +38,6 @@ jobs:
               with:
                 toolchain: stable
                 components: rustfmt
-            - name: Setup Rust cache
-              uses: swatinem/rust-cache@v2
             - name: Run rustfmt
               run: cargo fmt -- --check --config group_imports=StdExternalCrate,imports_granularity=Module
 
