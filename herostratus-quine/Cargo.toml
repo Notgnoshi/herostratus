@@ -1,0 +1,25 @@
+[package]
+name = "herostratus-quine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Find a Git commit whose message contains its own (short) hash"
+
+[[bin]]
+name = "quine"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+clap.workspace = true
+color-eyre.workspace = true
+eyre.workspace = true
+gix.workspace = true
+indicatif.workspace = true
+sha1.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
