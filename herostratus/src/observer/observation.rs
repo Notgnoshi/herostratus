@@ -3,7 +3,7 @@ use std::mem::{Discriminant, discriminant};
 /// An ephemeral, typed, per-commit fact emitted by an observer and consumed by rules.
 ///
 /// Observations carry only the extracted fact. Commit metadata (oid, author) is carried separately
-/// by [`CommitContext`](super::CommitContext).
+/// by [CommitContext](super::CommitContext).
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Observation {
@@ -21,6 +21,10 @@ pub enum Observation {
 
     /// Every file change in the commit is a whitespace-only modification.
     WhitespaceOnly,
+
+    /// Test-only variant for use in unit tests.
+    #[cfg(test)]
+    Dummy,
 }
 
 impl Observation {
@@ -31,4 +35,7 @@ impl Observation {
         discriminant(&Observation::NonUnicodeMessage);
     pub const EMPTY_COMMIT: Discriminant<Self> = discriminant(&Observation::EmptyCommit);
     pub const WHITESPACE_ONLY: Discriminant<Self> = discriminant(&Observation::WhitespaceOnly);
+
+    #[cfg(test)]
+    pub const DUMMY: Discriminant<Self> = discriminant(&Observation::Dummy);
 }
