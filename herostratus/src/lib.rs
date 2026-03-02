@@ -4,6 +4,7 @@ pub mod cli;
 pub mod commands;
 pub mod config;
 pub mod git;
+pub mod observer;
 pub mod rules;
 pub mod utils;
 

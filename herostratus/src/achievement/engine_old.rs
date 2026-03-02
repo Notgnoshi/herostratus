@@ -309,7 +309,7 @@ mod tests {
     use herostratus_tests::fixtures::repository;
 
     use super::*;
-    use crate::rules::test_rules::{AlwaysFail, ParticipationTrophy, ParticipationTrophy2};
+    use crate::rules::test_rules_old::{AlwaysFail, ParticipationTrophy, ParticipationTrophy2};
 
     fn default_mailmap() -> MailmapResolver {
         MailmapResolver::new(gix::mailmap::Snapshot::default(), None, None).unwrap()
