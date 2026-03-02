@@ -15,3 +15,6 @@ mod checkpoint_strategy;
 mod grant;
 mod meta;
 mod pipeline;
+
+pub use grant::Grant;
+pub use meta::{AchievementKind, Meta};
