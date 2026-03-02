@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use crate::config::{Config, RulesConfig};
 use crate::rules::{RuleFactory, RulePlugin};
 
-inventory::collect!(crate::rules::rule_plugin::RuleFactory);
+inventory::collect!(crate::rules::rule_plugin_old::RuleFactory);
 
 /// Get a new instance of each builtin [RulePlugin] with the given configuration.
 ///

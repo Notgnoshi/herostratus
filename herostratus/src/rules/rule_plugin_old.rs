@@ -1,6 +1,6 @@
 use crate::achievement::{Achievement, AchievementDescriptor};
 use crate::config::RulesConfig;
-use crate::rules::rule::Rule;
+use crate::rules::rule_old::Rule;
 
 type FactoryFunc = fn(&RulesConfig) -> Box<dyn RulePlugin>;
 

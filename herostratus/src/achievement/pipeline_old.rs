@@ -5,8 +5,8 @@ use std::time::{Duration, Instant};
 use eyre::WrapErr;
 
 use crate::achievement::Achievement;
-use crate::achievement::checkpoint_strategy::{CheckpointStrategy, Continuation};
-use crate::achievement::engine::RuleEngine;
+use crate::achievement::checkpoint_strategy_old::{CheckpointStrategy, Continuation};
+use crate::achievement::engine_old::RuleEngine;
 use crate::config::Config;
 use crate::rules::RulePlugin;
 
@@ -277,7 +277,7 @@ mod tests {
 
     use super::*;
     use crate::achievement::AchievementDescriptor;
-    use crate::rules::test_rules::{
+    use crate::rules::test_rules_old::{
         AlwaysFail, FlexibleRule, ParticipationTrophy, ParticipationTrophy2,
     };
 
