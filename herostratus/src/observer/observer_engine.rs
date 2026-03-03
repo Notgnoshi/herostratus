@@ -1,4 +1,5 @@
 use eyre::WrapErr;
+use rayon::prelude::*;
 
 use super::commit_context::CommitContext;
 use super::observation::Observation;
@@ -29,8 +30,25 @@ use crate::git::mailmap::MailmapResolver;
 ///   logged via `tracing::warn!` and skipped. The failing observer produces no observation for
 ///   that commit, but other observers continue, and [ObserverData::CommitComplete] is always
 ///   emitted.
+///
+/// # Parallelism
+///
+/// Both `on_commit` and the diff lifecycle are parallelized across observers using rayon. Each
+/// rayon worker thread gets a cached thread-local [gix::Repository] handle (created once per
+/// worker, amortized across all commits). The `find_commit` call per observer per commit is
+/// redundant but cheap (packfiles are mmap'd, OS page cache serves repeated reads).
+///
+/// For diffs, changes are collected into owned
+/// [ChangeDetached](gix::object::tree::diff::ChangeDetached) form first, then each observer
+/// processes the full set of changes independently in parallel.
 pub(crate) struct ObserverEngine<'repo> {
     repo: &'repo gix::Repository,
+    // Shared with each thread in the rayon thread pool
+    sync_repo: gix::ThreadSafeRepository,
+    // Each thread in the thread pool caches its own thread-local Repository (created from the
+    // shared sync_repo).
+    tl_repo: thread_local::ThreadLocal<gix::Repository>,
+
     observers: Vec<Box<dyn Observer>>,
     mailmap: MailmapResolver,
 
@@ -51,8 +69,11 @@ impl<'repo> ObserverEngine<'repo> {
         let diff_cache = repo
             .diff_resource_cache_for_tree_diff()
             .wrap_err("Failed to create diff cache")?;
+        let sync_repo = repo.clone().into_sync();
         Ok(Self {
             repo,
+            sync_repo,
+            tl_repo: thread_local::ThreadLocal::new(),
             observers,
             mailmap,
             diff_cache,
@@ -82,19 +103,28 @@ impl<'repo> ObserverEngine<'repo> {
 
         let mut data = vec![ObserverData::CommitStart(ctx)];
 
-        for observer in &mut self.observers {
-            match observer.on_commit(&commit, self.repo) {
-                Ok(Some(obs)) => data.push(ObserverData::Observation(obs)),
-                Ok(None) => {}
-                Err(e) => {
-                    tracing::warn!("Observer error in on_commit: {e}");
+        let sync_repo = &self.sync_repo;
+        let tl_repo = &self.tl_repo;
+        let observations: Vec<_> = self
+            .observers
+            .par_iter_mut()
+            .filter_map(|obs| {
+                let repo = tl_repo.get_or(|| sync_repo.to_thread_local());
+                let commit = repo.find_commit(oid).ok()?;
+                match obs.on_commit(&commit, repo) {
+                    Ok(obs) => obs,
+                    Err(e) => {
+                        tracing::warn!("Observer error in on_commit: {e}");
+                        None
+                    }
                 }
-            }
+            })
+            .collect();
+        for obs in observations {
+            data.push(ObserverData::Observation(obs));
         }
 
-        // Run diff lifecycle if any observer is interested
-        let any_diff_interested = self.observers.iter().any(|o| o.is_interested_in_diff());
-        if any_diff_interested {
+        if self.observers.iter().any(|o| o.is_interested_in_diff()) {
             let diff_observations = self.diff_commit(&commit)?;
             for obs in diff_observations {
                 data.push(ObserverData::Observation(obs));
@@ -128,7 +158,6 @@ impl<'repo> ObserverEngine<'repo> {
         for oid in oids {
             let messages = self.process_commit(oid)?;
             for msg in messages {
-                // If the receiver has been dropped, stop processing.
                 if tx.send(msg).is_err() {
                     return Ok(());
                 }
@@ -144,24 +173,14 @@ impl<'repo> ObserverEngine<'repo> {
     /// already had their diffs observed. `on_diff_start` and `on_diff_end` are still called so
     /// observers can maintain consistent internal state.
     ///
-    /// When all active observers have cancelled (via [DiffAction::Cancel] or error), the tree walk
-    /// is short-circuited via `Action::Break`. gix surfaces this as a `Cancelled` error, which we
-    /// handle as a normal completion.
+    /// Changes are collected into owned [ChangeDetached](gix::object::tree::diff::ChangeDetached)
+    /// form, then each observer processes the full set independently in parallel.
     fn diff_commit(&mut self, commit: &gix::Commit) -> eyre::Result<Vec<Observation>> {
-        // Tracks which observers are still accepting changes for this commit. Observers start
-        // active if interested in diffs, and become inactive on Cancel or error.
-        let mut diff_active: Vec<bool> = self
-            .observers
-            .iter()
-            .map(|o| o.is_interested_in_diff())
-            .collect();
-
-        for (idx, observer) in self.observers.iter_mut().enumerate() {
-            if diff_active[idx]
+        for observer in &mut self.observers {
+            if observer.is_interested_in_diff()
                 && let Err(e) = observer.on_diff_start()
             {
                 tracing::warn!("Observer error in on_diff_start: {e}");
-                diff_active[idx] = false;
             }
         }
 
@@ -187,59 +206,62 @@ impl<'repo> ObserverEngine<'repo> {
             None => self.repo.empty_tree(),
         };
 
-        let mut changes = parent_tree
+        let mut changes_iter = parent_tree
             .changes()
             .wrap_err("Failed to create tree changes iterator")?;
-        changes.options(|o| {
+        changes_iter.options(|o| {
             o.track_rewrites(None);
         });
 
-        // Partial borrows: the closure captures individual fields instead of &mut self, which
-        // would conflict with the `diff_active` borrow above.
-        let observers = &mut self.observers;
-        let repo = self.repo;
+        // Collect all changes into owned form so we can dispatch to observers in parallel.
         let diff_cache = &mut self.diff_cache;
-
+        let mut changes = Vec::new();
         let outcome =
-            changes.for_each_to_obtain_tree_with_cache(&commit_tree, diff_cache, |change| {
-                let mut all_disinterested = true;
-                for (idx, observer) in observers.iter_mut().enumerate() {
-                    if diff_active[idx] {
-                        match observer.on_diff_change(&change, repo) {
-                            Ok(DiffAction::Cancel) => {
-                                diff_active[idx] = false;
-                            }
-                            Ok(DiffAction::Continue) => {
-                                all_disinterested = false;
-                            }
-                            Err(e) => {
-                                tracing::warn!("Observer error in on_diff_change: {e}");
-                                diff_active[idx] = false;
-                            }
-                        }
-                    }
-                }
-
-                if all_disinterested {
-                    Ok::<_, eyre::Report>(gix::object::tree::diff::Action::Break(()))
-                } else {
-                    Ok::<_, eyre::Report>(gix::object::tree::diff::Action::Continue(()))
-                }
+            changes_iter.for_each_to_obtain_tree_with_cache(&commit_tree, diff_cache, |change| {
+                changes.push(change.detach());
+                Ok::<_, eyre::Report>(gix::object::tree::diff::Action::Continue(()))
             });
 
         match outcome {
             Ok(_) => {}
             Err(gix::object::tree::diff::for_each::Error::Diff(
                 gix::diff::tree_with_rewrites::Error::Diff(gix::diff::tree::Error::Cancelled),
-            )) => {
-                // Not an error -- observers cancelled processing via DiffAction::Cancel.
-            }
+            )) => {}
             Err(e) => {
                 return Err(e).wrap_err_with(|| format!("Failed to diff commit {}", commit.id()));
             }
         }
 
-        self.collect_diff_end()
+        // Run each diff-interested observer over the collected changes in parallel.
+        let sync_repo = &self.sync_repo;
+        let tl_repo = &self.tl_repo;
+        let diff_observations: Vec<_> = self
+            .observers
+            .par_iter_mut()
+            .filter(|obs| obs.is_interested_in_diff())
+            .filter_map(|obs| {
+                let repo = tl_repo.get_or(|| sync_repo.to_thread_local());
+                for change in &changes {
+                    match obs.on_diff_change(change, repo) {
+                        Ok(DiffAction::Cancel) => break,
+                        Ok(DiffAction::Continue) => {}
+                        Err(e) => {
+                            tracing::warn!("Observer error in on_diff_change: {e}");
+                            break;
+                        }
+                    }
+                }
+                match obs.on_diff_end() {
+                    Ok(obs) => obs,
+                    Err(e) => {
+                        tracing::warn!("Observer error in on_diff_end: {e}");
+                        None
+                    }
+                }
+            })
+            .collect();
+
+        Ok(diff_observations)
     }
 
     /// Call on_diff_end on all diff-interested observers, collecting observations.
@@ -591,6 +613,90 @@ mod tests {
             data,
             [
                 ObserverData::CommitStart(default_ctx(oid)),
+                ObserverData::CommitComplete,
+            ]
+        );
+    }
+
+    #[test]
+    fn multiple_always_observers_all_collected() {
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
+        let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
+
+        let observers: Vec<Box<dyn Observer>> = vec![
+            Box::new(AlwaysObserver),
+            Box::new(AlwaysObserver),
+            Box::new(AlwaysObserver),
+        ];
+        let mut engine =
+            ObserverEngine::new(&temp_repo.repo, observers, default_mailmap()).unwrap();
+        let data = engine.process_commit(oid).unwrap();
+
+        assert_eq!(
+            data,
+            [
+                ObserverData::CommitStart(default_ctx(oid)),
+                ObserverData::Observation(Observation::Dummy),
+                ObserverData::Observation(Observation::Dummy),
+                ObserverData::Observation(Observation::Dummy),
+                ObserverData::CommitComplete,
+            ]
+        );
+    }
+
+    #[test]
+    fn multiple_diff_observers_all_collected() {
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .file("hello.txt", b"hello world")
+            .build()
+            .unwrap();
+        let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
+
+        let observers: Vec<Box<dyn Observer>> = vec![
+            Box::new(DummyDiffObserver::default()),
+            Box::new(DummyDiffObserver::default()),
+        ];
+        let mut engine =
+            ObserverEngine::new(&temp_repo.repo, observers, default_mailmap()).unwrap();
+        let data = engine.process_commit(oid).unwrap();
+
+        assert_eq!(
+            data,
+            [
+                ObserverData::CommitStart(default_ctx(oid)),
+                ObserverData::Observation(Observation::Dummy),
+                ObserverData::Observation(Observation::Dummy),
+                ObserverData::CommitComplete,
+            ]
+        );
+    }
+
+    #[test]
+    fn diff_cancel_still_works_per_observer() {
+        // DummyDiffObserver cancels after the first change. Verify it still emits Dummy
+        // (from on_diff_end) even though it cancelled partway through.
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .file("a.txt", b"aaa")
+            .file("b.txt", b"bbb")
+            .build()
+            .unwrap();
+        let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
+
+        let observers: Vec<Box<dyn Observer>> = vec![Box::new(DummyDiffObserver::default())];
+        let mut engine =
+            ObserverEngine::new(&temp_repo.repo, observers, default_mailmap()).unwrap();
+        let data = engine.process_commit(oid).unwrap();
+
+        assert_eq!(
+            data,
+            [
+                ObserverData::CommitStart(default_ctx(oid)),
+                ObserverData::Observation(Observation::Dummy),
                 ObserverData::CommitComplete,
             ]
         );
