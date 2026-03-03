@@ -68,6 +68,7 @@ pub(crate) struct ObserverEngine<'repo> {
     num_commits_processed: u64,
 }
 
+#[cfg_attr(not(test), expect(unused))]
 impl<'repo> ObserverEngine<'repo> {
     pub fn new(
         repo: &'repo gix::Repository,
