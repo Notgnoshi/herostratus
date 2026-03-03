@@ -69,7 +69,7 @@ impl Observer for DummyDiffObserver {
 
     fn on_diff_change(
         &mut self,
-        _change: &gix::object::tree::diff::Change,
+        _change: &gix::object::tree::diff::ChangeDetached,
         _repo: &gix::Repository,
     ) -> eyre::Result<DiffAction> {
         self.found_change = true;

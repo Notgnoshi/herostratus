@@ -17,4 +17,6 @@ pub use observation::Observation;
 pub use observer::{DiffAction, Observer};
 #[expect(unused)]
 pub(crate) use observer_data::ObserverData;
+#[expect(unused)]
+pub(crate) use observer_engine::ObserverEngine;
 pub use observer_factory::ObserverFactory;

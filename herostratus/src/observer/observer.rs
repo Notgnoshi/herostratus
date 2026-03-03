@@ -31,7 +31,7 @@ use super::observation::Observation;
 /// 2. Implement the [Observer] trait in the [impls](super::impls) module
 /// 3. Register the observer via [inventory::submit!] with an
 ///    [ObserverFactory](super::ObserverFactory)
-pub trait Observer {
+pub trait Observer: Send {
     /// The observation variant this observer emits.
     fn emits(&self) -> std::mem::Discriminant<Observation>;
 
@@ -59,7 +59,7 @@ pub trait Observer {
     /// Return [DiffAction::Cancel] to stop receiving further changes for this commit.
     fn on_diff_change(
         &mut self,
-        _change: &gix::object::tree::diff::Change,
+        _change: &gix::object::tree::diff::ChangeDetached,
         _repo: &gix::Repository,
     ) -> eyre::Result<DiffAction> {
         Ok(DiffAction::Cancel)
