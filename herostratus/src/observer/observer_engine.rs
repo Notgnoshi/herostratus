@@ -1,3 +1,6 @@
+use std::collections::HashSet;
+use std::mem::Discriminant;
+
 use eyre::WrapErr;
 use rayon::prelude::*;
 
@@ -52,6 +55,11 @@ pub(crate) struct ObserverEngine<'repo> {
     observers: Vec<Box<dyn Observer>>,
     mailmap: MailmapResolver,
 
+    // Observers whose emits() discriminant is in this set are skipped entirely. This is the hook
+    // point for the Checkpoint system: when all rules consuming a particular observer's output are
+    // satisfied, the observer can be disabled.
+    disabled: HashSet<Discriminant<Observation>>,
+
     // This cache is unbounded and needs to be reset periodically to avoid infinite memory growth.
     // Don't reset it every commit, because each commit needs to lookup itself and its parent(s).
     // But we shouldn't *never* reset it, because then we'd end up holding the whole history in
@@ -76,9 +84,24 @@ impl<'repo> ObserverEngine<'repo> {
             tl_repo: thread_local::ThreadLocal::new(),
             observers,
             mailmap,
+            disabled: HashSet::new(),
             diff_cache,
             num_commits_processed: 0,
         })
+    }
+
+    /// Disable all observers that emit the given discriminant.
+    ///
+    /// Disabled observers are skipped entirely in [process_commit](Self::process_commit) --
+    /// neither `on_commit` nor the diff lifecycle is called. If all diff-interested observers are
+    /// disabled, diff computation is skipped too.
+    pub fn disable(&mut self, discriminant: Discriminant<Observation>) {
+        self.disabled.insert(discriminant);
+    }
+
+    /// Re-enable observers that emit the given discriminant.
+    pub fn enable(&mut self, discriminant: Discriminant<Observation>) {
+        self.disabled.remove(&discriminant);
     }
 
     /// Process a single commit. Returns [ObserverData] in protocol order.
@@ -103,11 +126,13 @@ impl<'repo> ObserverEngine<'repo> {
 
         let mut data = vec![ObserverData::CommitStart(ctx)];
 
+        let disabled = &self.disabled;
         let sync_repo = &self.sync_repo;
         let tl_repo = &self.tl_repo;
         let observations: Vec<_> = self
             .observers
             .par_iter_mut()
+            .filter(|obs| !disabled.contains(&obs.emits()))
             .filter_map(|obs| {
                 let repo = tl_repo.get_or(|| sync_repo.to_thread_local());
                 let commit = repo.find_commit(oid).ok()?;
@@ -124,7 +149,11 @@ impl<'repo> ObserverEngine<'repo> {
             data.push(ObserverData::Observation(obs));
         }
 
-        if self.observers.iter().any(|o| o.is_interested_in_diff()) {
+        let any_diff_observer_enabled = self
+            .observers
+            .iter()
+            .any(|o| o.is_interested_in_diff() && !self.disabled.contains(&o.emits()));
+        if any_diff_observer_enabled {
             let diff_observations = self.diff_commit(&commit)?;
             for obs in diff_observations {
                 data.push(ObserverData::Observation(obs));
@@ -178,6 +207,7 @@ impl<'repo> ObserverEngine<'repo> {
     fn diff_commit(&mut self, commit: &gix::Commit) -> eyre::Result<Vec<Observation>> {
         for observer in &mut self.observers {
             if observer.is_interested_in_diff()
+                && !self.disabled.contains(&observer.emits())
                 && let Err(e) = observer.on_diff_start()
             {
                 tracing::warn!("Observer error in on_diff_start: {e}");
@@ -232,13 +262,14 @@ impl<'repo> ObserverEngine<'repo> {
             }
         }
 
-        // Run each diff-interested observer over the collected changes in parallel.
+        // Run each diff-interested, non-disabled observer over the collected changes in parallel.
+        let disabled = &self.disabled;
         let sync_repo = &self.sync_repo;
         let tl_repo = &self.tl_repo;
         let diff_observations: Vec<_> = self
             .observers
             .par_iter_mut()
-            .filter(|obs| obs.is_interested_in_diff())
+            .filter(|obs| obs.is_interested_in_diff() && !disabled.contains(&obs.emits()))
             .filter_map(|obs| {
                 let repo = tl_repo.get_or(|| sync_repo.to_thread_local());
                 for change in &changes {
@@ -271,7 +302,7 @@ impl<'repo> ObserverEngine<'repo> {
     fn collect_diff_end(&mut self) -> eyre::Result<Vec<Observation>> {
         let mut observations = Vec::new();
         for observer in &mut self.observers {
-            if observer.is_interested_in_diff() {
+            if observer.is_interested_in_diff() && !self.disabled.contains(&observer.emits()) {
                 match observer.on_diff_end() {
                     Ok(Some(obs)) => observations.push(obs),
                     Ok(None) => {}
@@ -697,6 +728,134 @@ mod tests {
             [
                 ObserverData::CommitStart(default_ctx(oid)),
                 ObserverData::Observation(Observation::Dummy),
+                ObserverData::CommitComplete,
+            ]
+        );
+    }
+
+    #[test]
+    fn disable_suppresses_observation() {
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
+        let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
+
+        let observers: Vec<Box<dyn Observer>> = vec![Box::new(AlwaysObserver)];
+        let mut engine =
+            ObserverEngine::new(&temp_repo.repo, observers, default_mailmap()).unwrap();
+        engine.disable(Observation::DUMMY);
+        let data = engine.process_commit(oid).unwrap();
+
+        assert_eq!(
+            data,
+            [
+                ObserverData::CommitStart(default_ctx(oid)),
+                ObserverData::CommitComplete,
+            ]
+        );
+    }
+
+    #[test]
+    fn enable_restores_observation() {
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
+        let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
+
+        let observers: Vec<Box<dyn Observer>> = vec![Box::new(AlwaysObserver)];
+        let mut engine =
+            ObserverEngine::new(&temp_repo.repo, observers, default_mailmap()).unwrap();
+
+        engine.disable(Observation::DUMMY);
+        let data = engine.process_commit(oid).unwrap();
+        assert_eq!(
+            data,
+            [
+                ObserverData::CommitStart(default_ctx(oid)),
+                ObserverData::CommitComplete,
+            ]
+        );
+
+        engine.enable(Observation::DUMMY);
+        let data = engine.process_commit(oid).unwrap();
+        assert_eq!(
+            data,
+            [
+                ObserverData::CommitStart(default_ctx(oid)),
+                ObserverData::Observation(Observation::Dummy),
+                ObserverData::CommitComplete,
+            ]
+        );
+    }
+
+    #[test]
+    fn disable_all_diff_observers_skips_diff() {
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .file("hello.txt", b"hello world")
+            .build()
+            .unwrap();
+        let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
+
+        let observers: Vec<Box<dyn Observer>> = vec![Box::new(DummyDiffObserver::default())];
+        let mut engine =
+            ObserverEngine::new(&temp_repo.repo, observers, default_mailmap()).unwrap();
+        engine.disable(Observation::DUMMY);
+        let data = engine.process_commit(oid).unwrap();
+
+        assert_eq!(
+            data,
+            [
+                ObserverData::CommitStart(default_ctx(oid)),
+                ObserverData::CommitComplete,
+            ]
+        );
+    }
+
+    #[test]
+    fn disable_one_observer_leaves_others_running() {
+        use std::mem::Discriminant;
+
+        /// An observer that emits Observation::Fixup on every commit.
+        #[derive(Default)]
+        struct FixupObserver;
+
+        impl Observer for FixupObserver {
+            fn emits(&self) -> Discriminant<Observation> {
+                Observation::FIXUP
+            }
+
+            fn on_commit(
+                &mut self,
+                _commit: &gix::Commit,
+                _repo: &gix::Repository,
+            ) -> eyre::Result<Option<Observation>> {
+                Ok(Some(Observation::Fixup))
+            }
+        }
+
+        let temp_repo = repository::Builder::new()
+            .commit("Initial commit")
+            .build()
+            .unwrap();
+        let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
+
+        let observers: Vec<Box<dyn Observer>> =
+            vec![Box::new(AlwaysObserver), Box::new(FixupObserver)];
+        let mut engine =
+            ObserverEngine::new(&temp_repo.repo, observers, default_mailmap()).unwrap();
+
+        // Disable only Dummy -- Fixup should still emit
+        engine.disable(Observation::DUMMY);
+        let data = engine.process_commit(oid).unwrap();
+
+        assert_eq!(
+            data,
+            [
+                ObserverData::CommitStart(default_ctx(oid)),
+                ObserverData::Observation(Observation::Fixup),
                 ObserverData::CommitComplete,
             ]
         );
