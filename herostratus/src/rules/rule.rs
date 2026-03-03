@@ -67,7 +67,9 @@ pub(in crate::rules) trait Rule {
     /// Called after all commits have been processed.
     ///
     /// Rules that accumulate state across commits (e.g., "shortest subject") emit here.
-    fn finalize(&mut self) -> eyre::Result<Option<Grant>>;
+    fn finalize(&mut self) -> eyre::Result<Option<Grant>> {
+        Ok(None)
+    }
 
     /// Initialize the rule with its persisted cache. Called once before any
     /// [process](Self::process) calls.

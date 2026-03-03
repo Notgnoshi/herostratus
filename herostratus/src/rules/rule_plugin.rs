@@ -79,7 +79,6 @@ pub(in crate::rules) struct RuleFactory {
     factory: fn(&RulesConfig) -> Box<dyn RulePlugin>,
 }
 
-#[expect(dead_code)]
 impl RuleFactory {
     /// Provide your own factory to build your rule.
     pub const fn new(factory: fn(&RulesConfig) -> Box<dyn RulePlugin>) -> Self {
