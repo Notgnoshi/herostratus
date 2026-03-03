@@ -23,6 +23,5 @@ pub use rule_plugin_old::RulePlugin;
 // New infrastructure (observer/rule split)
 mod impls;
 mod rule;
-mod rule_builtins;
 mod rule_engine;
 mod rule_plugin;
