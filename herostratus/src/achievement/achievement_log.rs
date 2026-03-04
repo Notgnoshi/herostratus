@@ -42,8 +42,9 @@ impl AchievementEvent {
 ///
 /// Contains the grant event that was recorded, and optionally a revocation of the previous holder
 /// (for [Global { revocable: true }](AchievementKind::Global) achievements).
-#[cfg_attr(not(test), expect(dead_code))]
 pub struct Resolution {
+    // TODO: Wire revocations into the pipeline callback
+    #[cfg_attr(not(test), expect(dead_code))]
     pub revoke: Option<AchievementEvent>,
     pub grant: AchievementEvent,
 }
@@ -58,7 +59,6 @@ pub(crate) struct AchievementLog {
     events: Vec<AchievementEvent>,
 }
 
-#[cfg_attr(not(test), expect(dead_code))]
 impl AchievementLog {
     /// Load an achievement log from a CSV file, or create an empty log.
     ///
@@ -183,6 +183,7 @@ impl AchievementLog {
     }
 
     /// All grant events that have no subsequent revocation for the same achievement+author.
+    #[cfg_attr(not(test), expect(dead_code))]
     pub fn active_grants(&self) -> impl Iterator<Item = &AchievementEvent> {
         // Collect active grants by scanning all events
         let mut active: Vec<&AchievementEvent> = Vec::new();

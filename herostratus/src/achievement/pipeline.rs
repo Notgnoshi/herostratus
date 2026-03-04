@@ -2,23 +2,24 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+use super::achievement_log::AchievementLog;
 use crate::achievement::Achievement;
 use crate::cache::RuleCache;
 use crate::git::mailmap::MailmapResolver;
 use crate::observer::observer_factory::builtin_observers;
 use crate::observer::{ObserverData, ObserverEngine};
+use crate::rules::RuleEngine;
 use crate::rules::rule_plugin::RulePlugin;
-use crate::rules::{RuleEngine, RuleOutput};
 
 /// Drives the [ObserverEngine] and [RuleEngine] together, streaming [Achievements] via a callback.
 struct Pipeline<'repo> {
     observer_engine: ObserverEngine<'repo>,
     rule_engine: RuleEngine,
+    achievement_log: AchievementLog,
     data_dir: Option<PathBuf>,
     repo_name: String,
     // Future fields:
     // checkpoint_strategy: CheckpointStrategy,
-    // achievement_log: AchievementLog,
 }
 
 /// Statistics from a completed pipeline run.
@@ -54,9 +55,14 @@ impl<'repo> Pipeline<'repo> {
         let observer_engine = ObserverEngine::new(repo, observers, mailmap)?;
         let rule_engine = RuleEngine::new(rules);
 
+        let log_path =
+            data_dir.map(|d| d.join("cache").join(repo_name).join("achievement_log.csv"));
+        let achievement_log = AchievementLog::load(log_path.as_deref())?;
+
         Ok(Self {
             observer_engine,
             rule_engine,
+            achievement_log,
             data_dir: data_dir.map(Path::to_path_buf),
             repo_name: repo_name.to_string(),
         })
@@ -102,8 +108,19 @@ impl<'repo> Pipeline<'repo> {
                     }
                     ObserverData::CommitComplete => {
                         for output in self.rule_engine.on_commit_complete() {
-                            // EXTENSION POINT: achievement_log variation enforcement
-                            Self::emit(output, &mut on_achievement, &mut num_achievements);
+                            if let Some(resolution) =
+                                self.achievement_log.resolve(&output.meta, output.grant)
+                            {
+                                let achievement = Achievement {
+                                    descriptor_id: output.meta.id,
+                                    name: output.meta.name,
+                                    commit: resolution.grant.commit,
+                                    author_name: resolution.grant.name,
+                                    author_email: resolution.grant.email,
+                                };
+                                on_achievement(achievement);
+                                num_achievements += 1;
+                            }
                         }
                         // EXTENSION POINT: checkpoint strategy
                     }
@@ -112,8 +129,17 @@ impl<'repo> Pipeline<'repo> {
         }
 
         for output in self.rule_engine.finalize() {
-            // EXTENSION POINT: achievement_log variation enforcement
-            Self::emit(output, &mut on_achievement, &mut num_achievements);
+            if let Some(resolution) = self.achievement_log.resolve(&output.meta, output.grant) {
+                let achievement = Achievement {
+                    descriptor_id: output.meta.id,
+                    name: output.meta.name,
+                    commit: resolution.grant.commit,
+                    author_name: resolution.grant.name,
+                    author_email: resolution.grant.email,
+                };
+                on_achievement(achievement);
+                num_achievements += 1;
+            }
         }
 
         if let Some(data_dir) = &self.data_dir {
@@ -124,6 +150,8 @@ impl<'repo> Pipeline<'repo> {
             })?;
         }
 
+        self.achievement_log.save()?;
+
         // EXTENSION POINT: meta-achievements
 
         Ok(PipelineStats {
@@ -131,25 +159,6 @@ impl<'repo> Pipeline<'repo> {
             num_achievements,
             elapsed: start.elapsed(),
         })
-    }
-
-    /// Convert a RuleOutput into an Achievement and deliver it via the callback.
-    ///
-    /// Future: the AchievementLog will filter/transform RuleOutputs before converting.
-    fn emit(
-        output: RuleOutput,
-        on_achievement: &mut impl FnMut(Achievement),
-        num_achievements: &mut u64,
-    ) {
-        let achievement = Achievement {
-            descriptor_id: output.meta.id,
-            name: output.meta.name,
-            commit: output.grant.commit,
-            author_name: output.grant.author_name,
-            author_email: output.grant.author_email,
-        };
-        on_achievement(achievement);
-        *num_achievements += 1;
     }
 }
 
@@ -276,6 +285,67 @@ mod tests {
         assert!(
             !h002_granted_again,
             "expected no H002 on second run (cache should suppress it)"
+        );
+    }
+
+    #[test]
+    fn achievement_log_deduplicates_per_user_across_runs() {
+        let data_dir = tempfile::tempdir().unwrap();
+
+        // Run 1: fixup commit triggers H001 (PerUser { recurrent: false })
+        let temp_repo = repository::Builder::new()
+            .commit("fixup! something")
+            .build()
+            .unwrap();
+        let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
+        let rules = builtin_rules(&RulesConfig::default());
+
+        let pipeline = Pipeline::new(
+            &temp_repo.repo,
+            rules,
+            default_mailmap(),
+            Some(data_dir.path()),
+            "test-repo",
+        )
+        .unwrap();
+
+        let mut achievements = Vec::new();
+        pipeline
+            .run(std::iter::once(oid), |a| achievements.push(a))
+            .unwrap();
+
+        let h001_count = achievements.iter().filter(|a| a.descriptor_id == 1).count();
+        assert_eq!(h001_count, 1, "expected H001 on first run");
+
+        // Run 2: another fixup commit by the same author. The achievement log should suppress it.
+        let temp_repo2 = repository::Builder::new()
+            .commit("fixup! another thing")
+            .build()
+            .unwrap();
+        let oid2 = crate::git::rev::parse("HEAD", &temp_repo2.repo).unwrap();
+        let rules2 = builtin_rules(&RulesConfig::default());
+
+        let pipeline2 = Pipeline::new(
+            &temp_repo2.repo,
+            rules2,
+            default_mailmap(),
+            Some(data_dir.path()),
+            "test-repo",
+        )
+        .unwrap();
+
+        let mut achievements2 = Vec::new();
+        pipeline2
+            .run(std::iter::once(oid2), |a| achievements2.push(a))
+            .unwrap();
+
+        let h001_count2 = achievements2
+            .iter()
+            .filter(|a| a.descriptor_id == 1)
+            .count();
+        assert_eq!(
+            h001_count2, 0,
+            "expected no H001 on second run (achievement log should deduplicate)"
         );
     }
 
