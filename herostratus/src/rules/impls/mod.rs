@@ -4,3 +4,7 @@ mod h003_longest_subject;
 mod h004_non_unicode;
 mod h005_empty_commit;
 mod h006_whitespace_only;
+mod h007_first_profanity;
+mod h008_potty_mouth;
+mod h009_like_a_sailor;
+mod h010_most_profound;
