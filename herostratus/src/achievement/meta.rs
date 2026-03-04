@@ -2,7 +2,7 @@ use super::grant::Grant;
 use crate::observer::CommitContext;
 
 /// Static metadata about an achievement. One per rule.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Meta {
     /// Numeric ID (e.g., 1 for H001).
     pub id: usize,

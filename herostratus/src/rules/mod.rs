@@ -21,8 +21,12 @@ pub(in crate::rules) use rule_plugin_old::RuleFactory;
 pub use rule_plugin_old::RulePlugin;
 
 // New infrastructure (observer/rule split)
-#[allow(dead_code)]
 mod impls;
 mod rule;
 mod rule_engine;
 mod rule_plugin;
+#[cfg(test)]
+pub(crate) mod test_rules;
+
+#[expect(unused)]
+pub(crate) use rule_engine::{RuleEngine, RuleOutput};
