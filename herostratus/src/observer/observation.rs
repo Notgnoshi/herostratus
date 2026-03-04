@@ -22,6 +22,9 @@ pub enum Observation {
     /// Every file change in the commit is a whitespace-only modification.
     WhitespaceOnly,
 
+    /// The commit message contains profanity. Carries the matched word (lowercased).
+    Profanity { word: String },
+
     /// Test-only variant for use in unit tests.
     #[cfg(test)]
     Dummy,
@@ -35,6 +38,15 @@ impl Observation {
         discriminant(&Observation::NonUnicodeMessage);
     pub const EMPTY_COMMIT: Discriminant<Self> = discriminant(&Observation::EmptyCommit);
     pub const WHITESPACE_ONLY: Discriminant<Self> = discriminant(&Observation::WhitespaceOnly);
+    pub const PROFANITY: Discriminant<Self> = {
+        let obs = Observation::Profanity {
+            word: String::new(),
+        };
+        let d = discriminant(&obs);
+        // we aren't allowed to call Drop in a const context, so leak the observation ...
+        std::mem::forget(obs);
+        d
+    };
 
     #[cfg(test)]
     pub const DUMMY: Discriminant<Self> = discriminant(&Observation::Dummy);
