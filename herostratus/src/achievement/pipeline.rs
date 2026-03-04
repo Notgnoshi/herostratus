@@ -349,6 +349,217 @@ mod tests {
         );
     }
 
+    /// End-to-end test exercising all four AchievementKind variants via profanity rules.
+    ///
+    /// - H7 (Global{revocable:false}): first profanity in walk order
+    /// - H8 (PerUser{recurrent:false}): one grant per author
+    /// - H9 (PerUser{recurrent:true}): grants at threshold milestone
+    /// - H10 (Global{revocable:true}): most profane author at finalize
+    #[test]
+    fn all_profanity_achievement_kinds() {
+        // 6 profane commits: 5 from Alice, 1 from Bob.
+        // Walk order is newest-first: 6, 5, 4, 3, 2, 1.
+        let temp_repo = repository::Builder::new()
+            .commit("damn this code")
+            .author("Alice", "alice@example.com")
+            .commit("shit happens")
+            .author("Bob", "bob@example.com")
+            .commit("hell yeah")
+            .author("Alice", "alice@example.com")
+            .commit("piss off")
+            .author("Alice", "alice@example.com")
+            .commit("fucking bugs")
+            .author("Alice", "alice@example.com")
+            .commit("what a damn mess")
+            .author("Alice", "alice@example.com")
+            .build()
+            .unwrap();
+
+        let head = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
+        let oids: Vec<_> = crate::git::rev::walk(head, &temp_repo.repo)
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
+
+        let rules = builtin_rules(&RulesConfig::default());
+        let pipeline = Pipeline::new(&temp_repo.repo, rules, default_mailmap(), None, "").unwrap();
+
+        let mut achievements = Vec::new();
+        let stats = pipeline.run(oids, |a| achievements.push(a)).unwrap();
+
+        // H7 (Global{revocable:false}): Alice is first in walk order
+        let h7: Vec<_> = achievements
+            .iter()
+            .filter(|a| a.descriptor_id == 7)
+            .collect();
+        assert_eq!(h7.len(), 1, "expected exactly one H7 grant: {h7:?}");
+        assert_eq!(h7[0].author_email, "alice@example.com");
+
+        // H8 (PerUser{recurrent:false}): one grant per author
+        let h8: Vec<_> = achievements
+            .iter()
+            .filter(|a| a.descriptor_id == 8)
+            .collect();
+        assert_eq!(h8.len(), 2, "expected one H8 per author: {h8:?}");
+        let h8_emails: HashSet<_> = h8.iter().map(|a| a.author_email.as_str()).collect();
+        assert!(h8_emails.contains("alice@example.com"));
+        assert!(h8_emails.contains("bob@example.com"));
+
+        // H9 (PerUser{recurrent:true}): Alice hits threshold 5
+        let h9: Vec<_> = achievements
+            .iter()
+            .filter(|a| a.descriptor_id == 9)
+            .collect();
+        assert_eq!(h9.len(), 1, "expected one H9 grant at threshold 5: {h9:?}");
+        assert_eq!(h9[0].author_email, "alice@example.com");
+
+        // H10 (Global{revocable:true}): Alice is the most profane at finalize
+        let h10: Vec<_> = achievements
+            .iter()
+            .filter(|a| a.descriptor_id == 10)
+            .collect();
+        assert_eq!(h10.len(), 1, "expected one H10 grant: {h10:?}");
+        assert_eq!(h10[0].author_email, "alice@example.com");
+
+        assert_eq!(stats.num_commits_processed, 6);
+    }
+
+    /// Incremental test: two pipeline runs with shared persistence, verifying deduplication,
+    /// permanence, cache interaction, and CSV round-trip across runs.
+    ///
+    /// Run 1: Alice swears 3 times (below H9 threshold). Gets H7, H8, H10.
+    /// Run 2: Bob swears 10 times. Gets H8 (his first), H9 twice (thresholds 5 and 10),
+    ///        H10 (supersedes Alice). H7 stays with Alice permanently. CSV verified.
+    #[test]
+    fn incremental_profanity_runs() {
+        let data_dir = tempfile::tempdir().unwrap();
+
+        // -- Run 1: Alice swears 3 times --
+        let temp_repo1 = repository::Builder::new()
+            .commit("damn this code")
+            .author("Alice", "alice@example.com")
+            .commit("shit happens")
+            .author("Alice", "alice@example.com")
+            .commit("hell yeah")
+            .author("Alice", "alice@example.com")
+            .build()
+            .unwrap();
+
+        let head1 = crate::git::rev::parse("HEAD", &temp_repo1.repo).unwrap();
+        let oids1: Vec<_> = crate::git::rev::walk(head1, &temp_repo1.repo)
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
+
+        let rules1 = builtin_rules(&RulesConfig::default());
+        let pipeline1 = Pipeline::new(
+            &temp_repo1.repo,
+            rules1,
+            default_mailmap(),
+            Some(data_dir.path()),
+            "test-repo",
+        )
+        .unwrap();
+
+        let mut achievements1 = Vec::new();
+        pipeline1.run(oids1, |a| achievements1.push(a)).unwrap();
+
+        assert!(
+            achievements1.iter().any(|a| a.descriptor_id == 7),
+            "expected H7 in run 1"
+        );
+        assert!(
+            achievements1.iter().any(|a| a.descriptor_id == 8),
+            "expected H8 in run 1"
+        );
+        assert!(
+            !achievements1.iter().any(|a| a.descriptor_id == 9),
+            "unexpected H9 in run 1 (only 3 profanities, threshold is 5)"
+        );
+        assert!(
+            achievements1.iter().any(|a| a.descriptor_id == 10),
+            "expected H10 in run 1"
+        );
+
+        // -- Run 2: Bob swears 10 times (new repo, same data_dir for shared caches/log) --
+        let temp_repo2 = repository::Builder::new()
+            .commit("damn thing")
+            .author("Bob", "bob@example.com")
+            .commit("shit code")
+            .author("Bob", "bob@example.com")
+            .commit("hell no")
+            .author("Bob", "bob@example.com")
+            .commit("piss off")
+            .author("Bob", "bob@example.com")
+            .commit("fucking mess")
+            .author("Bob", "bob@example.com")
+            .commit("bastard bug")
+            .author("Bob", "bob@example.com")
+            .commit("damn it again")
+            .author("Bob", "bob@example.com")
+            .commit("shit sandwich")
+            .author("Bob", "bob@example.com")
+            .commit("hell frozen over")
+            .author("Bob", "bob@example.com")
+            .commit("bitch please")
+            .author("Bob", "bob@example.com")
+            .build()
+            .unwrap();
+
+        let head2 = crate::git::rev::parse("HEAD", &temp_repo2.repo).unwrap();
+        let oids2: Vec<_> = crate::git::rev::walk(head2, &temp_repo2.repo)
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
+
+        let rules2 = builtin_rules(&RulesConfig::default());
+        let pipeline2 = Pipeline::new(
+            &temp_repo2.repo,
+            rules2,
+            default_mailmap(),
+            Some(data_dir.path()),
+            "test-repo",
+        )
+        .unwrap();
+
+        let mut achievements2 = Vec::new();
+        pipeline2.run(oids2, |a| achievements2.push(a)).unwrap();
+
+        // H7 (Global{revocable:false}): NOT granted to Bob -- Alice holds permanently
+        assert!(
+            !achievements2.iter().any(|a| a.descriptor_id == 7),
+            "H7 should not be granted in run 2 (Alice holds permanently)"
+        );
+
+        // H8 (PerUser{recurrent:false}): Bob gets his first
+        let h8: Vec<_> = achievements2
+            .iter()
+            .filter(|a| a.descriptor_id == 8)
+            .collect();
+        assert_eq!(h8.len(), 1, "expected one H8 for Bob in run 2: {h8:?}");
+        assert_eq!(h8[0].author_email, "bob@example.com");
+
+        // H9 (PerUser{recurrent:true}): Bob hits thresholds 5 and 10
+        let h9: Vec<_> = achievements2
+            .iter()
+            .filter(|a| a.descriptor_id == 9)
+            .collect();
+        assert_eq!(
+            h9.len(),
+            2,
+            "expected two H9 grants (thresholds 5 and 10): {h9:?}"
+        );
+        assert!(h9.iter().all(|a| a.author_email == "bob@example.com"));
+
+        // H10 (Global{revocable:true}): Bob supersedes Alice (10 > 3)
+        let h10: Vec<_> = achievements2
+            .iter()
+            .filter(|a| a.descriptor_id == 10)
+            .collect();
+        assert_eq!(h10.len(), 1, "expected H10 for Bob in run 2: {h10:?}");
+        assert_eq!(h10[0].author_email, "bob@example.com");
+    }
+
     #[test]
     fn finalization_grants() {
         // Create commits with varying subject lengths to trigger H002 (shortest, threshold <10)

@@ -16,7 +16,7 @@ const META: Meta = Meta {
 
 // TODO: It would be best to have the thresholds defined in the Meta, and include them in the
 // generated AchievementEvents
-const THRESHOLDS: &[usize] = &[5, 25, 100];
+const THRESHOLDS: &[usize] = &[5, 10, 25, 100];
 
 /// Grant an achievement when a user hits profanity count milestones.
 ///
