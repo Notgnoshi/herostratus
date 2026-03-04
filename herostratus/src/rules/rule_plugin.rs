@@ -10,13 +10,15 @@ use crate::rules::rule::Rule;
 /// Type-erases the [Rule::Cache] associated type so rules can be stored as `Box<dyn RulePlugin>`.
 /// The blanket `impl<R: Rule> RulePlugin for R` converts `Cache` to/from [serde_json::Value] at
 /// the boundary.
-#[expect(dead_code)]
 pub trait RulePlugin {
     /// Determine if this rule cares about caching.
+    #[expect(dead_code)]
     fn has_cache(&self) -> bool;
     /// Initialize the cache for this rule.
+    #[expect(dead_code)]
     fn init_cache(&mut self, cache: serde_json::Value) -> eyre::Result<()>;
     /// Finalize the cache for this rule.
+    #[expect(dead_code)]
     fn fini_cache(&self) -> eyre::Result<serde_json::Value>;
 
     /// Static metadata about the achievement this rule grants.
@@ -101,7 +103,7 @@ impl RuleFactory {
 inventory::collect!(RuleFactory);
 
 /// Get a new instance of each registered rule.
-#[expect(dead_code)]
+#[cfg_attr(not(test), expect(dead_code))]
 pub fn builtin_rules(config: &RulesConfig) -> Vec<Box<dyn RulePlugin>> {
     inventory::iter::<RuleFactory>
         .into_iter()

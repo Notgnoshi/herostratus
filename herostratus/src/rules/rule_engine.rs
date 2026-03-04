@@ -8,7 +8,6 @@ use crate::rules::rule_plugin::RulePlugin;
 /// enforcement via the AchievementLog.
 pub(crate) struct RuleOutput {
     pub meta: Meta,
-    #[cfg_attr(not(test), expect(dead_code))]
     pub grant: Grant,
 }
 
@@ -26,7 +25,6 @@ pub(crate) struct RuleEngine {
     pending: Vec<RuleOutput>,
 }
 
-#[cfg_attr(not(test), expect(dead_code))]
 impl RuleEngine {
     pub fn new(rules: Vec<Box<dyn RulePlugin>>) -> Self {
         Self {
@@ -117,6 +115,7 @@ impl RuleEngine {
     /// Used at checkpoint boundaries: when the checkpoint system determines that certain rules are
     /// satisfied, the orchestration layer retires them in one step, flushing any cached state into
     /// final grants and then dropping the rules entirely.
+    #[cfg_attr(not(test), expect(dead_code))]
     pub fn retire(&mut self, rule_ids: &[usize]) -> Vec<RuleOutput> {
         for rule in &mut self.rules {
             if !rule_ids.contains(&rule.meta().id) {
@@ -143,6 +142,7 @@ impl RuleEngine {
     }
 
     /// Borrow the rules.
+    #[cfg_attr(not(test), expect(dead_code))]
     pub fn rules(&self) -> &[Box<dyn RulePlugin>] {
         &self.rules
     }

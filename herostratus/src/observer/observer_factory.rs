@@ -28,7 +28,6 @@ impl ObserverFactory {
 inventory::collect!(ObserverFactory);
 
 /// Get a new instance of each registered [Observer].
-#[cfg_attr(not(test), expect(unused))]
 pub fn builtin_observers() -> Vec<Box<dyn Observer>> {
     inventory::iter::<ObserverFactory>
         .into_iter()

@@ -24,9 +24,8 @@ pub use rule_plugin_old::RulePlugin;
 mod impls;
 mod rule;
 mod rule_engine;
-mod rule_plugin;
+pub(crate) mod rule_plugin;
 #[cfg(test)]
 pub(crate) mod test_rules;
 
-#[expect(unused)]
 pub(crate) use rule_engine::{RuleEngine, RuleOutput};
