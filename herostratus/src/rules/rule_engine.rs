@@ -141,6 +141,43 @@ impl RuleEngine {
         outputs
     }
 
+    /// Load persisted caches into rules.
+    ///
+    /// The `load` closure receives a rule's `human_id` and returns its
+    /// serialized cache data. Returning `Value::Null` (or the result of
+    /// loading a non-existent file) causes the rule to use its default cache.
+    pub fn init_caches(
+        &mut self,
+        mut load: impl FnMut(&str) -> eyre::Result<serde_json::Value>,
+    ) -> eyre::Result<()> {
+        for rule in &mut self.rules {
+            if !rule.has_cache() {
+                continue;
+            }
+            let data = load(rule.meta().human_id)?;
+            rule.init_cache(data)?;
+        }
+        Ok(())
+    }
+
+    /// Extract caches from rules for persistence.
+    ///
+    /// The `save` closure receives a rule's `human_id` and its serialized
+    /// cache data.
+    pub fn fini_caches(
+        &self,
+        mut save: impl FnMut(&str, serde_json::Value) -> eyre::Result<()>,
+    ) -> eyre::Result<()> {
+        for rule in &self.rules {
+            if !rule.has_cache() {
+                continue;
+            }
+            let data = rule.fini_cache()?;
+            save(rule.meta().human_id, data)?;
+        }
+        Ok(())
+    }
+
     /// Borrow the rules.
     #[cfg_attr(not(test), expect(dead_code))]
     pub fn rules(&self) -> &[Box<dyn RulePlugin>] {
@@ -233,6 +270,50 @@ mod tests {
 
         assert_eq!(engine.rules().len(), 1);
         assert_eq!(engine.rules()[0].meta().id, 20);
+    }
+
+    #[test]
+    fn init_caches_loads_for_cacheable_rules() {
+        let rules: Vec<Box<dyn RulePlugin>> = vec![
+            Box::new(GrantOnDummy::new(1)),  // Cache = (), has_cache() == false
+            Box::new(CountingRule::new(10)), // Cache = usize, has_cache() == true
+        ];
+        let mut engine = RuleEngine::new(rules);
+
+        let mut called_ids = Vec::new();
+        engine
+            .init_caches(|human_id| {
+                called_ids.push(human_id.to_string());
+                Ok(serde_json::Value::from(42))
+            })
+            .unwrap();
+
+        // Only CountingRule should have its cache loaded
+        assert_eq!(called_ids, vec!["counting-rule"]);
+    }
+
+    #[test]
+    fn fini_caches_extracts_from_cacheable_rules() {
+        let rules: Vec<Box<dyn RulePlugin>> = vec![
+            Box::new(GrantOnDummy::new(1)),
+            Box::new(CountingRule::new(10)),
+        ];
+        let mut engine = RuleEngine::new(rules);
+
+        // Process a commit so CountingRule has count=1
+        commit_cycle(&mut engine, &[Observation::Dummy]);
+
+        let mut saved = Vec::new();
+        engine
+            .fini_caches(|human_id, data| {
+                saved.push((human_id.to_string(), data));
+                Ok(())
+            })
+            .unwrap();
+
+        assert_eq!(saved.len(), 1);
+        assert_eq!(saved[0].0, "counting-rule");
+        assert_eq!(saved[0].1, serde_json::Value::from(1));
     }
 
     #[test]

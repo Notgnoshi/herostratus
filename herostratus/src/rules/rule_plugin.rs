@@ -12,13 +12,10 @@ use crate::rules::rule::Rule;
 /// the boundary.
 pub trait RulePlugin {
     /// Determine if this rule cares about caching.
-    #[expect(dead_code)]
     fn has_cache(&self) -> bool;
     /// Initialize the cache for this rule.
-    #[expect(dead_code)]
     fn init_cache(&mut self, cache: serde_json::Value) -> eyre::Result<()>;
     /// Finalize the cache for this rule.
-    #[expect(dead_code)]
     fn fini_cache(&self) -> eyre::Result<serde_json::Value>;
 
     /// Static metadata about the achievement this rule grants.
