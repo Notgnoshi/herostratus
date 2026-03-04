@@ -1,7 +1,9 @@
 use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use crate::achievement::Achievement;
+use crate::cache::RuleCache;
 use crate::git::mailmap::MailmapResolver;
 use crate::observer::observer_factory::builtin_observers;
 use crate::observer::{ObserverData, ObserverEngine};
@@ -12,6 +14,8 @@ use crate::rules::{RuleEngine, RuleOutput};
 struct Pipeline<'repo> {
     observer_engine: ObserverEngine<'repo>,
     rule_engine: RuleEngine,
+    data_dir: Option<PathBuf>,
+    repo_name: String,
     // Future fields:
     // checkpoint_strategy: CheckpointStrategy,
     // achievement_log: AchievementLog,
@@ -31,10 +35,15 @@ impl<'repo> Pipeline<'repo> {
     /// Build a pipeline, wiring observers to rules via their observation dependencies.
     ///
     /// Only instantiates observers whose `emits()` discriminant is consumed by at least one rule.
+    ///
+    /// When `data_dir` is provided, rule caches are loaded before processing and saved afterward.
+    /// Pass `None` for stateless operation (no persistence).
     pub fn new(
         repo: &'repo gix::Repository,
         rules: Vec<Box<dyn RulePlugin>>,
         mailmap: MailmapResolver,
+        data_dir: Option<&Path>,
+        repo_name: &str,
     ) -> eyre::Result<Self> {
         let needed: HashSet<_> = rules.iter().flat_map(|r| r.consumes()).copied().collect();
         let observers: Vec<_> = builtin_observers()
@@ -48,6 +57,8 @@ impl<'repo> Pipeline<'repo> {
         Ok(Self {
             observer_engine,
             rule_engine,
+            data_dir: data_dir.map(Path::to_path_buf),
+            repo_name: repo_name.to_string(),
         })
     }
 
@@ -63,7 +74,13 @@ impl<'repo> Pipeline<'repo> {
         let mut num_commits: u64 = 0;
         let mut num_achievements: u64 = 0;
 
-        // EXTENSION POINT: rule engine init_cache
+        if let Some(data_dir) = &self.data_dir {
+            let repo_name = &self.repo_name;
+            self.rule_engine.init_caches(|human_id| {
+                let cache = RuleCache::from_rule_name(data_dir, repo_name, human_id)?;
+                Ok(cache.data)
+            })?;
+        }
 
         for oid in oids {
             // TODO: This runs the git diff directly in this call graph. For performance's sake, we
@@ -99,7 +116,14 @@ impl<'repo> Pipeline<'repo> {
             Self::emit(output, &mut on_achievement, &mut num_achievements);
         }
 
-        // EXTENSION POINT: rule engine fini_cache
+        if let Some(data_dir) = &self.data_dir {
+            let repo_name = &self.repo_name;
+            self.rule_engine.fini_caches(|human_id, data| {
+                let cache = RuleCache::new_for_rule(data_dir, repo_name, human_id, data);
+                cache.save()
+            })?;
+        }
+
         // EXTENSION POINT: meta-achievements
 
         Ok(PipelineStats {
@@ -155,7 +179,8 @@ mod tests {
             .map(|r| r.unwrap())
             .collect();
 
-        let pipeline = Pipeline::new(&temp_repo.repo, Vec::new(), default_mailmap()).unwrap();
+        let pipeline =
+            Pipeline::new(&temp_repo.repo, Vec::new(), default_mailmap(), None, "").unwrap();
 
         let mut achievements = Vec::new();
         let stats = pipeline.run(oids, |a| achievements.push(a)).unwrap();
@@ -175,7 +200,7 @@ mod tests {
         let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
         let rules = builtin_rules(&RulesConfig::default());
 
-        let pipeline = Pipeline::new(&temp_repo.repo, rules, default_mailmap()).unwrap();
+        let pipeline = Pipeline::new(&temp_repo.repo, rules, default_mailmap(), None, "").unwrap();
 
         let mut achievements = Vec::new();
         let stats = pipeline
@@ -192,6 +217,66 @@ mod tests {
             "expected H001 fixup achievement, got: {achievements:?}"
         );
         assert_eq!(stats.num_commits_processed, 1);
+    }
+
+    #[test]
+    fn caches_are_persisted_and_loaded() {
+        let data_dir = tempfile::tempdir().unwrap();
+
+        // Run 1: commit with a short subject (2 chars, below H002 threshold of 10).
+        // ShortestSubject should grant and save its cache with shortest_length=Some(2).
+        let temp_repo = repository::Builder::new().commit("Hi").build().unwrap();
+        let oid = crate::git::rev::parse("HEAD", &temp_repo.repo).unwrap();
+        let rules = builtin_rules(&RulesConfig::default());
+
+        let pipeline = Pipeline::new(
+            &temp_repo.repo,
+            rules,
+            default_mailmap(),
+            Some(data_dir.path()),
+            "test-repo",
+        )
+        .unwrap();
+
+        let mut achievements = Vec::new();
+        pipeline
+            .run(std::iter::once(oid), |a| achievements.push(a))
+            .unwrap();
+
+        let h002_granted = achievements.iter().any(|a| a.descriptor_id == 2);
+        assert!(h002_granted, "expected H002 on first run");
+
+        // Verify the cache file was written
+        let cache_path = data_dir
+            .path()
+            .join("cache/test-repo/rule_shortest-subject-line.json");
+        assert!(cache_path.exists(), "cache file should exist after run");
+
+        // Run 2: commit with subject "Hello" (5 chars, still below threshold 10).
+        // With the loaded cache (shortest_length=2), 5 >= 2 so no new record -- no grant.
+        let temp_repo2 = repository::Builder::new().commit("Hello").build().unwrap();
+        let oid2 = crate::git::rev::parse("HEAD", &temp_repo2.repo).unwrap();
+        let rules2 = builtin_rules(&RulesConfig::default());
+
+        let pipeline2 = Pipeline::new(
+            &temp_repo2.repo,
+            rules2,
+            default_mailmap(),
+            Some(data_dir.path()),
+            "test-repo",
+        )
+        .unwrap();
+
+        let mut achievements2 = Vec::new();
+        pipeline2
+            .run(std::iter::once(oid2), |a| achievements2.push(a))
+            .unwrap();
+
+        let h002_granted_again = achievements2.iter().any(|a| a.descriptor_id == 2);
+        assert!(
+            !h002_granted_again,
+            "expected no H002 on second run (cache should suppress it)"
+        );
     }
 
     #[test]
@@ -214,7 +299,7 @@ mod tests {
             .collect();
 
         let rules = builtin_rules(&RulesConfig::default());
-        let pipeline = Pipeline::new(&temp_repo.repo, rules, default_mailmap()).unwrap();
+        let pipeline = Pipeline::new(&temp_repo.repo, rules, default_mailmap(), None, "").unwrap();
 
         let mut achievements = Vec::new();
         let stats = pipeline.run(oids, |a| achievements.push(a)).unwrap();

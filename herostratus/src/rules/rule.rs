@@ -72,11 +72,9 @@ pub(in crate::rules) trait Rule {
 
     /// Initialize the rule with its persisted cache. Called once before any
     /// [process](Self::process) calls.
-    #[cfg_attr(not(test), expect(dead_code))]
     fn init_cache(&mut self, _cache: Self::Cache) {}
 
     /// Return the cache for persistence. Called once after [finalize](Self::finalize).
-    #[cfg_attr(not(test), expect(dead_code))]
     fn fini_cache(&self) -> Self::Cache {
         Self::Cache::default()
     }
