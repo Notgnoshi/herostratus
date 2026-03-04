@@ -16,8 +16,6 @@ pub use commit_context::CommitContext;
 pub use observation::Observation;
 pub use observer::{DiffAction, Observer};
 // TODO: Audit pub vs pub(crate) throughout
-#[cfg_attr(not(test), expect(unused))]
 pub(crate) use observer_data::ObserverData;
-#[cfg_attr(not(test), expect(unused))]
 pub(crate) use observer_engine::ObserverEngine;
 pub use observer_factory::ObserverFactory;

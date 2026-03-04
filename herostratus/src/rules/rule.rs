@@ -34,7 +34,6 @@ use crate::observer::{CommitContext, Observation};
 /// 2. Implement the [Rule] trait in the [impls] module
 /// 3. Register the rule via [inventory::submit!] using the
 ///    [RuleFactory](super::rule_plugin::RuleFactory) helper
-#[expect(dead_code)]
 pub(in crate::rules) trait Rule {
     type Cache: Default + serde::Serialize + for<'de> serde::Deserialize<'de> + 'static;
 
