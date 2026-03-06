@@ -28,4 +28,4 @@ pub(crate) mod rule_plugin;
 #[cfg(test)]
 pub(crate) mod test_rules;
 
-pub(crate) use rule_engine::RuleEngine;
+pub(crate) use rule_engine::{RuleEngine, RuleOutput};

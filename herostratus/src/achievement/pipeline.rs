@@ -3,23 +3,28 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use super::achievement_log::AchievementLog;
+use super::pipeline_checkpoint::{Continuation, PipelineCheckpoint};
 use crate::achievement::Achievement;
-use crate::cache::RuleCache;
+use crate::cache::{CheckpointCache, RuleCache};
 use crate::git::mailmap::MailmapResolver;
 use crate::observer::observer_factory::builtin_observers;
 use crate::observer::{ObserverData, ObserverEngine};
-use crate::rules::RuleEngine;
 use crate::rules::rule_plugin::RulePlugin;
+use crate::rules::{RuleEngine, RuleOutput};
 
 /// Drives the [ObserverEngine] and [RuleEngine] together, streaming [Achievements] via a callback.
 struct Pipeline<'repo> {
     observer_engine: ObserverEngine<'repo>,
     rule_engine: RuleEngine,
     achievement_log: AchievementLog,
+    checkpoint: PipelineCheckpoint,
     data_dir: Option<PathBuf>,
     repo_name: String,
-    // Future fields:
-    // checkpoint_strategy: CheckpointStrategy,
+}
+
+struct CommitResult {
+    num_achievements: u64,
+    early_exit: bool,
 }
 
 /// Statistics from a completed pipeline run.
@@ -59,10 +64,18 @@ impl<'repo> Pipeline<'repo> {
             data_dir.map(|d| d.join("cache").join(repo_name).join("achievement_log.csv"));
         let achievement_log = AchievementLog::load(log_path.as_deref())?;
 
+        let checkpoint = if let Some(dir) = data_dir {
+            CheckpointCache::from_data_dir(dir, repo_name)?
+        } else {
+            CheckpointCache::in_memory()
+        };
+        let checkpoint = PipelineCheckpoint::new(checkpoint);
+
         Ok(Self {
             observer_engine,
             rule_engine,
             achievement_log,
+            checkpoint,
             data_dir: data_dir.map(Path::to_path_buf),
             repo_name: repo_name.to_string(),
         })
@@ -89,58 +102,19 @@ impl<'repo> Pipeline<'repo> {
         }
 
         for oid in oids {
-            // TODO: This runs the git diff directly in this call graph. For performance's sake, we
-            // may want to run the ObserverEngine on a separate thread, or possibly run the diffs
-            // on a dedicated thread within the ObserverEngine. There might be pipelining benefits
-            // to keep the diff computation unblocked by the rule processing. But this would be
-            // really tricky to implement when we consider the CheckpointStrategy, which requires
-            // disabling Observers and Rules when we hit a checkpoint. That doesn't preclude
-            // parallelism, but it does make it trickier.
-            let data = self.observer_engine.process_commit(oid)?;
-            num_commits += 1;
-            for msg in data {
-                match msg {
-                    ObserverData::CommitStart(ctx) => {
-                        self.rule_engine.on_commit_start(ctx);
-                    }
-                    ObserverData::Observation(obs) => {
-                        self.rule_engine.on_observation(&obs);
-                    }
-                    ObserverData::CommitComplete => {
-                        for output in self.rule_engine.on_commit_complete() {
-                            if let Some(resolution) =
-                                self.achievement_log.resolve(&output.meta, output.grant)
-                            {
-                                let achievement = Achievement {
-                                    descriptor_id: output.meta.id,
-                                    name: output.meta.name,
-                                    commit: resolution.grant.commit,
-                                    author_name: resolution.grant.name,
-                                    author_email: resolution.grant.email,
-                                };
-                                on_achievement(achievement);
-                                num_achievements += 1;
-                            }
-                        }
-                        // EXTENSION POINT: checkpoint strategy
-                    }
-                }
+            let result = self.on_commit(oid, &mut on_achievement)?;
+            num_achievements += result.num_achievements;
+            if result.early_exit {
+                break;
             }
+            num_commits += 1;
         }
 
-        for output in self.rule_engine.finalize() {
-            if let Some(resolution) = self.achievement_log.resolve(&output.meta, output.grant) {
-                let achievement = Achievement {
-                    descriptor_id: output.meta.id,
-                    name: output.meta.name,
-                    commit: resolution.grant.commit,
-                    author_name: resolution.grant.name,
-                    author_email: resolution.grant.email,
-                };
-                on_achievement(achievement);
-                num_achievements += 1;
-            }
-        }
+        let outputs = self.rule_engine.finalize();
+        num_achievements += self.emit(outputs, &mut on_achievement);
+
+        self.checkpoint
+            .save_checkpoint(self.rule_engine.active_rules())?;
 
         if let Some(data_dir) = &self.data_dir {
             let repo_name = &self.repo_name;
@@ -152,14 +126,110 @@ impl<'repo> Pipeline<'repo> {
 
         self.achievement_log.save()?;
 
-        // EXTENSION POINT: meta-achievements
-
         Ok(PipelineStats {
             num_commits_processed: num_commits,
             num_achievements,
             elapsed: start.elapsed(),
         })
     }
+
+    /// Process a single commit: checkpoint decision, observer dispatch, and rule evaluation.
+    ///
+    /// Returns whether the loop should exit early and how many achievements were emitted.
+    fn on_commit(
+        &mut self,
+        oid: gix::ObjectId,
+        on_achievement: &mut impl FnMut(Achievement),
+    ) -> eyre::Result<CommitResult> {
+        let mut num_achievements = 0;
+
+        match self
+            .checkpoint
+            .on_commit(oid, &self.rule_engine.active_rules())
+        {
+            Continuation::Process => {}
+            Continuation::EarlyExit => {
+                return Ok(CommitResult {
+                    num_achievements: 0,
+                    early_exit: true,
+                });
+            }
+            Continuation::Retire { rule_ids } => {
+                let data_dir = &self.data_dir;
+                let repo_name = &self.repo_name;
+                let outputs = self.rule_engine.retire(&rule_ids, |human_id, data| {
+                    save_rule_cache(data_dir, repo_name, human_id, data)
+                })?;
+                num_achievements += self.emit(outputs, on_achievement);
+                self.observer_engine
+                    .retire_all_except(&self.rule_engine.consumed());
+            }
+        }
+
+        // TODO: This runs the git diff directly in this call graph. For performance's sake, we
+        // may want to run the ObserverEngine on a separate thread, or possibly run the diffs
+        // on a dedicated thread within the ObserverEngine. There might be pipelining benefits
+        // to keep the diff computation unblocked by the rule processing. But this would be
+        // really tricky to implement when we consider the checkpoint, which requires retiring
+        // Observers and Rules when we hit a checkpoint. That doesn't preclude parallelism,
+        // but it does make it trickier.
+        let data = self.observer_engine.process_commit(oid)?;
+        for msg in data {
+            match msg {
+                ObserverData::CommitStart(ctx) => {
+                    self.rule_engine.on_commit_start(ctx);
+                }
+                ObserverData::Observation(obs) => {
+                    self.rule_engine.on_observation(&obs);
+                }
+                ObserverData::CommitComplete => {
+                    let outputs = self.rule_engine.on_commit_complete();
+                    num_achievements += self.emit(outputs, on_achievement);
+                }
+            }
+        }
+
+        Ok(CommitResult {
+            num_achievements,
+            early_exit: false,
+        })
+    }
+
+    /// Resolve rule outputs through the achievement log and emit achievements via the callback.
+    fn emit(
+        &mut self,
+        outputs: Vec<RuleOutput>,
+        on_achievement: &mut impl FnMut(Achievement),
+    ) -> u64 {
+        let mut count = 0;
+        for output in outputs {
+            if let Some(resolution) = self.achievement_log.resolve(&output.meta, output.grant) {
+                let achievement = Achievement {
+                    descriptor_id: output.meta.id,
+                    name: output.meta.name,
+                    commit: resolution.grant.commit,
+                    author_name: resolution.grant.name,
+                    author_email: resolution.grant.email,
+                };
+                on_achievement(achievement);
+                count += 1;
+            }
+        }
+        count
+    }
+}
+
+fn save_rule_cache(
+    data_dir: &Option<PathBuf>,
+    repo_name: &str,
+    human_id: &str,
+    data: serde_json::Value,
+) -> eyre::Result<()> {
+    if let Some(data_dir) = data_dir {
+        let cache = RuleCache::new_for_rule(data_dir, repo_name, human_id, data);
+        cache.save()?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -595,5 +665,172 @@ mod tests {
             "expected H003 (longest subject), got: {ids:?}"
         );
         assert_eq!(stats.num_commits_processed, 2);
+    }
+
+    /// Helper: build and run a pipeline over a repo, returning stats and achievements.
+    fn run_pipeline(
+        repo: &gix::Repository,
+        data_dir: Option<&Path>,
+        repo_name: &str,
+    ) -> (PipelineStats, Vec<Achievement>) {
+        let head = crate::git::rev::parse("HEAD", repo).unwrap();
+        let oids: Vec<_> = crate::git::rev::walk(head, repo)
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
+        let rules = builtin_rules(&RulesConfig::default());
+        let pipeline = Pipeline::new(repo, rules, default_mailmap(), data_dir, repo_name).unwrap();
+        let mut achievements = Vec::new();
+        let stats = pipeline.run(oids, |a| achievements.push(a)).unwrap();
+        (stats, achievements)
+    }
+
+    #[test]
+    fn checkpoint_early_exit() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let temp_repo = repository::Builder::new()
+            .commit("fixup! something")
+            .commit("normal commit")
+            .build()
+            .unwrap();
+
+        // Run 1: process all commits
+        let (stats1, achievements1) =
+            run_pipeline(&temp_repo.repo, Some(data_dir.path()), "test-repo");
+        assert_eq!(stats1.num_commits_processed, 2);
+        assert!(!achievements1.is_empty());
+
+        // Run 2: same rules, same repo -- checkpoint should trigger early exit
+        let (stats2, achievements2) =
+            run_pipeline(&temp_repo.repo, Some(data_dir.path()), "test-repo");
+        assert_eq!(stats2.num_commits_processed, 0);
+        assert!(achievements2.is_empty());
+    }
+
+    #[test]
+    fn checkpoint_new_commits_after_checkpoint() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let temp_repo = repository::Builder::new()
+            .commit("fixup! first")
+            .build()
+            .unwrap();
+
+        // Run 1
+        let (stats1, _) = run_pipeline(&temp_repo.repo, Some(data_dir.path()), "test-repo");
+        assert_eq!(stats1.num_commits_processed, 1);
+
+        // Add new commits
+        temp_repo.commit("fixup! second").create().unwrap();
+        temp_repo.commit("fixup! third").create().unwrap();
+
+        // Run 2: only new commits should be processed (old checkpoint hit -> early exit for rest)
+        let (stats2, _) = run_pipeline(&temp_repo.repo, Some(data_dir.path()), "test-repo");
+        // Walk order: third, second, first(checkpoint). Processes third and second, then exits.
+        assert_eq!(stats2.num_commits_processed, 2);
+    }
+
+    /// Helper: build and run a pipeline with a specific set of rules (filtered by ID).
+    fn run_pipeline_with_rules(
+        repo: &gix::Repository,
+        data_dir: Option<&Path>,
+        repo_name: &str,
+        rule_ids: &[usize],
+    ) -> (PipelineStats, Vec<Achievement>) {
+        let head = crate::git::rev::parse("HEAD", repo).unwrap();
+        let oids: Vec<_> = crate::git::rev::walk(head, repo)
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
+        let rules: Vec<_> = builtin_rules(&RulesConfig::default())
+            .into_iter()
+            .filter(|r| rule_ids.contains(&r.meta().id))
+            .collect();
+        let pipeline = Pipeline::new(repo, rules, default_mailmap(), data_dir, repo_name).unwrap();
+        let mut achievements = Vec::new();
+        let stats = pipeline.run(oids, |a| achievements.push(a)).unwrap();
+        (stats, achievements)
+    }
+
+    #[test]
+    fn checkpoint_retire_and_continue() {
+        let data_dir = tempfile::tempdir().unwrap();
+
+        // Create a repo with a fixup commit (triggers H001) and a short subject (triggers H002
+        // at finalize).
+        let temp_repo = repository::Builder::new()
+            .commit("fixup! something")
+            .commit("Hi")
+            .build()
+            .unwrap();
+
+        // Run 1: only H001 (fixup)
+        let (stats1, achievements1) =
+            run_pipeline_with_rules(&temp_repo.repo, Some(data_dir.path()), "test-repo", &[1]);
+        assert_eq!(stats1.num_commits_processed, 2);
+        assert!(
+            achievements1.iter().any(|a| a.descriptor_id == 1),
+            "expected H001 in run 1"
+        );
+
+        // Run 2: H001 + H002 (shortest subject). The checkpoint should retire H001 and
+        // continue processing all commits with just H002.
+        let (stats2, achievements2) =
+            run_pipeline_with_rules(&temp_repo.repo, Some(data_dir.path()), "test-repo", &[1, 2]);
+        // All commits re-processed for the new rule H002
+        assert_eq!(stats2.num_commits_processed, 2);
+        // H002 should fire (shortest subject "Hi" is 2 chars, below threshold 10)
+        assert!(
+            achievements2.iter().any(|a| a.descriptor_id == 2),
+            "expected H002 in run 2: {achievements2:?}"
+        );
+        // H001 should NOT fire again (it was retired, not re-processed)
+        assert!(
+            !achievements2.iter().any(|a| a.descriptor_id == 1),
+            "H001 should not fire in run 2 (retired at checkpoint)"
+        );
+    }
+
+    #[test]
+    fn checkpoint_saves_rule_caches_on_retire() {
+        let data_dir = tempfile::tempdir().unwrap();
+
+        // Create a repo with short subjects to exercise H002 (ShortestSubject, has cache)
+        let temp_repo = repository::Builder::new().commit("Hi").build().unwrap();
+
+        // Run 1: only H002
+        run_pipeline_with_rules(&temp_repo.repo, Some(data_dir.path()), "test-repo", &[2]);
+
+        // Verify H002 cache was written
+        let cache_path = data_dir
+            .path()
+            .join("cache/test-repo/rule_shortest-subject-line.json");
+        assert!(cache_path.exists(), "cache file should exist after run 1");
+
+        // Remove the cache file to verify that retire re-saves it
+        std::fs::remove_file(&cache_path).unwrap();
+
+        // Run 2: H002 + H001. H002 is retired at checkpoint, which should save its cache.
+        run_pipeline_with_rules(&temp_repo.repo, Some(data_dir.path()), "test-repo", &[1, 2]);
+
+        assert!(
+            cache_path.exists(),
+            "cache file should be re-saved when H002 is retired at checkpoint"
+        );
+    }
+
+    #[test]
+    fn checkpoint_not_saved_without_data_dir() {
+        let temp_repo = repository::Builder::new()
+            .commit("fixup! something")
+            .build()
+            .unwrap();
+
+        // Run 1: no data_dir
+        let (stats1, _) = run_pipeline(&temp_repo.repo, None, "test-repo");
+        assert_eq!(stats1.num_commits_processed, 1);
+
+        // Run 2: still no data_dir -- no checkpoint was saved, so all commits are processed again
+        let (stats2, _) = run_pipeline(&temp_repo.repo, None, "test-repo");
+        assert_eq!(stats2.num_commits_processed, 1);
     }
 }
