@@ -1,3 +1,6 @@
+use std::collections::HashSet;
+use std::mem::Discriminant;
+
 use crate::achievement::{Grant, Meta};
 use crate::observer::{CommitContext, Observation};
 use crate::rules::rule_plugin::RulePlugin;
@@ -110,13 +113,31 @@ impl RuleEngine {
         self.collect_pending()
     }
 
-    /// Finalize the specified rules, remove them from the engine, and return their grants.
+    /// Return the IDs of all rules currently in the engine.
+    pub fn active_rules(&self) -> Vec<usize> {
+        self.rules.iter().map(|r| r.meta().id).collect()
+    }
+
+    /// Return the set of observation discriminants consumed by all active rules.
+    pub fn consumed(&self) -> HashSet<Discriminant<Observation>> {
+        self.rules
+            .iter()
+            .flat_map(|r| r.consumes())
+            .copied()
+            .collect()
+    }
+
+    /// Finalize the specified rules, save their caches, remove them from the engine, and return
+    /// their grants.
     ///
     /// Used at checkpoint boundaries: when the checkpoint system determines that certain rules are
     /// satisfied, the orchestration layer retires them in one step, flushing any cached state into
     /// final grants and then dropping the rules entirely.
-    #[cfg_attr(not(test), expect(dead_code))]
-    pub fn retire(&mut self, rule_ids: &[usize]) -> Vec<RuleOutput> {
+    pub fn retire(
+        &mut self,
+        rule_ids: &[usize],
+        mut save_cache: impl FnMut(&str, serde_json::Value) -> eyre::Result<()>,
+    ) -> eyre::Result<Vec<RuleOutput>> {
         for rule in &mut self.rules {
             if !rule_ids.contains(&rule.meta().id) {
                 continue;
@@ -133,12 +154,16 @@ impl RuleEngine {
                     tracing::warn!(rule = rule.meta().human_id, "finalize failed: {e}");
                 }
             }
+            if rule.has_cache() {
+                let data = rule.fini_cache()?;
+                save_cache(rule.meta().human_id, data)?;
+            }
         }
         let outputs = self.collect_pending();
 
         self.rules.retain(|r| !rule_ids.contains(&r.meta().id));
 
-        outputs
+        Ok(outputs)
     }
 
     /// Load persisted caches into rules.
@@ -176,18 +201,6 @@ impl RuleEngine {
             save(rule.meta().human_id, data)?;
         }
         Ok(())
-    }
-
-    /// Borrow the rules.
-    #[cfg_attr(not(test), expect(dead_code))]
-    pub fn rules(&self) -> &[Box<dyn RulePlugin>] {
-        &self.rules
-    }
-
-    /// Consume the engine and return the rules.
-    #[expect(dead_code)]
-    pub fn into_rules(self) -> Vec<Box<dyn RulePlugin>> {
-        self.rules
     }
 
     /// Sort buffered grants by rule ID for deterministic output, then drain.
@@ -263,13 +276,60 @@ mod tests {
         let mut engine = RuleEngine::new(rules);
         commit_cycle(&mut engine, &[Observation::Dummy]);
 
-        let outputs = engine.retire(&[10, 30]);
+        let outputs = engine.retire(&[10, 30], |_, _| Ok(())).unwrap();
         assert_eq!(outputs.len(), 2);
         assert_eq!(outputs[0].meta.id, 10);
         assert_eq!(outputs[1].meta.id, 30);
 
-        assert_eq!(engine.rules().len(), 1);
-        assert_eq!(engine.rules()[0].meta().id, 20);
+        assert_eq!(engine.active_rules(), vec![20]);
+    }
+
+    #[test]
+    fn retire_saves_caches_for_retiring_rules() {
+        let rules: Vec<Box<dyn RulePlugin>> = vec![
+            Box::new(CountingRule::new(10)),
+            Box::new(CountingRule::new(20)),
+        ];
+        let mut engine = RuleEngine::new(rules);
+        commit_cycle(&mut engine, &[Observation::Dummy]);
+        commit_cycle(&mut engine, &[Observation::Dummy]);
+
+        let mut saved = Vec::new();
+        engine
+            .retire(&[10], |human_id, data| {
+                saved.push((human_id.to_string(), data));
+                Ok(())
+            })
+            .unwrap();
+
+        // CountingRule has_cache() == true, so its cache should be saved
+        assert_eq!(saved.len(), 1);
+        assert_eq!(saved[0].0, "counting-rule");
+        // CountingRule saw 2 commits
+        assert_eq!(saved[0].1, serde_json::Value::from(2));
+    }
+
+    #[test]
+    fn active_rules_returns_all_ids() {
+        let rules: Vec<Box<dyn RulePlugin>> = vec![
+            Box::new(GrantOnDummy::new(5)),
+            Box::new(CountingRule::new(15)),
+        ];
+        let engine = RuleEngine::new(rules);
+        assert_eq!(engine.active_rules(), vec![5, 15]);
+    }
+
+    #[test]
+    fn consumed_returns_union_of_all_rule_consumes() {
+        let rules: Vec<Box<dyn RulePlugin>> = vec![
+            Box::new(GrantOnDummy::new(1)),
+            Box::new(CountingRule::new(2)),
+        ];
+        let engine = RuleEngine::new(rules);
+        let consumed = engine.consumed();
+        // Both test rules consume DUMMY
+        assert_eq!(consumed.len(), 1);
+        assert!(consumed.contains(&Observation::DUMMY));
     }
 
     #[test]
