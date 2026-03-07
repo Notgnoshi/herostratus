@@ -138,7 +138,7 @@ mod tests {
     use herostratus_tests::fixtures::repository;
 
     use super::*;
-    use crate::achievement::{Achievement, grant_with_rules};
+    use crate::achievement::{Achievement, grant_with_rules_old as grant_with_rules};
 
     fn collect(
         reference: &str,

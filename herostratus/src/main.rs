@@ -41,11 +41,15 @@ fn main() -> eyre::Result<()> {
 
     if args.list_rules {
         let rules = herostratus::rules::builtin_rules_all();
-        let mut descriptors: Vec<_> = rules.iter().flat_map(|r| r.descriptors()).collect();
+        let mut metas: Vec<_> = rules.iter().map(|r| r.meta()).collect();
 
-        descriptors.sort_by_key(|d| d.id);
-        for desc in descriptors {
-            println!("{:25}\t{}", desc.pretty_id(), desc.description);
+        metas.sort_by_key(|m| m.id);
+        for meta in metas {
+            println!(
+                "{:25}\t{}",
+                format!("H{}-{}", meta.id, meta.human_id),
+                meta.description
+            );
         }
         return Ok(());
     }

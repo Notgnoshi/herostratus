@@ -25,7 +25,7 @@ pub fn grant(
     name: &str,
     on_achievement: impl FnMut(Achievement),
 ) -> eyre::Result<GrantStats> {
-    let (rules, config_disabled) = crate::rules::builtin_rules(config);
+    let (rules, config_disabled) = crate::rules::rule_builtins_old::builtin_rules(config);
     let global_mailmap = config.and_then(|c| c.mailmap_file.as_deref());
     let repo_mailmap = config
         .and_then(|c| c.repositories.get(name))

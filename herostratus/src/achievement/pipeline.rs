@@ -2,15 +2,124 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+use eyre::WrapErr;
+
 use super::achievement_log::AchievementLog;
 use super::pipeline_checkpoint::{CheckpointAction, Continuation, PipelineCheckpoint};
 use crate::achievement::Achievement;
 use crate::cache::{CheckpointCache, RuleCache};
+use crate::config::Config;
 use crate::git::mailmap::MailmapResolver;
 use crate::observer::observer_factory::builtin_observers;
 use crate::observer::{ObserverData, ObserverEngine};
 use crate::rules::rule_plugin::RulePlugin;
 use crate::rules::{RuleEngine, RuleOutput};
+
+pub struct GrantStats {
+    pub num_commits_processed: u64,
+    pub num_achievements_generated: u64,
+    pub elapsed: Duration,
+}
+
+pub fn grant(
+    config: Option<&Config>,
+    reference: &str,
+    repo: &gix::Repository,
+    depth: Option<usize>,
+    data_dir: Option<&Path>,
+    name: &str,
+    on_achievement: impl FnMut(Achievement),
+) -> eyre::Result<GrantStats> {
+    let default_rc = crate::config::RulesConfig::default();
+    let rules_config = config.and_then(|c| c.rules.as_ref()).unwrap_or(&default_rc);
+    let rules = crate::rules::rule_plugin::builtin_rules(rules_config);
+
+    let global_mailmap = config.and_then(|c| c.mailmap_file.as_deref());
+    let repo_mailmap = config
+        .and_then(|c| c.repositories.get(name))
+        .and_then(|rc| rc.mailmap_file.as_deref());
+
+    let snapshot = repo.open_mailmap();
+    let mailmap = MailmapResolver::new(snapshot, global_mailmap, repo_mailmap)?;
+
+    run_grant(
+        reference,
+        repo,
+        depth,
+        data_dir,
+        name,
+        rules,
+        mailmap,
+        on_achievement,
+    )
+}
+
+pub fn grant_with_rules(
+    reference: &str,
+    repo: &gix::Repository,
+    depth: Option<usize>,
+    data_dir: Option<&Path>,
+    name: &str,
+    rules: Vec<Box<dyn RulePlugin>>,
+    on_achievement: impl FnMut(Achievement),
+) -> eyre::Result<GrantStats> {
+    let snapshot = repo.open_mailmap();
+    let mailmap = MailmapResolver::new(snapshot, None, None)?;
+    run_grant(
+        reference,
+        repo,
+        depth,
+        data_dir,
+        name,
+        rules,
+        mailmap,
+        on_achievement,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_grant(
+    reference: &str,
+    repo: &gix::Repository,
+    depth: Option<usize>,
+    data_dir: Option<&Path>,
+    name: &str,
+    rules: Vec<Box<dyn RulePlugin>>,
+    mailmap: MailmapResolver,
+    on_achievement: impl FnMut(Achievement),
+) -> eyre::Result<GrantStats> {
+    let rev = crate::git::rev::parse(reference, repo)
+        .wrap_err(format!("Failed to rev-parse: {reference:?}"))?;
+    let oids =
+        crate::git::rev::walk(rev, repo).wrap_err(format!("Failed to rev-walk rev: {rev:?}"))?;
+
+    // TODO: There should be better error handling than this
+    let oids = oids.filter_map(|o| match o {
+        Ok(o) => Some(o),
+        Err(e) => {
+            tracing::error!("Skipping OID: {e:?}");
+            None
+        }
+    });
+
+    let pipeline = Pipeline::new(repo, rules, mailmap, data_dir, name)?;
+
+    if let Some(depth) = depth {
+        let stats = pipeline.run(oids.take(depth), on_achievement)?;
+        Ok(map_stats(stats))
+    } else {
+        let stats = pipeline.run(oids, on_achievement)?;
+        Ok(map_stats(stats))
+    }
+}
+
+fn map_stats(stats: PipelineStats) -> GrantStats {
+    GrantStats {
+        num_commits_processed: stats.num_commits_processed,
+        num_achievements_generated: stats.num_achievements,
+        elapsed: stats.elapsed,
+    }
+}
 
 /// Drives the [ObserverEngine] and [RuleEngine] together, streaming [Achievements] via a callback.
 struct Pipeline<'repo> {
@@ -28,15 +137,12 @@ struct CommitResult {
 }
 
 /// Statistics from a completed pipeline run.
-#[cfg_attr(not(test), expect(dead_code))]
 struct PipelineStats {
     num_commits_processed: u64,
     num_achievements: u64,
-    #[cfg_attr(test, expect(dead_code))]
     elapsed: Duration,
 }
 
-#[cfg_attr(not(test), expect(dead_code))]
 impl<'repo> Pipeline<'repo> {
     /// Build a pipeline, wiring observers to rules via their observation dependencies.
     ///
@@ -110,6 +216,7 @@ impl<'repo> Pipeline<'repo> {
             num_commits += 1;
         }
 
+        tracing::debug!("Finalizing rules ...");
         let outputs = self.rule_engine.finalize();
         num_achievements += self.emit(outputs, &mut on_achievement);
 
@@ -126,10 +233,15 @@ impl<'repo> Pipeline<'repo> {
 
         self.achievement_log.save()?;
 
+        let elapsed = start.elapsed();
+        tracing::info!(
+            "Generated {num_achievements} achievements after processing {num_commits} commits in {elapsed:?}"
+        );
+
         Ok(PipelineStats {
             num_commits_processed: num_commits,
             num_achievements,
-            elapsed: start.elapsed(),
+            elapsed,
         })
     }
 
@@ -212,6 +324,11 @@ impl<'repo> Pipeline<'repo> {
                     author_name: resolution.grant.name,
                     author_email: resolution.grant.email,
                 };
+                tracing::info!(
+                    "granted achievement: {:?} for commit {}",
+                    achievement.name,
+                    achievement.commit
+                );
                 on_achievement(achievement);
                 count += 1;
             }

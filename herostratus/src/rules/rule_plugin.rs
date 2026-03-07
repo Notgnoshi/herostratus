@@ -99,11 +99,37 @@ impl RuleFactory {
 
 inventory::collect!(RuleFactory);
 
-/// Get a new instance of each registered rule.
-#[cfg_attr(not(test), expect(dead_code))]
+/// Get a new instance of each registered rule, applying exclude/include filtering.
 pub fn builtin_rules(config: &RulesConfig) -> Vec<Box<dyn RulePlugin>> {
-    inventory::iter::<RuleFactory>
+    let excludes = config.exclude.as_deref().unwrap_or_default();
+    let includes = config.include.as_deref().unwrap_or_default();
+
+    let rules: Vec<_> = inventory::iter::<RuleFactory>
         .into_iter()
         .map(|f| f.build(config))
+        .collect();
+
+    rules
+        .into_iter()
+        .filter(|rule| {
+            let meta = rule.meta();
+            let mut disabled = false;
+            for exclude in excludes {
+                if exclude == "all" || meta.id_matches(exclude) {
+                    disabled = true;
+                }
+            }
+            for include in includes {
+                if meta.id_matches(include) {
+                    disabled = false;
+                }
+            }
+            !disabled
+        })
         .collect()
+}
+
+/// Get a new instance of each registered rule with default configuration.
+pub fn builtin_rules_all() -> Vec<Box<dyn RulePlugin>> {
+    builtin_rules(&RulesConfig::default())
 }
