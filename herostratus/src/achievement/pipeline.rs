@@ -6,7 +6,7 @@ use eyre::WrapErr;
 
 use super::achievement_log::AchievementLog;
 use super::pipeline_checkpoint::{CheckpointAction, Continuation, PipelineCheckpoint};
-use crate::achievement::Achievement;
+use crate::achievement::{Achievement, AchievementEvent};
 use crate::cache::{CheckpointCache, RuleCache};
 use crate::config::Config;
 use crate::git::mailmap::MailmapResolver;
@@ -26,7 +26,7 @@ pub fn grant(
     depth: Option<usize>,
     data_dir: Option<&Path>,
     name: &str,
-    on_achievement: impl FnMut(Achievement),
+    on_event: impl FnMut(AchievementEvent),
 ) -> eyre::Result<GrantStats> {
     let default_rc = crate::config::RulesConfig::default();
     let rules_config = config.and_then(|c| c.rules.as_ref()).unwrap_or(&default_rc);
@@ -41,37 +41,7 @@ pub fn grant(
     let mailmap = MailmapResolver::new(snapshot, global_mailmap, repo_mailmap)?;
 
     run_grant(
-        reference,
-        repo,
-        depth,
-        data_dir,
-        name,
-        rules,
-        mailmap,
-        on_achievement,
-    )
-}
-
-pub fn grant_with_rules(
-    reference: &str,
-    repo: &gix::Repository,
-    depth: Option<usize>,
-    data_dir: Option<&Path>,
-    name: &str,
-    rules: Vec<Box<dyn RulePlugin>>,
-    on_achievement: impl FnMut(Achievement),
-) -> eyre::Result<GrantStats> {
-    let snapshot = repo.open_mailmap();
-    let mailmap = MailmapResolver::new(snapshot, None, None)?;
-    run_grant(
-        reference,
-        repo,
-        depth,
-        data_dir,
-        name,
-        rules,
-        mailmap,
-        on_achievement,
+        reference, repo, depth, data_dir, name, rules, mailmap, on_event,
     )
 }
 
@@ -84,7 +54,7 @@ fn run_grant(
     name: &str,
     rules: Vec<Box<dyn RulePlugin>>,
     mailmap: MailmapResolver,
-    on_achievement: impl FnMut(Achievement),
+    on_event: impl FnMut(AchievementEvent),
 ) -> eyre::Result<GrantStats> {
     let rev = crate::git::rev::parse(reference, repo)
         .wrap_err(format!("Failed to rev-parse: {reference:?}"))?;
@@ -103,10 +73,10 @@ fn run_grant(
     let pipeline = Pipeline::new(repo, rules, mailmap, data_dir, name)?;
 
     if let Some(depth) = depth {
-        let stats = pipeline.run(oids.take(depth), on_achievement)?;
+        let stats = pipeline.run(oids.take(depth), on_event)?;
         Ok(map_stats(stats))
     } else {
-        let stats = pipeline.run(oids, on_achievement)?;
+        let stats = pipeline.run(oids, on_event)?;
         Ok(map_stats(stats))
     }
 }
@@ -191,7 +161,7 @@ impl<'repo> Pipeline<'repo> {
     pub fn run(
         mut self,
         oids: impl IntoIterator<Item = gix::ObjectId>,
-        mut on_achievement: impl FnMut(Achievement),
+        mut on_event: impl FnMut(AchievementEvent),
     ) -> eyre::Result<PipelineStats> {
         let start = Instant::now();
         let mut num_commits: u64 = 0;
@@ -206,7 +176,7 @@ impl<'repo> Pipeline<'repo> {
         }
 
         for oid in oids {
-            let result = self.on_commit(oid, &mut on_achievement)?;
+            let result = self.on_commit(oid, &mut on_event)?;
             num_achievements += result.num_achievements;
             if result.early_exit {
                 break;
@@ -216,7 +186,7 @@ impl<'repo> Pipeline<'repo> {
 
         tracing::debug!("Finalizing rules ...");
         let outputs = self.rule_engine.finalize();
-        num_achievements += self.emit(outputs, &mut on_achievement);
+        num_achievements += self.emit(outputs, &mut on_event);
 
         self.checkpoint
             .save_checkpoint(self.rule_engine.active_rules())?;
@@ -249,7 +219,7 @@ impl<'repo> Pipeline<'repo> {
     fn on_commit(
         &mut self,
         oid: gix::ObjectId,
-        on_achievement: &mut impl FnMut(Achievement),
+        on_event: &mut impl FnMut(AchievementEvent),
     ) -> eyre::Result<CommitResult> {
         let mut num_achievements = 0;
 
@@ -269,7 +239,7 @@ impl<'repo> Pipeline<'repo> {
                         let outputs = self.rule_engine.retire(&rule_ids, |human_id, data| {
                             save_rule_cache(data_dir, repo_name, human_id, data)
                         })?;
-                        num_achievements += self.emit(outputs, on_achievement);
+                        num_achievements += self.emit(outputs, on_event);
                         self.observer_engine
                             .retire_all_except(&self.rule_engine.consumed());
                     }
@@ -295,7 +265,7 @@ impl<'repo> Pipeline<'repo> {
                 }
                 ObserverData::CommitComplete => {
                     let outputs = self.rule_engine.on_commit_complete();
-                    num_achievements += self.emit(outputs, on_achievement);
+                    num_achievements += self.emit(outputs, on_event);
                 }
             }
         }
@@ -306,15 +276,33 @@ impl<'repo> Pipeline<'repo> {
         })
     }
 
-    /// Resolve rule outputs through the achievement log and emit achievements via the callback.
+    /// Resolve rule outputs through the achievement log and emit events via the callback.
+    ///
+    /// Revocations are emitted before the corresponding grant.
     fn emit(
         &mut self,
         outputs: Vec<RuleOutput>,
-        on_achievement: &mut impl FnMut(Achievement),
+        on_event: &mut impl FnMut(AchievementEvent),
     ) -> u64 {
         let mut count = 0;
         for output in outputs {
             if let Some(resolution) = self.achievement_log.resolve(&output.meta, output.grant) {
+                if let Some(ref revoke) = resolution.revoke {
+                    let achievement = Achievement {
+                        descriptor_id: output.meta.id,
+                        name: output.meta.name,
+                        commit: revoke.commit,
+                        author_name: revoke.name.clone(),
+                        author_email: revoke.email.clone(),
+                    };
+                    tracing::info!(
+                        "revoked achievement: {:?} from {}",
+                        achievement.name,
+                        achievement.author_email
+                    );
+                    on_event(AchievementEvent::Revoke(achievement));
+                }
+
                 let achievement = Achievement {
                     descriptor_id: output.meta.id,
                     name: output.meta.name,
@@ -327,7 +315,7 @@ impl<'repo> Pipeline<'repo> {
                     achievement.name,
                     achievement.commit
                 );
-                on_achievement(achievement);
+                on_event(AchievementEvent::Grant(achievement));
                 count += 1;
             }
         }
@@ -360,6 +348,17 @@ mod tests {
         MailmapResolver::new(gix::mailmap::Snapshot::default(), None, None).unwrap()
     }
 
+    /// Extract only the granted [Achievement]s from a list of events.
+    fn grants(events: &[AchievementEvent]) -> Vec<&Achievement> {
+        events
+            .iter()
+            .filter_map(|e| match e {
+                AchievementEvent::Grant(a) => Some(a),
+                _ => None,
+            })
+            .collect()
+    }
+
     #[test]
     fn commits_but_no_rules() {
         let temp_repo = repository::Builder::new()
@@ -377,10 +376,10 @@ mod tests {
         let pipeline =
             Pipeline::new(&temp_repo.repo, Vec::new(), default_mailmap(), None, "").unwrap();
 
-        let mut achievements = Vec::new();
-        let stats = pipeline.run(oids, |a| achievements.push(a)).unwrap();
+        let mut events = Vec::new();
+        let stats = pipeline.run(oids, |e| events.push(e)).unwrap();
 
-        assert!(achievements.is_empty());
+        assert!(events.is_empty());
         assert_eq!(stats.num_commits_processed, 2);
         assert_eq!(stats.num_achievements, 0);
     }
@@ -397,19 +396,20 @@ mod tests {
 
         let pipeline = Pipeline::new(&temp_repo.repo, rules, default_mailmap(), None, "").unwrap();
 
-        let mut achievements = Vec::new();
+        let mut events = Vec::new();
         let stats = pipeline
-            .run(std::iter::once(oid), |a| achievements.push(a))
+            .run(std::iter::once(oid), |e| events.push(e))
             .unwrap();
 
         // H001 (fixup) should fire on the per-commit path
+        let achievements = grants(&events);
         let fixup_achievements: Vec<_> = achievements
             .iter()
             .filter(|a| a.descriptor_id == 1)
             .collect();
         assert!(
             !fixup_achievements.is_empty(),
-            "expected H001 fixup achievement, got: {achievements:?}"
+            "expected H001 fixup achievement, got: {events:?}"
         );
         assert_eq!(stats.num_commits_processed, 1);
     }
@@ -433,12 +433,12 @@ mod tests {
         )
         .unwrap();
 
-        let mut achievements = Vec::new();
+        let mut events = Vec::new();
         pipeline
-            .run(std::iter::once(oid), |a| achievements.push(a))
+            .run(std::iter::once(oid), |e| events.push(e))
             .unwrap();
 
-        let h002_granted = achievements.iter().any(|a| a.descriptor_id == 2);
+        let h002_granted = grants(&events).iter().any(|a| a.descriptor_id == 2);
         assert!(h002_granted, "expected H002 on first run");
 
         // Verify the cache file was written
@@ -462,12 +462,12 @@ mod tests {
         )
         .unwrap();
 
-        let mut achievements2 = Vec::new();
+        let mut events2 = Vec::new();
         pipeline2
-            .run(std::iter::once(oid2), |a| achievements2.push(a))
+            .run(std::iter::once(oid2), |e| events2.push(e))
             .unwrap();
 
-        let h002_granted_again = achievements2.iter().any(|a| a.descriptor_id == 2);
+        let h002_granted_again = grants(&events2).iter().any(|a| a.descriptor_id == 2);
         assert!(
             !h002_granted_again,
             "expected no H002 on second run (cache should suppress it)"
@@ -495,12 +495,15 @@ mod tests {
         )
         .unwrap();
 
-        let mut achievements = Vec::new();
+        let mut events = Vec::new();
         pipeline
-            .run(std::iter::once(oid), |a| achievements.push(a))
+            .run(std::iter::once(oid), |e| events.push(e))
             .unwrap();
 
-        let h001_count = achievements.iter().filter(|a| a.descriptor_id == 1).count();
+        let h001_count = grants(&events)
+            .iter()
+            .filter(|a| a.descriptor_id == 1)
+            .count();
         assert_eq!(h001_count, 1, "expected H001 on first run");
 
         // Run 2: another fixup commit by the same author. The achievement log should suppress it.
@@ -520,12 +523,12 @@ mod tests {
         )
         .unwrap();
 
-        let mut achievements2 = Vec::new();
+        let mut events2 = Vec::new();
         pipeline2
-            .run(std::iter::once(oid2), |a| achievements2.push(a))
+            .run(std::iter::once(oid2), |e| events2.push(e))
             .unwrap();
 
-        let h001_count2 = achievements2
+        let h001_count2 = grants(&events2)
             .iter()
             .filter(|a| a.descriptor_id == 1)
             .count();
@@ -570,8 +573,9 @@ mod tests {
         let rules = builtin_rules(&RulesConfig::default());
         let pipeline = Pipeline::new(&temp_repo.repo, rules, default_mailmap(), None, "").unwrap();
 
-        let mut achievements = Vec::new();
-        let stats = pipeline.run(oids, |a| achievements.push(a)).unwrap();
+        let mut events = Vec::new();
+        let stats = pipeline.run(oids, |e| events.push(e)).unwrap();
+        let achievements = grants(&events);
 
         // H7 (Global{revocable:false}): Alice is first in walk order
         let h7: Vec<_> = achievements
@@ -647,8 +651,9 @@ mod tests {
         )
         .unwrap();
 
-        let mut achievements1 = Vec::new();
-        pipeline1.run(oids1, |a| achievements1.push(a)).unwrap();
+        let mut events1 = Vec::new();
+        pipeline1.run(oids1, |e| events1.push(e)).unwrap();
+        let achievements1 = grants(&events1);
 
         assert!(
             achievements1.iter().any(|a| a.descriptor_id == 7),
@@ -708,8 +713,9 @@ mod tests {
         )
         .unwrap();
 
-        let mut achievements2 = Vec::new();
-        pipeline2.run(oids2, |a| achievements2.push(a)).unwrap();
+        let mut events2 = Vec::new();
+        pipeline2.run(oids2, |e| events2.push(e)).unwrap();
+        let achievements2 = grants(&events2);
 
         // H7 (Global{revocable:false}): NOT granted to Bob -- Alice holds permanently
         assert!(
@@ -738,6 +744,17 @@ mod tests {
         assert!(h9.iter().all(|a| a.author_email == "bob@example.com"));
 
         // H10 (Global{revocable:true}): Bob supersedes Alice (10 > 3)
+        // Alice's H10 is revoked, then Bob gets the grant
+        let revokes: Vec<_> = events2
+            .iter()
+            .filter_map(|e| match e {
+                AchievementEvent::Revoke(a) if a.descriptor_id == 10 => Some(a),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(revokes.len(), 1, "expected one H10 revocation: {revokes:?}");
+        assert_eq!(revokes[0].author_email, "alice@example.com");
+
         let h10: Vec<_> = achievements2
             .iter()
             .filter(|a| a.descriptor_id == 10)
@@ -768,8 +785,9 @@ mod tests {
         let rules = builtin_rules(&RulesConfig::default());
         let pipeline = Pipeline::new(&temp_repo.repo, rules, default_mailmap(), None, "").unwrap();
 
-        let mut achievements = Vec::new();
-        let stats = pipeline.run(oids, |a| achievements.push(a)).unwrap();
+        let mut events = Vec::new();
+        let stats = pipeline.run(oids, |e| events.push(e)).unwrap();
+        let achievements = grants(&events);
 
         let ids: Vec<_> = achievements.iter().map(|a| a.descriptor_id).collect();
         assert!(
@@ -783,12 +801,12 @@ mod tests {
         assert_eq!(stats.num_commits_processed, 2);
     }
 
-    /// Helper: build and run a pipeline over a repo, returning stats and achievements.
+    /// Helper: build and run a pipeline over a repo, returning stats and events.
     fn run_pipeline(
         repo: &gix::Repository,
         data_dir: Option<&Path>,
         repo_name: &str,
-    ) -> (PipelineStats, Vec<Achievement>) {
+    ) -> (PipelineStats, Vec<AchievementEvent>) {
         let head = crate::git::rev::parse("HEAD", repo).unwrap();
         let oids: Vec<_> = crate::git::rev::walk(head, repo)
             .unwrap()
@@ -796,9 +814,9 @@ mod tests {
             .collect();
         let rules = builtin_rules(&RulesConfig::default());
         let pipeline = Pipeline::new(repo, rules, default_mailmap(), data_dir, repo_name).unwrap();
-        let mut achievements = Vec::new();
-        let stats = pipeline.run(oids, |a| achievements.push(a)).unwrap();
-        (stats, achievements)
+        let mut events = Vec::new();
+        let stats = pipeline.run(oids, |e| events.push(e)).unwrap();
+        (stats, events)
     }
 
     #[test]
@@ -811,16 +829,14 @@ mod tests {
             .unwrap();
 
         // Run 1: process all commits
-        let (stats1, achievements1) =
-            run_pipeline(&temp_repo.repo, Some(data_dir.path()), "test-repo");
+        let (stats1, events1) = run_pipeline(&temp_repo.repo, Some(data_dir.path()), "test-repo");
         assert_eq!(stats1.num_commits_processed, 2);
-        assert!(!achievements1.is_empty());
+        assert!(!events1.is_empty());
 
         // Run 2: same rules, same repo -- checkpoint should trigger early exit
-        let (stats2, achievements2) =
-            run_pipeline(&temp_repo.repo, Some(data_dir.path()), "test-repo");
+        let (stats2, events2) = run_pipeline(&temp_repo.repo, Some(data_dir.path()), "test-repo");
         assert_eq!(stats2.num_commits_processed, 0);
-        assert!(achievements2.is_empty());
+        assert!(events2.is_empty());
     }
 
     #[test]
@@ -851,7 +867,7 @@ mod tests {
         data_dir: Option<&Path>,
         repo_name: &str,
         rule_ids: &[usize],
-    ) -> (PipelineStats, Vec<Achievement>) {
+    ) -> (PipelineStats, Vec<AchievementEvent>) {
         let head = crate::git::rev::parse("HEAD", repo).unwrap();
         let oids: Vec<_> = crate::git::rev::walk(head, repo)
             .unwrap()
@@ -862,9 +878,9 @@ mod tests {
             .filter(|r| rule_ids.contains(&r.meta().id))
             .collect();
         let pipeline = Pipeline::new(repo, rules, default_mailmap(), data_dir, repo_name).unwrap();
-        let mut achievements = Vec::new();
-        let stats = pipeline.run(oids, |a| achievements.push(a)).unwrap();
-        (stats, achievements)
+        let mut events = Vec::new();
+        let stats = pipeline.run(oids, |e| events.push(e)).unwrap();
+        (stats, events)
     }
 
     #[test]
@@ -880,28 +896,28 @@ mod tests {
             .unwrap();
 
         // Run 1: only H001 (fixup)
-        let (stats1, achievements1) =
+        let (stats1, events1) =
             run_pipeline_with_rules(&temp_repo.repo, Some(data_dir.path()), "test-repo", &[1]);
         assert_eq!(stats1.num_commits_processed, 2);
         assert!(
-            achievements1.iter().any(|a| a.descriptor_id == 1),
+            grants(&events1).iter().any(|a| a.descriptor_id == 1),
             "expected H001 in run 1"
         );
 
         // Run 2: H001 + H002 (shortest subject). The checkpoint should retire H001 and
         // continue processing all commits with just H002.
-        let (stats2, achievements2) =
+        let (stats2, events2) =
             run_pipeline_with_rules(&temp_repo.repo, Some(data_dir.path()), "test-repo", &[1, 2]);
         // All commits re-processed for the new rule H002
         assert_eq!(stats2.num_commits_processed, 2);
         // H002 should fire (shortest subject "Hi" is 2 chars, below threshold 10)
         assert!(
-            achievements2.iter().any(|a| a.descriptor_id == 2),
-            "expected H002 in run 2: {achievements2:?}"
+            grants(&events2).iter().any(|a| a.descriptor_id == 2),
+            "expected H002 in run 2: {events2:?}"
         );
         // H001 should NOT fire again (it was retired, not re-processed)
         assert!(
-            !achievements2.iter().any(|a| a.descriptor_id == 1),
+            !grants(&events2).iter().any(|a| a.descriptor_id == 1),
             "H001 should not fire in run 2 (retired at checkpoint)"
         );
     }

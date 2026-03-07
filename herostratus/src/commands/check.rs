@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-use crate::achievement::{Achievement, grant};
+use crate::achievement::{AchievementEvent, grant};
 use crate::cli::{CheckAllArgs, CheckArgs};
 use crate::commands::fetch_all::FetchStat;
 use crate::config::Config;
@@ -60,8 +60,8 @@ fn check_impl(
 ) -> eyre::Result<CheckStat> {
     tracing::info!("Checking repository {path:?}, reference {reference:?} for achievements ...");
     let repo = find_local_repository(path)?;
-    let stats = grant(config, reference, &repo, depth, data_dir, name, |a| {
-        process_achievement(&a);
+    let stats = grant(config, reference, &repo, depth, data_dir, name, |e| {
+        process_event(&e);
     })?;
 
     Ok(CheckStat {
@@ -163,8 +163,8 @@ pub fn check_all(
     Ok(merge_stats(fetch_stats, check_stats))
 }
 
-/// A common achievement sink that both check and check_all can use
-fn process_achievement(achievement: &Achievement) {
+/// A common event sink that both check and check_all can use
+fn process_event(event: &AchievementEvent) {
     // TODO: Support different output formats
-    println!("{achievement:?}");
+    println!("{event:?}");
 }

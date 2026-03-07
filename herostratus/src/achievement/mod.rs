@@ -8,7 +8,7 @@ mod pipeline_checkpoint;
 
 pub use grant::Grant;
 pub use meta::{AchievementKind, Meta};
-pub use pipeline::{GrantStats, grant, grant_with_rules};
+pub use pipeline::{GrantStats, grant};
 
 #[derive(Debug)]
 pub struct Achievement {
@@ -19,4 +19,14 @@ pub struct Achievement {
     pub author_name: String,
     /// The mailmap-resolved author email
     pub author_email: String,
+}
+
+/// An achievement event emitted by the pipeline.
+#[derive(Debug)]
+pub enum AchievementEvent {
+    /// A new achievement was granted.
+    Grant(Achievement),
+    /// A previously granted achievement was revoked (for
+    /// [Global { revocable: true }](AchievementKind::Global) achievements).
+    Revoke(Achievement),
 }

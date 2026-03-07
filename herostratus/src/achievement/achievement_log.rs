@@ -43,8 +43,6 @@ impl AchievementEvent {
 /// Contains the grant event that was recorded, and optionally a revocation of the previous holder
 /// (for [Global { revocable: true }](AchievementKind::Global) achievements).
 pub struct Resolution {
-    // TODO: Wire revocations into the pipeline callback
-    #[cfg_attr(not(test), expect(dead_code))]
     pub revoke: Option<AchievementEvent>,
     pub grant: AchievementEvent,
 }
