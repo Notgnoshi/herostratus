@@ -1,5 +1,7 @@
 This is a Rust project to generate achievements for Git repositories.
 
+There is an `ARCHITECTURE.md` document that outlines the project architecture.
+
 See `docs/developer/quickstart.md` for build, test, and run instructions.
 
 The primary logic for processing a repository is in `herostratus/src/achievement/`. The definition

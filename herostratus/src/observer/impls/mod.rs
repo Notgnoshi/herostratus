@@ -1,7 +1,9 @@
 mod empty_commit;
 mod fixup;
+mod hex_tokens;
 mod non_unicode;
 mod profanity;
+mod quine_prefix;
 mod subject_length;
 mod whitespace_only;
 

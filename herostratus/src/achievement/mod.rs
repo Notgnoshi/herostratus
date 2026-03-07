@@ -3,6 +3,7 @@
 mod achievement_log;
 mod grant;
 mod meta;
+mod meta_achievements;
 mod pipeline;
 mod pipeline_checkpoint;
 
@@ -13,6 +14,7 @@ pub use pipeline::{GrantStats, grant};
 #[derive(Debug)]
 pub struct Achievement {
     pub descriptor_id: usize,
+    pub human_id: &'static str,
     pub name: &'static str,
     pub commit: gix::ObjectId,
     /// The mailmap-resolved author name

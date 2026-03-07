@@ -187,6 +187,10 @@ impl<'repo> Pipeline<'repo> {
         let outputs = self.rule_engine.finalize();
         num_achievements += self.emit(outputs, &mut on_event);
 
+        tracing::debug!("Evaluating meta-achievements ...");
+        let meta_outputs = super::meta_achievements::evaluate(&self.achievement_log);
+        num_achievements += self.emit(meta_outputs, &mut on_event);
+
         self.checkpoint
             .save_checkpoint(self.rule_engine.active_rules())?;
 
@@ -289,6 +293,7 @@ impl<'repo> Pipeline<'repo> {
                 if let Some(ref revoke) = resolution.revoke {
                     let achievement = Achievement {
                         descriptor_id: output.meta.id,
+                        human_id: output.meta.human_id,
                         name: output.meta.name,
                         commit: revoke.commit,
                         author_name: revoke.name.clone(),
@@ -304,14 +309,16 @@ impl<'repo> Pipeline<'repo> {
 
                 let achievement = Achievement {
                     descriptor_id: output.meta.id,
+                    human_id: output.meta.human_id,
                     name: output.meta.name,
                     commit: resolution.grant.commit,
                     author_name: resolution.grant.name,
                     author_email: resolution.grant.email,
                 };
                 tracing::info!(
-                    "granted achievement: {:?} for commit {}",
+                    "granted achievement: {:?} to {:?} for commit {}",
                     achievement.name,
+                    achievement.author_name,
                     achievement.commit
                 );
                 on_event(AchievementEvent::Grant(achievement));

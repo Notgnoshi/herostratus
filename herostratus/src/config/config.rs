@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use eyre::WrapErr;
 use serde::{Deserialize, Serialize};
 
-use crate::rules::{H002Config, H003Config};
+use crate::rules::{H002Config, H003Config, H012Config, H013Config};
 
 /// Configuration for each of the repositories that Herostratus processes
 #[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
@@ -36,6 +36,8 @@ pub struct RulesConfig {
     // takes to add a configuration for a new rule. Or maybe this is better because it's simple?
     pub h2_shortest_subject_line: Option<H002Config>,
     pub h3_longest_subject_line: Option<H003Config>,
+    pub h12_quine_commit: Option<H012Config>,
+    pub h13_fortune_teller: Option<H013Config>,
 }
 
 /// Configuration for cloning, fetching, and processing a repository

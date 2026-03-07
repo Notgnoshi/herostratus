@@ -25,6 +25,12 @@ pub enum Observation {
     /// The commit message contains profanity. Carries the matched word (lowercased).
     Profanity { word: String },
 
+    /// The commit message contains a prefix of its own commit hash.
+    QuinePrefix { matched_length: usize },
+
+    /// Hex-digit tokens extracted from the commit message (lowercased, length 5..20).
+    HexTokens { tokens: Vec<String> },
+
     /// Test-only variant for use in unit tests.
     #[cfg(test)]
     Dummy,
@@ -44,6 +50,14 @@ impl Observation {
         };
         let d = discriminant(&obs);
         // we aren't allowed to call Drop in a const context, so leak the observation ...
+        std::mem::forget(obs);
+        d
+    };
+    pub const QUINE_PREFIX: Discriminant<Self> =
+        discriminant(&Observation::QuinePrefix { matched_length: 0 });
+    pub const HEX_TOKENS: Discriminant<Self> = {
+        let obs = Observation::HexTokens { tokens: Vec::new() };
+        let d = discriminant(&obs);
         std::mem::forget(obs);
         d
     };

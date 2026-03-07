@@ -181,7 +181,6 @@ impl AchievementLog {
     }
 
     /// All grant events that have no subsequent revocation for the same achievement+author.
-    #[cfg_attr(not(test), expect(dead_code))]
     pub fn active_grants(&self) -> impl Iterator<Item = &AchievementEvent> {
         // Collect active grants by scanning all events
         let mut active: Vec<&AchievementEvent> = Vec::new();

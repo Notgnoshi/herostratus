@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 use std::time::{Duration, Instant};
 
@@ -14,6 +14,8 @@ pub struct CheckStat {
     pub num_commits_checked: u64,
     pub num_achievements_granted: u64,
     pub elapsed: Duration,
+    /// Per-achievement grant counts, sorted by descriptor ID. Each entry is (pretty_id, count).
+    pub counts: Vec<(String, u64)>,
 }
 
 impl CheckStat {
@@ -60,15 +62,23 @@ fn check_impl(
 ) -> eyre::Result<CheckStat> {
     tracing::info!("Checking repository {path:?}, reference {reference:?} for achievements ...");
     let repo = find_local_repository(path)?;
+    let mut events = Vec::new();
     let stats = grant(config, reference, &repo, depth, data_dir, name, |e| {
         process_event(&e);
+        events.push(e);
     })?;
+
+    let counts = tally_achievements(&events);
+    for (pretty_id, count) in &counts {
+        tracing::info!("{pretty_id}: {count}");
+    }
 
     Ok(CheckStat {
         name: name.to_string(),
         num_commits_checked: stats.num_commits_processed,
         num_achievements_granted: stats.num_achievements_generated,
         elapsed: stats.elapsed,
+        counts,
     })
 }
 
@@ -80,6 +90,8 @@ pub struct CheckAllStat {
     pub num_commits_checked: u64,
     pub num_achievements_granted: u64,
     pub check_duration: Duration,
+    /// Per-achievement grant counts, sorted by descriptor ID. Each entry is (name, count).
+    pub counts: Vec<(String, u64)>,
 }
 
 pub fn print_check_all_summary(stats: &[CheckAllStat]) {
@@ -119,6 +131,7 @@ fn merge_stats(fetch: Vec<FetchStat>, check: Vec<CheckStat>) -> Vec<CheckAllStat
             num_commits_checked: check_stat.num_commits_checked,
             num_achievements_granted: check_stat.num_achievements_granted,
             check_duration: check_stat.elapsed,
+            counts: check_stat.counts,
         };
         merged.push(stat);
     }
@@ -167,4 +180,19 @@ pub fn check_all(
 fn process_event(event: &AchievementEvent) {
     // TODO: Support different output formats
     println!("{event:?}");
+}
+
+/// Count grants per achievement, sorted by descriptor ID.
+fn tally_achievements(events: &[AchievementEvent]) -> Vec<(String, u64)> {
+    let mut counts: BTreeMap<usize, (String, u64)> = BTreeMap::new();
+    for event in events {
+        if let AchievementEvent::Grant(a) = event {
+            let pretty_id = format!("H{}-{}", a.descriptor_id, a.human_id);
+            counts
+                .entry(a.descriptor_id)
+                .and_modify(|(_, c)| *c += 1)
+                .or_insert((pretty_id, 1));
+        }
+    }
+    counts.into_values().collect()
 }

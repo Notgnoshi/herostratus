@@ -16,7 +16,16 @@ email, and timestamp are auto-detected from your git config, but can be overridd
 cargo run --release --bin quine -- -n 8 --name "Name" --email "name@example.com" --timestamp 1000000
 ```
 
+You can use `--parent` to set the commit's parent hash, which lets you add a quine commit to an
+existing branch.
+
 Use `-j` to control the number of worker threads (default: all available cores).
+
+## Fortune teller mode
+
+If you pass `--target-prefix` and `--parent`, the tool will attempt to generate a commit whose hash
+starts with the given prefix. This supports generating commits that trigger the `H13-fortune-teller`
+achievement.
 
 ## Importing the commit
 
@@ -28,11 +37,16 @@ HASH=$(git hash-object -t commit -w --stdin < commit.raw)
 git update-ref refs/heads/quine "$HASH"
 ```
 
-## Example
+## Examples
 
 The <https://github.com/Notgnoshi/herostratus/commit/588b41b6e983c393df17689d7659145fbce16fa9>
-commit on the [test/quine](https://github.com/Notgnoshi/herostratus/tree/test/quine) orphan branch
-is an example of a `n=10` quine commit.
+commit on the [test/quine](https://github.com/Notgnoshi/herostratus/commits/test/quine/) orphan
+branch is an example of a `n=10` quine commit.
+
+The <https://github.com/Notgnoshi/herostratus/commit/0e0d4d0cd7a605721330be5d082dbf0eb62e909d>
+commit starts with the `n=7` prefix from the previous quine commit
+<https://github.com/Notgnoshi/herostratus/commit/0e0d4d0a3c8ae4d09761790162414bfc22010d7f> on the
+[test/quine](https://github.com/Notgnoshi/herostratus/commits/test/quine/) orphan branch.
 
 ## Related projects
 

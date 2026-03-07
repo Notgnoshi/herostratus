@@ -23,7 +23,7 @@ struct Args {
     #[clap(short, long, default_value_t = tracing::Level::INFO)]
     log_level: tracing::Level,
 
-    /// Number of hex characters of the hash to match [4..16]
+    /// Number of hex characters in the nonce field [4..16]
     #[clap(short = 'n', long, default_value_t = 8)]
     prefix_len: u32,
 
@@ -42,6 +42,19 @@ struct Args {
     /// Override author/committer timestamp as seconds since Unix epoch (default: current time)
     #[clap(long)]
     timestamp: Option<i64>,
+
+    /// Parent commit hash (fortune-teller mode).
+    ///
+    /// The generated commit will have this as its parent, placing it on the same branch.
+    #[clap(long)]
+    parent: Option<String>,
+
+    /// Target hash prefix to match (fortune-teller mode).
+    ///
+    /// Generate a commit whose hash starts with this hex prefix. This is the short hash from a
+    /// previous commit's message -- the "prediction" that we are fulfilling.
+    #[clap(long)]
+    target_prefix: Option<String>,
 }
 
 fn main() -> eyre::Result<()> {
@@ -69,6 +82,14 @@ fn main() -> eyre::Result<()> {
         );
     }
 
+    if args.target_prefix.is_some() && args.parent.is_none() {
+        eyre::bail!("--target-prefix requires --parent");
+    }
+
+    if let Some(ref tp) = args.target_prefix {
+        validate_target_prefix(tp)?;
+    }
+
     let (name, email) = resolve_author(&args)?;
     let timestamp = args.timestamp.unwrap_or_else(|| {
         std::time::SystemTime::now()
@@ -77,20 +98,50 @@ fn main() -> eyre::Result<()> {
             .as_secs() as i64
     });
 
-    tracing::info!(
-        name,
-        email,
-        timestamp,
-        prefix_len = args.prefix_len,
-        "Building commit template"
-    );
+    let parent = args.parent.as_deref();
 
-    let template = commit::CommitTemplate::new(args.prefix_len, &name, &email, timestamp);
+    let (template, target) = if let Some(ref target_hex) = args.target_prefix {
+        let parent = parent.unwrap();
+
+        tracing::info!(
+            name,
+            email,
+            timestamp,
+            prefix_len = args.prefix_len,
+            parent,
+            target_prefix = target_hex,
+            "Building fortune-teller commit template"
+        );
+
+        let template = commit::CommitTemplate::new_fortune_teller(
+            args.prefix_len,
+            parent,
+            &name,
+            &email,
+            timestamp,
+        );
+        let target = parse_target_prefix(target_hex)?;
+        (template, Some(target))
+    } else {
+        tracing::info!(
+            name,
+            email,
+            timestamp,
+            prefix_len = args.prefix_len,
+            ?parent,
+            "Building quine commit template"
+        );
+
+        let template =
+            commit::CommitTemplate::new(args.prefix_len, parent, &name, &email, timestamp);
+        (template, None)
+    };
+
     let nprocs = std::thread::available_parallelism()?;
     let num_threads = args.threads.unwrap_or(nprocs.get());
 
     let start_time = std::time::Instant::now();
-    let result = search::search(&template, num_threads);
+    let result = search::search(&template, num_threads, target);
     let elapsed = start_time.elapsed();
 
     match result {
@@ -105,13 +156,35 @@ fn main() -> eyre::Result<()> {
                 verify_hex == result_hex,
                 "Verification failed: search returned {result_hex} but re-hash gives {verify_hex}"
             );
-            eyre::ensure!(
-                verify_hex.starts_with(&result.hex_prefix),
-                "Verification failed: hash {verify_hex} does not start with prefix {}",
-                result.hex_prefix
-            );
 
-            tracing::info!(hash = %result_hex, prefix = %result.hex_prefix, ?elapsed, "Found quine commit!");
+            if let Some((_, target_len)) = target {
+                let target_hex = args.target_prefix.as_ref().unwrap();
+                eyre::ensure!(
+                    verify_hex.starts_with(target_hex),
+                    "Verification failed: hash {verify_hex} does not start with target {target_hex}"
+                );
+                tracing::info!(
+                    hash = %result_hex,
+                    target = target_hex,
+                    nonce = %result.hex_prefix,
+                    nonce_len = args.prefix_len,
+                    target_len,
+                    ?elapsed,
+                    "Found fortune-teller commit!"
+                );
+            } else {
+                eyre::ensure!(
+                    verify_hex.starts_with(&result.hex_prefix),
+                    "Verification failed: hash {verify_hex} does not start with prefix {}",
+                    result.hex_prefix
+                );
+                tracing::info!(
+                    hash = %result_hex,
+                    prefix = %result.hex_prefix,
+                    ?elapsed,
+                    "Found quine commit!"
+                );
+            }
 
             // Write just the commit content (without the git object header) to stdout so
             // it can be piped to:
@@ -133,6 +206,31 @@ fn main() -> eyre::Result<()> {
     }
 
     Ok(())
+}
+
+/// Validate a target prefix is valid lowercase hex.
+fn validate_target_prefix(hex: &str) -> eyre::Result<()> {
+    if hex.len() < 4 || hex.len() > 16 {
+        eyre::bail!(
+            "--target-prefix must be 4-16 hex characters (got {})",
+            hex.len()
+        );
+    }
+    if !hex.chars().all(|c| c.is_ascii_hexdigit()) {
+        eyre::bail!("--target-prefix must be valid hex: {hex}");
+    }
+    if hex != hex.to_ascii_lowercase() {
+        eyre::bail!("--target-prefix must be lowercase hex: {hex}");
+    }
+    Ok(())
+}
+
+/// Parse a hex prefix string into a (value, length) pair for the search.
+fn parse_target_prefix(hex: &str) -> eyre::Result<(u64, u32)> {
+    let len = hex.len() as u32;
+    let value = u64::from_str_radix(hex, 16)
+        .map_err(|_| eyre::eyre!("--target-prefix must be valid hex: {hex}"))?;
+    Ok((value, len))
 }
 
 /// Resolve author name and email from CLI args or git config.
