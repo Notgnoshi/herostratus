@@ -28,6 +28,9 @@ pub enum Observation {
     /// The commit message contains a prefix of its own commit hash.
     QuinePrefix { matched_length: usize },
 
+    /// Hex-digit tokens extracted from the commit message (lowercased, length 5..20).
+    HexTokens { tokens: Vec<String> },
+
     /// Test-only variant for use in unit tests.
     #[cfg(test)]
     Dummy,
@@ -52,6 +55,12 @@ impl Observation {
     };
     pub const QUINE_PREFIX: Discriminant<Self> =
         discriminant(&Observation::QuinePrefix { matched_length: 0 });
+    pub const HEX_TOKENS: Discriminant<Self> = {
+        let obs = Observation::HexTokens { tokens: Vec::new() };
+        let d = discriminant(&obs);
+        std::mem::forget(obs);
+        d
+    };
 
     #[cfg(test)]
     pub const DUMMY: Discriminant<Self> = discriminant(&Observation::Dummy);

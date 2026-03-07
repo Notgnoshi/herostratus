@@ -24,6 +24,7 @@ Added the following achievements:
 | H10-most-profound      | Global, revocable | The author with the most profanity       |
 | H11-achievement-farmer | Global, revocable | Farm the most achievements               |
 | H12-quine-commit       | Per-user, repeat  | Commit message contains its own hash     |
+| H13-fortune-teller     | Per-user, repeat  | Commit message predicts a future hash    |
 
 Added the meta-achievement framework and the first meta-achievement (H11). Meta-achievements are
 evaluated after all rules have finalized, operating on the full achievement log rather than
