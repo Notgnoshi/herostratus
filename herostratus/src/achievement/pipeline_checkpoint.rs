@@ -4,9 +4,16 @@ use crate::cache::CheckpointCache;
 pub(crate) enum Continuation {
     /// Haven't hit checkpoint yet -- process this commit normally
     Process,
-    /// Hit the checkpoint and no new rules exist -- just finalize and stop
+    /// Hit the checkpoint commit -- caller must call [PipelineCheckpoint::resolve] to decide
+    /// whether to early-exit or retire rules
+    ReachedCheckpoint,
+}
+
+/// Decision after reaching the checkpoint commit
+pub(crate) enum CheckpointAction {
+    /// No new rules exist -- just finalize and stop
     EarlyExit,
-    /// Hit the checkpoint but new rules were added -- retire old rules and continue
+    /// New rules were added -- retire old rules and continue
     Retire { rule_ids: Vec<usize> },
 }
 
@@ -28,9 +35,7 @@ impl PipelineCheckpoint {
     }
 
     /// Evaluate what to do when we encounter this commit.
-    ///
-    /// `current_enabled_ids`: the rule IDs currently enabled in the engine.
-    pub fn on_commit(&mut self, oid: gix::ObjectId, current_enabled_ids: &[usize]) -> Continuation {
+    pub fn on_commit(&mut self, oid: gix::ObjectId) -> Continuation {
         if self.first_commit.is_none() {
             self.first_commit = Some(oid);
         }
@@ -44,16 +49,16 @@ impl PipelineCheckpoint {
             return Continuation::Process;
         }
 
-        // We've hit a commit we've already processed. Do we need to keep going with any new
-        // rules that were added since the last time we ran?
-        //
-        // CASE 1: No new rules were added since the last time we ran; we can finalize and stop
-        //         processing new commits.
-        //
-        // CASE 2: New rules were added since the last time we ran; we need to retire the old
-        //         rules and continue processing commits with just the new rules.
         tracing::debug!("Reached last processed commit {oid}");
+        Continuation::ReachedCheckpoint
+    }
 
+    /// Decide what to do after reaching the checkpoint commit.
+    ///
+    /// Compares the rule IDs that were active when the checkpoint was saved against
+    /// `current_enabled_ids` to determine whether all rules have already been processed
+    /// (early exit) or whether new rules need a full pass (retire old rules, continue).
+    pub fn resolve(&self, current_enabled_ids: &[usize]) -> CheckpointAction {
         // Figure out which rule IDs to retire (those that were already processed)
         let rule_ids: Vec<usize> = self
             .checkpoint
@@ -73,9 +78,9 @@ impl PipelineCheckpoint {
             tracing::info!(
                 "No new rules added since last run; finalizing achievements and exiting early ..."
             );
-            Continuation::EarlyExit
+            CheckpointAction::EarlyExit
         } else {
-            Continuation::Retire { rule_ids }
+            CheckpointAction::Retire { rule_ids }
         }
     }
 
@@ -112,14 +117,8 @@ mod tests {
 
         let oid1 = make_oid(1);
         let oid2 = make_oid(2);
-        assert!(matches!(
-            checkpoint.on_commit(oid1, &[1, 2]),
-            Continuation::Process
-        ));
-        assert!(matches!(
-            checkpoint.on_commit(oid2, &[1, 2]),
-            Continuation::Process
-        ));
+        assert!(matches!(checkpoint.on_commit(oid1), Continuation::Process));
+        assert!(matches!(checkpoint.on_commit(oid2), Continuation::Process));
     }
 
     #[test]
@@ -130,10 +129,7 @@ mod tests {
 
         // Different OID from checkpoint -- should process
         let oid = make_oid(1);
-        assert!(matches!(
-            checkpoint.on_commit(oid, &[1, 2]),
-            Continuation::Process
-        ));
+        assert!(matches!(checkpoint.on_commit(oid), Continuation::Process));
     }
 
     #[test]
@@ -143,8 +139,14 @@ mod tests {
         let mut checkpoint = PipelineCheckpoint::new(cache);
 
         // Hit the checkpoint with the same rules that were already processed
-        let result = checkpoint.on_commit(checkpoint_oid, &[1, 2]);
-        assert!(matches!(result, Continuation::EarlyExit));
+        assert!(matches!(
+            checkpoint.on_commit(checkpoint_oid),
+            Continuation::ReachedCheckpoint
+        ));
+        assert!(matches!(
+            checkpoint.resolve(&[1, 2]),
+            CheckpointAction::EarlyExit
+        ));
     }
 
     #[test]
@@ -154,9 +156,12 @@ mod tests {
         let mut checkpoint = PipelineCheckpoint::new(cache);
 
         // Hit the checkpoint with rule 3 being new
-        let result = checkpoint.on_commit(checkpoint_oid, &[1, 2, 3]);
-        match result {
-            Continuation::Retire { rule_ids } => {
+        assert!(matches!(
+            checkpoint.on_commit(checkpoint_oid),
+            Continuation::ReachedCheckpoint
+        ));
+        match checkpoint.resolve(&[1, 2, 3]) {
+            CheckpointAction::Retire { rule_ids } => {
                 assert_eq!(rule_ids, vec![1, 2]);
             }
             _ => panic!("Expected Retire"),
@@ -169,7 +174,7 @@ mod tests {
         let mut checkpoint = PipelineCheckpoint::new(cache);
 
         let oid = make_oid(1);
-        checkpoint.on_commit(oid, &[1, 2]);
+        checkpoint.on_commit(oid);
         checkpoint.save_checkpoint(vec![1, 2]).unwrap();
 
         // Verify by creating a new PipelineCheckpoint from the same cache data

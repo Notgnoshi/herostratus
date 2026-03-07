@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use super::achievement_log::AchievementLog;
-use super::pipeline_checkpoint::{Continuation, PipelineCheckpoint};
+use super::pipeline_checkpoint::{CheckpointAction, Continuation, PipelineCheckpoint};
 use crate::achievement::Achievement;
 use crate::cache::{CheckpointCache, RuleCache};
 use crate::git::mailmap::MailmapResolver;
@@ -143,26 +143,27 @@ impl<'repo> Pipeline<'repo> {
     ) -> eyre::Result<CommitResult> {
         let mut num_achievements = 0;
 
-        match self
-            .checkpoint
-            .on_commit(oid, &self.rule_engine.active_rules())
-        {
+        match self.checkpoint.on_commit(oid) {
             Continuation::Process => {}
-            Continuation::EarlyExit => {
-                return Ok(CommitResult {
-                    num_achievements: 0,
-                    early_exit: true,
-                });
-            }
-            Continuation::Retire { rule_ids } => {
-                let data_dir = &self.data_dir;
-                let repo_name = &self.repo_name;
-                let outputs = self.rule_engine.retire(&rule_ids, |human_id, data| {
-                    save_rule_cache(data_dir, repo_name, human_id, data)
-                })?;
-                num_achievements += self.emit(outputs, on_achievement);
-                self.observer_engine
-                    .retire_all_except(&self.rule_engine.consumed());
+            Continuation::ReachedCheckpoint => {
+                match self.checkpoint.resolve(&self.rule_engine.active_rules()) {
+                    CheckpointAction::EarlyExit => {
+                        return Ok(CommitResult {
+                            num_achievements: 0,
+                            early_exit: true,
+                        });
+                    }
+                    CheckpointAction::Retire { rule_ids } => {
+                        let data_dir = &self.data_dir;
+                        let repo_name = &self.repo_name;
+                        let outputs = self.rule_engine.retire(&rule_ids, |human_id, data| {
+                            save_rule_cache(data_dir, repo_name, human_id, data)
+                        })?;
+                        num_achievements += self.emit(outputs, on_achievement);
+                        self.observer_engine
+                            .retire_all_except(&self.rule_engine.consumed());
+                    }
+                }
             }
         }
 
