@@ -9,7 +9,7 @@ use crate::rules::rule_plugin::RulePlugin;
 ///
 /// The orchestration layer uses `meta.human_id` and `meta.kind` for variation
 /// enforcement via the AchievementLog.
-pub(crate) struct RuleOutput {
+pub struct RuleOutput {
     pub meta: Meta,
     pub grant: Grant,
 }
@@ -22,7 +22,7 @@ pub(crate) struct RuleOutput {
 /// The orchestration layer drives the engine by calling [on_commit_start](Self::on_commit_start),
 /// [on_observation](Self::on_observation), and [on_commit_complete](Self::on_commit_complete) as
 /// it matches on the channel receiver.
-pub(crate) struct RuleEngine {
+pub struct RuleEngine {
     rules: Vec<Box<dyn RulePlugin>>,
     current_ctx: Option<crate::observer::CommitContext>,
     pending: Vec<RuleOutput>,

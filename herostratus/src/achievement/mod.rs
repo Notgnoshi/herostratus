@@ -1,20 +1,32 @@
 //! The API that defines an achievement, and its parsing rules
 
-// Old infrastructure (to be removed after migration)
-mod achievement_old;
-pub(crate) mod checkpoint_strategy_old;
-pub(crate) mod engine_old;
-mod pipeline_old;
-
-pub use achievement_old::{Achievement, AchievementDescriptor};
-pub use pipeline_old::{GrantStats, grant, grant_with_rules};
-
-// New infrastructure (observer/rule split)
 mod achievement_log;
 mod grant;
 mod meta;
 mod pipeline;
-pub(crate) mod pipeline_checkpoint;
+mod pipeline_checkpoint;
 
 pub use grant::Grant;
 pub use meta::{AchievementKind, Meta};
+pub use pipeline::{GrantStats, grant};
+
+#[derive(Debug)]
+pub struct Achievement {
+    pub descriptor_id: usize,
+    pub name: &'static str,
+    pub commit: gix::ObjectId,
+    /// The mailmap-resolved author name
+    pub author_name: String,
+    /// The mailmap-resolved author email
+    pub author_email: String,
+}
+
+/// An achievement event emitted by the pipeline.
+#[derive(Debug)]
+pub enum AchievementEvent {
+    /// A new achievement was granted.
+    Grant(Achievement),
+    /// A previously granted achievement was revoked (for
+    /// [Global { revocable: true }](AchievementKind::Global) achievements).
+    Revoke(Achievement),
+}

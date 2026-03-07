@@ -6,6 +6,19 @@ use crate::observer::{CommitContext, Observation};
 use crate::rules::rule::Rule;
 use crate::rules::rule_plugin::RuleFactory;
 
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct H002Config {
+    pub length_threshold: usize,
+}
+
+impl Default for H002Config {
+    fn default() -> Self {
+        Self {
+            length_threshold: 10,
+        }
+    }
+}
+
 const META: Meta = Meta {
     id: 2,
     human_id: "shortest-subject-line",

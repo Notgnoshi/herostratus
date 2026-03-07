@@ -5,17 +5,16 @@ mod observation;
 mod observer;
 mod observer_data;
 mod observer_engine;
-pub(crate) mod observer_factory;
+mod observer_factory;
 
-pub(crate) mod impls;
+mod impls;
 
 #[cfg(test)]
-pub(crate) mod test_observers;
+mod test_observers;
 
 pub use commit_context::CommitContext;
 pub use observation::Observation;
 pub use observer::{DiffAction, Observer};
-// TODO: Audit pub vs pub(crate) throughout
-pub(crate) use observer_data::ObserverData;
-pub(crate) use observer_engine::ObserverEngine;
-pub use observer_factory::ObserverFactory;
+pub use observer_data::ObserverData;
+pub use observer_engine::ObserverEngine;
+pub use observer_factory::{ObserverFactory, builtin_observers};

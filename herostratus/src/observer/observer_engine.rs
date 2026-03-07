@@ -44,7 +44,7 @@ use crate::git::mailmap::MailmapResolver;
 /// For diffs, changes are collected into owned
 /// [ChangeDetached](gix::object::tree::diff::ChangeDetached) form first, then each observer
 /// processes the full set of changes independently in parallel.
-pub(crate) struct ObserverEngine<'repo> {
+pub struct ObserverEngine<'repo> {
     repo: &'repo gix::Repository,
     // Shared with each thread in the rayon thread pool
     sync_repo: gix::ThreadSafeRepository,
@@ -63,7 +63,6 @@ pub(crate) struct ObserverEngine<'repo> {
     num_commits_processed: u64,
 }
 
-#[cfg_attr(not(test), expect(unused))]
 impl<'repo> ObserverEngine<'repo> {
     pub fn new(
         repo: &'repo gix::Repository,
@@ -164,6 +163,7 @@ impl<'repo> ObserverEngine<'repo> {
     /// Process all commits, sending [ObserverData] through the channel.
     ///
     /// Stops gracefully (returns `Ok`) if the receiver is dropped.
+    #[cfg(test)]
     pub fn run(
         &mut self,
         oids: impl IntoIterator<Item = gix::ObjectId>,

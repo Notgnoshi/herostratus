@@ -4,7 +4,7 @@ use crate::bstr::BStr;
 use crate::observer::observation::Observation;
 use crate::observer::observer::{DiffAction, Observer};
 use crate::observer::observer_factory::ObserverFactory;
-use crate::utils::utf8_whitespace::is_equal_ignoring_whitespace;
+use crate::utils::is_equal_ignoring_whitespace;
 
 /// Emits [Observation::WhitespaceOnly] when every file change in the commit is a whitespace-only
 /// modification.

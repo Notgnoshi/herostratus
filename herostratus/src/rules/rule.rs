@@ -31,10 +31,10 @@ use crate::observer::{CommitContext, Observation};
 ///
 /// 1. Implement any necessary [Observer](crate::observer::Observer)s to generate the
 ///    [Observation]s you need
-/// 2. Implement the [Rule] trait in the [impls] module
+/// 2. Implement the [Rule] trait in the [impls](super::impls) module
 /// 3. Register the rule via [inventory::submit!] using the
 ///    [RuleFactory](super::rule_plugin::RuleFactory) helper
-pub(in crate::rules) trait Rule {
+pub trait Rule {
     type Cache: Default + serde::Serialize + for<'de> serde::Deserialize<'de> + 'static;
 
     /// Static metadata about the achievement this rule grants.

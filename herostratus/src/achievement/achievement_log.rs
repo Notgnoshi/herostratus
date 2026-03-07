@@ -43,8 +43,6 @@ impl AchievementEvent {
 /// Contains the grant event that was recorded, and optionally a revocation of the previous holder
 /// (for [Global { revocable: true }](AchievementKind::Global) achievements).
 pub struct Resolution {
-    // TODO: Wire revocations into the pipeline callback
-    #[cfg_attr(not(test), expect(dead_code))]
     pub revoke: Option<AchievementEvent>,
     pub grant: AchievementEvent,
 }
@@ -54,7 +52,7 @@ pub struct Resolution {
 /// Records events as timestamped rows in a CSV file and enforces [AchievementKind] semantics:
 /// deduplication for [PerUser](AchievementKind::PerUser), uniqueness/revocation for
 /// [Global](AchievementKind::Global).
-pub(crate) struct AchievementLog {
+pub struct AchievementLog {
     path: Option<PathBuf>,
     events: Vec<AchievementEvent>,
 }

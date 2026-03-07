@@ -227,7 +227,7 @@ impl<R, C> RulePlugin for R where
 
 ## Remember Granted Achievements
 
-**PROPOSAL**: Store an append-only CSV log of achievement events in
+**IMPLEMENTED**: Store an append-only CSV log of achievement events in
 `~/.local/share/herostratus/cache/<repository>/achievements.csv`
 
 **Why?**
