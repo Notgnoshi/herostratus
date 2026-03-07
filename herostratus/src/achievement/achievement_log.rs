@@ -61,6 +61,7 @@ impl AchievementLog {
     /// Load an achievement log from a CSV file, or create an empty log.
     ///
     /// If `path` is `None` or the file does not exist, returns an empty log.
+    #[tracing::instrument(target = "perf", skip_all)]
     pub fn load(path: Option<&Path>) -> eyre::Result<Self> {
         let Some(path) = path else {
             return Ok(Self {
@@ -90,6 +91,7 @@ impl AchievementLog {
     }
 
     /// Write the full log to CSV. No-op if path is `None`.
+    #[tracing::instrument(target = "perf", skip_all)]
     pub fn save(&self) -> eyre::Result<()> {
         let Some(path) = &self.path else {
             return Ok(());

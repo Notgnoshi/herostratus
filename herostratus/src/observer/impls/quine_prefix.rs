@@ -23,6 +23,7 @@ impl Observer for QuinePrefixObserver {
         Observation::QUINE_PREFIX
     }
 
+    #[tracing::instrument(target = "perf", level = "debug", name = "Quine::on_commit", skip_all)]
     fn on_commit(
         &mut self,
         commit: &gix::Commit,

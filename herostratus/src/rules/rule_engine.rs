@@ -95,6 +95,7 @@ impl RuleEngine {
     }
 
     /// Call finalize on all rules and return their grants.
+    #[tracing::instrument(target = "perf", skip_all)]
     pub fn finalize(&mut self) -> Vec<RuleOutput> {
         for rule in &mut self.rules {
             match rule.finalize() {
@@ -133,6 +134,7 @@ impl RuleEngine {
     /// Used at checkpoint boundaries: when the checkpoint system determines that certain rules are
     /// satisfied, the orchestration layer retires them in one step, flushing any cached state into
     /// final grants and then dropping the rules entirely.
+    #[tracing::instrument(target = "perf", skip_all)]
     pub fn retire(
         &mut self,
         rule_ids: &[usize],
@@ -171,6 +173,7 @@ impl RuleEngine {
     /// The `load` closure receives a rule's `human_id` and returns its
     /// serialized cache data. Returning `Value::Null` (or the result of
     /// loading a non-existent file) causes the rule to use its default cache.
+    #[tracing::instrument(target = "perf", skip_all)]
     pub fn init_caches(
         &mut self,
         mut load: impl FnMut(&str) -> eyre::Result<serde_json::Value>,
@@ -189,6 +192,7 @@ impl RuleEngine {
     ///
     /// The `save` closure receives a rule's `human_id` and its serialized
     /// cache data.
+    #[tracing::instrument(target = "perf", skip_all)]
     pub fn fini_caches(
         &self,
         mut save: impl FnMut(&str, serde_json::Value) -> eyre::Result<()>,

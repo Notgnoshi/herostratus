@@ -2,7 +2,6 @@ use std::io::IsTerminal;
 
 use clap::Parser;
 use eyre::WrapErr;
-use tracing_subscriber::EnvFilter;
 
 fn main() -> eyre::Result<()> {
     let args = herostratus::cli::Args::parse();
@@ -22,16 +21,7 @@ fn main() -> eyre::Result<()> {
         return Ok(());
     }
 
-    let filter = EnvFilter::builder()
-        .with_default_directive(args.log_level.into())
-        .with_env_var("HEROSTRATUS_LOG")
-        .from_env_lossy();
-    tracing_subscriber::fmt()
-        .with_env_filter(filter)
-        .with_target(false)
-        .with_ansi(use_color)
-        .with_writer(std::io::stderr)
-        .init();
+    let _trace_guard = herostratus::trace::init(args.log_level, use_color);
 
     if args.get_config {
         let config = herostratus::config::read_config(&data_dir)?;

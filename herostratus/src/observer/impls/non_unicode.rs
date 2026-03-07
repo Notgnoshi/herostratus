@@ -16,6 +16,12 @@ impl Observer for NonUnicodeObserver {
         Observation::NON_UNICODE_MESSAGE
     }
 
+    #[tracing::instrument(
+        target = "perf",
+        level = "debug",
+        name = "NonUnicode::on_commit",
+        skip_all
+    )]
     fn on_commit(
         &mut self,
         commit: &gix::Commit,

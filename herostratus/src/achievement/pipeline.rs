@@ -19,6 +19,7 @@ pub struct GrantStats {
     pub elapsed: Duration,
 }
 
+#[tracing::instrument(target = "perf", skip(repo, on_event))]
 pub fn grant(
     config: Option<&Config>,
     reference: &str,
@@ -157,6 +158,7 @@ impl<'repo> Pipeline<'repo> {
     /// Process all commits and stream achievements to the callback.
     ///
     /// Consumes the pipeline since it is a one-shot operation.
+    #[tracing::instrument(target = "perf", skip_all)]
     pub fn run(
         mut self,
         oids: impl IntoIterator<Item = gix::ObjectId>,
@@ -219,6 +221,7 @@ impl<'repo> Pipeline<'repo> {
     /// Process a single commit: checkpoint decision, observer dispatch, and rule evaluation.
     ///
     /// Returns whether the loop should exit early and how many achievements were emitted.
+    #[tracing::instrument(target = "perf", name = "Pipeline::on_commit", skip_all)]
     fn on_commit(
         &mut self,
         oid: gix::ObjectId,
@@ -258,6 +261,7 @@ impl<'repo> Pipeline<'repo> {
         // Observers and Rules when we hit a checkpoint. That doesn't preclude parallelism,
         // but it does make it trickier.
         let data = self.observer_engine.process_commit(oid)?;
+        let _guard = tracing::info_span!(target: "perf", "RuleEngine::on_commit").entered();
         for msg in data {
             match msg {
                 ObserverData::CommitStart(ctx) => {

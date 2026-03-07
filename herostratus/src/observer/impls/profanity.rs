@@ -33,6 +33,12 @@ impl Observer for ProfanityObserver {
         Observation::PROFANITY
     }
 
+    #[tracing::instrument(
+        target = "perf",
+        level = "debug",
+        name = "Profanity::on_commit",
+        skip_all
+    )]
     fn on_commit(
         &mut self,
         commit: &gix::Commit,

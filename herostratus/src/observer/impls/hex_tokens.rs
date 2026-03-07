@@ -63,6 +63,12 @@ impl Observer for HexTokensObserver {
         Observation::HEX_TOKENS
     }
 
+    #[tracing::instrument(
+        target = "perf",
+        level = "debug",
+        name = "HexTokens::on_commit",
+        skip_all
+    )]
     fn on_commit(
         &mut self,
         commit: &gix::Commit,

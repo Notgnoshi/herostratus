@@ -41,6 +41,12 @@ impl Observer for WhitespaceOnlyObserver {
         Ok(())
     }
 
+    #[tracing::instrument(
+        target = "perf",
+        level = "debug",
+        name = "WhitespaceOnly::on_diff_change",
+        skip_all
+    )]
     fn on_diff_change(
         &mut self,
         change: &gix::object::tree::diff::ChangeDetached,

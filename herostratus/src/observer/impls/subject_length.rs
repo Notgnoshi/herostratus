@@ -16,6 +16,12 @@ impl Observer for SubjectLengthObserver {
         Observation::SUBJECT_LENGTH
     }
 
+    #[tracing::instrument(
+        target = "perf",
+        level = "debug",
+        name = "SubjectLength::on_commit",
+        skip_all
+    )]
     fn on_commit(
         &mut self,
         commit: &gix::Commit,
