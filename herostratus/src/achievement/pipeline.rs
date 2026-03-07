@@ -314,8 +314,9 @@ impl<'repo> Pipeline<'repo> {
                     author_email: resolution.grant.email,
                 };
                 tracing::info!(
-                    "granted achievement: {:?} for commit {}",
+                    "granted achievement: {:?} to {:?} for commit {}",
                     achievement.name,
+                    achievement.author_name,
                     achievement.commit
                 );
                 on_event(AchievementEvent::Grant(achievement));
