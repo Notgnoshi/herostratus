@@ -119,7 +119,7 @@ fn map_stats(stats: PipelineStats) -> GrantStats {
     }
 }
 
-/// Drives the [ObserverEngine] and [RuleEngine] together, streaming [Achievements] via a callback.
+/// Drives the [ObserverEngine] and [RuleEngine] together, streaming [Achievement]s via a callback.
 struct Pipeline<'repo> {
     observer_engine: ObserverEngine<'repo>,
     rule_engine: RuleEngine,
