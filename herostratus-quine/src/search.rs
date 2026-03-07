@@ -14,11 +14,19 @@ pub struct SearchResult {
     pub hex_prefix: String,
 }
 
-/// Search for a quine commit by brute-forcing SHA-1 prefix matches.
+/// Search for a commit by brute-forcing SHA-1 prefix matches.
 ///
 /// Splits the candidate space across `num_threads` threads. Returns the first match found, or
 /// `None` if the entire space is exhausted (should not happen for prefix_len <= ~10).
-pub fn search(template: &CommitTemplate, num_threads: usize) -> Option<SearchResult> {
+///
+/// In quine mode (`target` is `None`), the hash must start with the candidate value itself. In
+/// fortune-teller mode (`target` is `Some((value, len))`), the hash must start with the fixed
+/// target prefix.
+pub fn search(
+    template: &CommitTemplate,
+    num_threads: usize,
+    target: Option<(u64, u32)>,
+) -> Option<SearchResult> {
     let prefix_len = template.prefix_len;
     let total: u64 = 1u64 << (prefix_len * 4);
     let base_hasher = template.prefix_hasher();
@@ -59,7 +67,16 @@ pub fn search(template: &CommitTemplate, num_threads: usize) -> Option<SearchRes
             let pb = &pb;
 
             handles.push(s.spawn(move || {
-                search_range(base_hasher, suffix, prefix_len, start, end, found, pb)
+                search_range(
+                    base_hasher,
+                    suffix,
+                    prefix_len,
+                    start,
+                    end,
+                    found,
+                    pb,
+                    target,
+                )
             }));
         }
 
@@ -88,6 +105,7 @@ const BATCH_SIZE: u64 = 1 << 20;
 /// Search a range of candidates for a SHA-1 prefix match.
 ///
 /// Returns `Some((candidate, hash))` on match, `None` if the range is exhausted.
+#[allow(clippy::too_many_arguments)]
 fn search_range(
     base_hasher: sha1::Sha1,
     suffix: &[u8],
@@ -96,6 +114,7 @@ fn search_range(
     end: u64,
     found: &AtomicBool,
     pb: &ProgressBar,
+    target: Option<(u64, u32)>,
 ) -> Option<(u64, [u8; 20])> {
     let mut hex_buf = vec![0u8; prefix_len as usize];
     let mut since_last_update: u64 = 0;
@@ -117,7 +136,8 @@ fn search_range(
         hasher.update(suffix);
         let hash = hasher.finalize();
 
-        if matches_prefix(&hash.into(), candidate, prefix_len) {
+        let (match_val, match_len) = target.unwrap_or((candidate, prefix_len));
+        if matches_prefix(&hash.into(), match_val, match_len) {
             found.store(true, Ordering::Relaxed);
             pb.inc(since_last_update);
             return Some((candidate, hash.into()));
@@ -195,8 +215,8 @@ mod tests {
     #[test]
     fn test_search_prefix_4() {
         // A small prefix_len=4 search should complete quickly and find a match.
-        let template = CommitTemplate::new(4, "Test User", "test@example.com", 1000000);
-        let result = search(&template, 1);
+        let template = CommitTemplate::new(4, None, "Test User", "test@example.com", 1000000);
+        let result = search(&template, 1, None);
         assert!(result.is_some(), "should find a match with prefix_len=4");
 
         let result = result.unwrap();
@@ -211,8 +231,8 @@ mod tests {
 
     #[test]
     fn test_search_prefix_4_multithreaded() {
-        let template = CommitTemplate::new(4, "Test User", "test@example.com", 1000000);
-        let result = search(&template, 4);
+        let template = CommitTemplate::new(4, None, "Test User", "test@example.com", 1000000);
+        let result = search(&template, 4, None);
         assert!(
             result.is_some(),
             "should find a match with prefix_len=4 using 4 threads"
@@ -224,6 +244,29 @@ mod tests {
             hash_hex.starts_with(&result.hex_prefix),
             "hash {hash_hex} should start with prefix {}",
             result.hex_prefix
+        );
+    }
+
+    #[test]
+    fn test_search_with_target() {
+        // Fortune-teller mode: nonce field is 4 chars, target is a specific 4-char prefix.
+        // We pick a target and let the search find a nonce that produces a matching hash.
+        let parent = "c".repeat(40);
+        let template =
+            CommitTemplate::new_fortune_teller(4, &parent, "Test User", "test@example.com", 1000);
+        // Target: hash must start with "000" (3 hex chars = 12 bits, ~1 in 4096)
+        let target = Some((0x000, 3));
+        let result = search(&template, 1, target);
+        assert!(
+            result.is_some(),
+            "should find a match for a 3-char target prefix"
+        );
+
+        let result = result.unwrap();
+        let hash_hex: String = result.raw_hash.iter().map(|b| format!("{b:02x}")).collect();
+        assert!(
+            hash_hex.starts_with("000"),
+            "hash {hash_hex} should start with target prefix 000"
         );
     }
 }
