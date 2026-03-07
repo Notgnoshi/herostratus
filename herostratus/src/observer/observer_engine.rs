@@ -63,7 +63,6 @@ pub(crate) struct ObserverEngine<'repo> {
     num_commits_processed: u64,
 }
 
-#[cfg_attr(not(test), expect(unused))]
 impl<'repo> ObserverEngine<'repo> {
     pub fn new(
         repo: &'repo gix::Repository,
@@ -164,6 +163,7 @@ impl<'repo> ObserverEngine<'repo> {
     /// Process all commits, sending [ObserverData] through the channel.
     ///
     /// Stops gracefully (returns `Ok`) if the receiver is dropped.
+    #[cfg(test)]
     pub fn run(
         &mut self,
         oids: impl IntoIterator<Item = gix::ObjectId>,
