@@ -10,8 +10,6 @@ where
     pub data: T,
 }
 
-// TODO: Consider using Deref / DerefMut / AsRef / AsMut to make the JsonFileCache wrapper more transparent?
-
 impl<T> JsonFileCache<T>
 where
     T: Default + serde::Serialize + for<'de> serde::Deserialize<'de>,

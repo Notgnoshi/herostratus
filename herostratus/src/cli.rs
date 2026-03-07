@@ -29,7 +29,6 @@ pub struct Args {
     #[clap(long)]
     pub get_data_dir: bool,
 
-    // TODO: Add a get_default_config?
     /// Query the current application configuration and exit
     ///
     /// Merges CLI argument and the TOML config file.
