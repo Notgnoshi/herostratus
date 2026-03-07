@@ -23,6 +23,7 @@ Added the following achievements:
 | H9-like-a-sailor       | Per-user, repeat  | Use profanity in many commit messages    |
 | H10-most-profound      | Global, revocable | The author with the most profanity       |
 | H11-achievement-farmer | Global, revocable | Farm the most achievements               |
+| H12-quine-commit       | Per-user, repeat  | Commit message contains its own hash     |
 
 Added the meta-achievement framework and the first meta-achievement (H11). Meta-achievements are
 evaluated after all rules have finalized, operating on the full achievement log rather than

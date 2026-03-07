@@ -26,6 +26,7 @@ Each achievement has a **kind** that controls how it is granted and whether it c
 | `H9-like-a-sailor`         | Per-user, repeat  | Use profanity in many commit messages        |                                                        |
 | `H10-most-profound`        | Global, revocable | The author with the most profanity           |                                                        |
 | `H11-achievement-farmer`   | Global, revocable | Farm the most achievements                   |                                                        |
+| `H12-quine-commit`         | Per-user, repeat  | Commit message contains its own hash prefix  | `rules.h12_quine_commit.min_matched_chars = 7`         |
 
 ## Notable example rules
 
