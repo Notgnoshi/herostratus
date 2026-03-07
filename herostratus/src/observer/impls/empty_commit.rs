@@ -38,6 +38,12 @@ impl Observer for EmptyCommitObserver {
         Ok(())
     }
 
+    #[tracing::instrument(
+        target = "perf",
+        level = "debug",
+        name = "EmptyCommit::on_diff_change",
+        skip_all
+    )]
     fn on_diff_change(
         &mut self,
         _change: &gix::object::tree::diff::ChangeDetached,

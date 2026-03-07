@@ -23,6 +23,7 @@ impl Observer for FixupObserver {
         Observation::FIXUP
     }
 
+    #[tracing::instrument(target = "perf", level = "debug", name = "Fixup::on_commit", skip_all)]
     fn on_commit(
         &mut self,
         commit: &gix::Commit,
