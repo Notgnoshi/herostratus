@@ -2,7 +2,7 @@
 
 # Status
 
-**ARCHITECTURAL PROPOSAL**
+**ARCHITECTURAL PROPOSAL - IMPLEMENTED**
 
 This document describes the high-level architecture of the observer/rule split. For detailed
 software design (types, interfaces, data flow, parallelism, checkpoint integration), see
