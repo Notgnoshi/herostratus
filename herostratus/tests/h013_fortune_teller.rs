@@ -1,9 +1,12 @@
 use herostratus_tests::cmd::{CommandExt, exclude_all_rules_except, herostratus};
+use predicates::prelude::*;
+use predicates::str;
 
-/// The quine commit's message contains its own hash prefix, which should NOT trigger
-/// fortune-teller (it's a self-match, not a prediction of a future commit).
+/// The second quine commit (0e0d4d0a) has "Hash: 0e0d4d0" in its message, and the fortune-teller
+/// commit (0e0d4d0c) has a hash that starts with "0e0d4d0" -- matching the prediction. The
+/// fortune-teller rule should grant an achievement to the author of the predicting commit.
 #[test]
-fn h013_fortune_teller_no_self_match() {
+fn h013_fortune_teller() {
     let config = exclude_all_rules_except("H13-fortune-teller");
     let (mut cmd, _temp) = herostratus(None, Some(config));
     cmd.arg("check").arg(".").arg("origin/test/quine");
@@ -11,9 +14,11 @@ fn h013_fortune_teller_no_self_match() {
     let output = cmd.captured_output();
     assert!(output.status.success());
 
+    // The predicting commit (0e0d4d0a) should be granted the achievement
+    let assertion = str::contains("0e0d4d0a3c8ae4d09761790162414bfc22010d7f");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        !stdout.contains("fortune-teller"),
-        "Quine commit should not trigger fortune-teller (self-match excluded): {stdout:?}"
+        assertion.eval(&stdout),
+        "Output did not contain predicting commit hash: {stdout:?}"
     );
 }

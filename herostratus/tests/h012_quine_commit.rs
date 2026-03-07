@@ -1,10 +1,24 @@
-use herostratus_tests::cmd::{CommandExt, exclude_all_rules_except, herostratus};
+use herostratus::config::{Config, RulesConfig};
+use herostratus::rules::H012Config;
+use herostratus_tests::cmd::{CommandExt, herostratus};
 use predicates::prelude::*;
 use predicates::str;
 
 #[test]
 fn h012_quine_commit() {
-    let config = exclude_all_rules_except("H12-quine-commit");
+    // Set min_matched_chars = 10 so only the original quine commit (588b41b6e9, 10 chars)
+    // triggers, not the newer 7-char quine added for fortune-teller testing.
+    let config = Config {
+        rules: Some(RulesConfig {
+            exclude: Some(vec!["all".into()]),
+            include: Some(vec!["H12-quine-commit".into()]),
+            h12_quine_commit: Some(H012Config {
+                min_matched_chars: 10,
+            }),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
     let (mut cmd, _temp) = herostratus(None, Some(config));
     cmd.arg("check").arg(".").arg("origin/test/quine");
 
