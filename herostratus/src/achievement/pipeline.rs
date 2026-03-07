@@ -546,19 +546,21 @@ mod tests {
 
     /// End-to-end test exercising all four AchievementKind variants via profanity rules.
     ///
-    /// - H7 (Global{revocable:false}): first profanity in walk order
+    /// - H7 (Global{revocable:false}): first profanity in the repo (oldest commit)
     /// - H8 (PerUser{recurrent:false}): one grant per author
     /// - H9 (PerUser{recurrent:true}): grants at threshold milestone
     /// - H10 (Global{revocable:true}): most profane author at finalize
     #[test]
     fn all_profanity_achievement_kinds() {
         // 6 profane commits: 5 from Alice, 1 from Bob.
+        // Commit order (oldest to newest): 1(Bob), 2(Alice), 3(Alice), 4(Alice), 5(Alice), 6(Alice)
         // Walk order is newest-first: 6, 5, 4, 3, 2, 1.
+        // Bob authored the oldest profane commit, so H7 should go to Bob.
         let temp_repo = repository::Builder::new()
-            .commit("damn this code")
-            .author("Alice", "alice@example.com")
             .commit("shit happens")
             .author("Bob", "bob@example.com")
+            .commit("damn this code")
+            .author("Alice", "alice@example.com")
             .commit("hell yeah")
             .author("Alice", "alice@example.com")
             .commit("piss off")
@@ -583,13 +585,13 @@ mod tests {
         let stats = pipeline.run(oids, |e| events.push(e)).unwrap();
         let achievements = grants(&events);
 
-        // H7 (Global{revocable:false}): Alice is first in walk order
+        // H7 (Global{revocable:false}): Bob is the actual first swearer (oldest commit)
         let h7: Vec<_> = achievements
             .iter()
             .filter(|a| a.descriptor_id == 7)
             .collect();
         assert_eq!(h7.len(), 1, "expected exactly one H7 grant: {h7:?}");
-        assert_eq!(h7[0].author_email, "alice@example.com");
+        assert_eq!(h7[0].author_email, "bob@example.com");
 
         // H8 (PerUser{recurrent:false}): one grant per author
         let h8: Vec<_> = achievements
