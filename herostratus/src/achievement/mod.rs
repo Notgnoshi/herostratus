@@ -4,7 +4,7 @@ mod achievement_log;
 mod grant;
 mod meta;
 mod pipeline;
-pub(crate) mod pipeline_checkpoint;
+mod pipeline_checkpoint;
 
 pub use grant::Grant;
 pub use meta::{AchievementKind, Meta};

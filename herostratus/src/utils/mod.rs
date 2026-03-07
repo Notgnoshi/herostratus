@@ -1,1 +1,3 @@
-pub(crate) mod utf8_whitespace;
+mod utf8_whitespace;
+
+pub use utf8_whitespace::is_equal_ignoring_whitespace;

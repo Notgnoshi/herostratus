@@ -1,7 +1,7 @@
 use crate::cache::CheckpointCache;
 
 /// What the pipeline should do when it encounters a commit
-pub(crate) enum Continuation {
+pub enum Continuation {
     /// Haven't hit checkpoint yet -- process this commit normally
     Process,
     /// Hit the checkpoint commit -- caller must call [PipelineCheckpoint::resolve] to decide
@@ -10,7 +10,7 @@ pub(crate) enum Continuation {
 }
 
 /// Decision after reaching the checkpoint commit
-pub(crate) enum CheckpointAction {
+pub enum CheckpointAction {
     /// No new rules exist -- just finalize and stop
     EarlyExit,
     /// New rules were added -- retire old rules and continue
@@ -21,7 +21,7 @@ pub(crate) enum CheckpointAction {
 ///
 /// This struct does not own or mutate the engine -- it returns directives via [Continuation]
 /// that the caller applies.
-pub(crate) struct PipelineCheckpoint {
+pub struct PipelineCheckpoint {
     checkpoint: CheckpointCache,
     first_commit: Option<gix::ObjectId>,
 }

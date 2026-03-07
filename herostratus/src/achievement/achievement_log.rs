@@ -54,7 +54,7 @@ pub struct Resolution {
 /// Records events as timestamped rows in a CSV file and enforces [AchievementKind] semantics:
 /// deduplication for [PerUser](AchievementKind::PerUser), uniqueness/revocation for
 /// [Global](AchievementKind::Global).
-pub(crate) struct AchievementLog {
+pub struct AchievementLog {
     path: Option<PathBuf>,
     events: Vec<AchievementEvent>,
 }

@@ -74,7 +74,7 @@ impl<R: Rule> RulePlugin for R {
 ///
 /// Each rule registers a [RuleFactory] via [inventory::submit!]. Rules that need configuration
 /// provide a custom factory; simple rules use [RuleFactory::default].
-pub(in crate::rules) struct RuleFactory {
+pub struct RuleFactory {
     factory: fn(&RulesConfig) -> Box<dyn RulePlugin>,
 }
 

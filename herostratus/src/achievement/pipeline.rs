@@ -10,10 +10,8 @@ use crate::achievement::Achievement;
 use crate::cache::{CheckpointCache, RuleCache};
 use crate::config::Config;
 use crate::git::mailmap::MailmapResolver;
-use crate::observer::observer_factory::builtin_observers;
-use crate::observer::{ObserverData, ObserverEngine};
-use crate::rules::rule_plugin::RulePlugin;
-use crate::rules::{RuleEngine, RuleOutput};
+use crate::observer::{ObserverData, ObserverEngine, builtin_observers};
+use crate::rules::{RuleEngine, RuleOutput, RulePlugin};
 
 pub struct GrantStats {
     pub num_commits_processed: u64,
@@ -32,7 +30,7 @@ pub fn grant(
 ) -> eyre::Result<GrantStats> {
     let default_rc = crate::config::RulesConfig::default();
     let rules_config = config.and_then(|c| c.rules.as_ref()).unwrap_or(&default_rc);
-    let rules = crate::rules::rule_plugin::builtin_rules(rules_config);
+    let rules = crate::rules::builtin_rules(rules_config);
 
     let global_mailmap = config.and_then(|c| c.mailmap_file.as_deref());
     let repo_mailmap = config
@@ -356,7 +354,7 @@ mod tests {
 
     use super::*;
     use crate::config::RulesConfig;
-    use crate::rules::rule_plugin::builtin_rules;
+    use crate::rules::builtin_rules;
 
     fn default_mailmap() -> MailmapResolver {
         MailmapResolver::new(gix::mailmap::Snapshot::default(), None, None).unwrap()

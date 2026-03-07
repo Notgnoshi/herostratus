@@ -6,7 +6,7 @@ mod subject_length;
 mod whitespace_only;
 
 #[cfg(test)]
-pub(crate) mod test_helpers {
+mod test_helpers {
     use herostratus_tests::fixtures::repository::TempRepository;
 
     use crate::git::mailmap::MailmapResolver;
