@@ -293,6 +293,7 @@ impl<'repo> Pipeline<'repo> {
                 if let Some(ref revoke) = resolution.revoke {
                     let achievement = Achievement {
                         descriptor_id: output.meta.id,
+                        human_id: output.meta.human_id,
                         name: output.meta.name,
                         commit: revoke.commit,
                         author_name: revoke.name.clone(),
@@ -308,6 +309,7 @@ impl<'repo> Pipeline<'repo> {
 
                 let achievement = Achievement {
                     descriptor_id: output.meta.id,
+                    human_id: output.meta.human_id,
                     name: output.meta.name,
                     commit: resolution.grant.commit,
                     author_name: resolution.grant.name,
