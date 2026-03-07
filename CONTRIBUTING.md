@@ -2,22 +2,8 @@
 
 ## Developer quickstart
 
-See [docs/developer/quickstart.md](/docs/developer/quickstart.md)!
-
-## Project goals
-
-This is a silly project to gamify things that shouldn't be gamified.
-
-* The achievements should be whimsical and silly, and absolutely not be used in a serious manner
-* It should be fast
-* Its preferred UI is the CLI
-* It should be easyish to set up by a new user
-* It should be easyish to add new rules
-* Its target runtime environment is modern Linux x86_64
-* It should provide optional integrations:
-  * It should provide an integration with
-    [GitLab achievements](https://docs.gitlab.com/ee/user/profile/achievements.html)
-  * It could provide an integration with GitHub
+See [docs/developer/quickstart.md](/docs/developer/quickstart.md) and
+[ARCHITECTURE.md](/ARCHITECTURE.md).
 
 ## Releases
 
