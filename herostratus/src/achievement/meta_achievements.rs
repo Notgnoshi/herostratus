@@ -26,6 +26,7 @@ const ACHIEVEMENT_FARMER: Meta = Meta {
 ///
 /// Returns outputs suitable for resolution through the [AchievementLog], using the same
 /// [AchievementKind] enforcement as regular rules.
+#[tracing::instrument(target = "perf", skip_all)]
 pub fn evaluate(log: &AchievementLog) -> Vec<RuleOutput> {
     let mut outputs = Vec::new();
     if let Some(output) = achievement_farmer(log) {

@@ -89,6 +89,7 @@ impl<'repo> ObserverEngine<'repo> {
     /// After this call, only observers producing observations in the `needed` set remain. This is
     /// the hook point for the checkpoint system: when all rules consuming a particular observer's
     /// output have been retired, the observer itself can be removed.
+    #[tracing::instrument(target = "perf", skip_all)]
     pub fn retire_all_except(&mut self, needed: &HashSet<Discriminant<Observation>>) {
         self.observers.retain(|obs| needed.contains(&obs.emits()));
     }
@@ -99,6 +100,7 @@ impl<'repo> ObserverEngine<'repo> {
     /// even if observers error.
     ///
     /// Infrastructure errors (commit not found, mailmap resolution failed) propagate as `Err`.
+    #[tracing::instrument(target = "perf", name = "ObserverEngine::process_commit", skip_all)]
     pub fn process_commit(&mut self, oid: gix::ObjectId) -> eyre::Result<Vec<ObserverData>> {
         let commit = self
             .repo
@@ -115,6 +117,7 @@ impl<'repo> ObserverEngine<'repo> {
 
         let mut data = vec![ObserverData::CommitStart(ctx)];
 
+        let guard = tracing::info_span!(target: "perf", "on_commit_message").entered();
         let sync_repo = &self.sync_repo;
         let tl_repo = &self.tl_repo;
         let observations: Vec<_> = self
@@ -132,6 +135,7 @@ impl<'repo> ObserverEngine<'repo> {
                 }
             })
             .collect();
+        drop(guard);
         for obs in observations {
             data.push(ObserverData::Observation(obs));
         }
@@ -189,6 +193,7 @@ impl<'repo> ObserverEngine<'repo> {
     ///
     /// Changes are collected into owned [ChangeDetached](gix::object::tree::diff::ChangeDetached)
     /// form, then each observer processes the full set independently in parallel.
+    #[tracing::instrument(target = "perf", skip_all)]
     fn diff_commit(&mut self, commit: &gix::Commit) -> eyre::Result<Vec<Observation>> {
         for observer in &mut self.observers {
             if observer.is_interested_in_diff()
@@ -228,6 +233,7 @@ impl<'repo> ObserverEngine<'repo> {
         });
 
         // Collect all changes into owned form so we can dispatch to observers in parallel.
+        let guard = tracing::info_span!(target: "perf", "OE::collect_diff_changes").entered();
         let diff_cache = &mut self.diff_cache;
         let mut changes = Vec::new();
         let outcome =
@@ -245,8 +251,10 @@ impl<'repo> ObserverEngine<'repo> {
                 return Err(e).wrap_err_with(|| format!("Failed to diff commit {}", commit.id()));
             }
         }
+        drop(guard);
 
         // Run each diff-interested observer over the collected changes in parallel.
+        let _guard = tracing::info_span!(target: "perf", "OE::on_diff_changes").entered();
         let sync_repo = &self.sync_repo;
         let tl_repo = &self.tl_repo;
         let diff_observations: Vec<_> = self
