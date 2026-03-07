@@ -14,7 +14,21 @@ focus on the user impact** rather than the actual changes made.
 
 ## Added
 
+Added the following achievements:
+
+| ID                 | Kind              | Description                              |
+| ------------------ | ----------------- | ---------------------------------------- |
+| H7-first-profanity | Global            | Be the first person to swear in the repo |
+| H8-potty-mouth     | Per-user          | Use profanity in a commit message        |
+| H9-like-a-sailor   | Per-user, repeat  | Use profanity in many commit messages    |
+| H10-most-profound  | Global, revocable | The author with the most profanity       |
+
 ## Changed
+
+Refactored the achievement processing pipeline. Commits are now analyzed by `Observer`s that emit
+`Observation`s, which are consumed by `Rule`s that grant achievements. The pipeline now emits
+`AchievementEvent`s (grants and revocations) instead of just grants, enabling global, revocable
+achievements like H10 to revoke a previous holder when a new leader emerges.
 
 ## Deprecated
 
