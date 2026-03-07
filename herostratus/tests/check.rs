@@ -64,12 +64,24 @@ fn search_current_repo_for_fixup_commits() {
     let output = cmd.captured_output();
     assert!(output.status.success());
 
-    // These are the three fixup! commits in the test/fixup branch
-    let assertion = str::contains("60b480b554dbd5266eec0f2378f72df5170a6702")
-        .and(str::contains("a987013884fc7dafbe9eb080d7cbc8625408a85f"))
-        .and(str::contains("2721748d8fa0b0cc3302b41733d37e30161eabfd"));
+    // H1 (fixup) is PerUser { recurrent: false }, so only the first fixup commit encountered in
+    // walk order (newest-first) is granted. The other two by the same author are deduplicated.
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(assertion.eval(&stdout));
+    let fixup_hashes = [
+        "60b480b554dbd5266eec0f2378f72df5170a6702",
+        "a987013884fc7dafbe9eb080d7cbc8625408a85f",
+        "2721748d8fa0b0cc3302b41733d37e30161eabfd",
+    ];
+    let matches: Vec<_> = fixup_hashes
+        .iter()
+        .filter(|h| stdout.contains(*h))
+        .collect();
+    assert_eq!(
+        matches.len(),
+        1,
+        "expected exactly 1 fixup achievement, got {}: {stdout:?}",
+        matches.len()
+    );
 }
 
 /// Run check on all local **and** remote branches in the herostratus repository
