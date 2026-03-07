@@ -11,10 +11,10 @@ pub use pipeline_old::{GrantStats, grant, grant_with_rules};
 
 // New infrastructure (observer/rule split)
 mod achievement_log;
-mod checkpoint_strategy;
 mod grant;
 mod meta;
 mod pipeline;
+pub(crate) mod pipeline_checkpoint;
 
 pub use grant::Grant;
 pub use meta::{AchievementKind, Meta};
