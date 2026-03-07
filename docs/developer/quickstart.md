@@ -20,6 +20,12 @@ imports:
 cargo fmt -- --config group_imports=StdExternalCrate,imports_granularity=Module
 ```
 
+Markdown and TOML files are formatted with
+
+```sh
+dprint fmt
+```
+
 ## Clippy
 
 This project uses `clippy` with all the default lints.
