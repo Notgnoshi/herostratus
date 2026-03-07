@@ -187,6 +187,10 @@ impl<'repo> Pipeline<'repo> {
         let outputs = self.rule_engine.finalize();
         num_achievements += self.emit(outputs, &mut on_event);
 
+        tracing::debug!("Evaluating meta-achievements ...");
+        let meta_outputs = super::meta_achievements::evaluate(&self.achievement_log);
+        num_achievements += self.emit(meta_outputs, &mut on_event);
+
         self.checkpoint
             .save_checkpoint(self.rule_engine.active_rules())?;
 

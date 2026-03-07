@@ -25,6 +25,7 @@ Each achievement has a **kind** that controls how it is granted and whether it c
 | `H8-potty-mouth`           | Per-user          | Use profanity in a commit message            |                                                        |
 | `H9-like-a-sailor`         | Per-user, repeat  | Use profanity in many commit messages        |                                                        |
 | `H10-most-profound`        | Global, revocable | The author with the most profanity           |                                                        |
+| `H11-achievement-farmer`   | Global, revocable | Farm the most achievements                   |                                                        |
 
 ## Notable example rules
 
@@ -37,9 +38,10 @@ Each achievement has a **kind** that controls how it is granted and whether it c
   * Example of rules that look at the diff of a commit and its parent
 * `H7-first-profanity`
   * Example of a Global rule (first person wins permanently)
-* `H8-potty-mouth`
-  * Example of a Per-user rule (once per user)
 * `H9-like-a-sailor`
-  * Example of a Per-user, repeat rule (grants at milestone thresholds)
+  * Example of a Per-user, repeatable rule (grants at milestone thresholds)
 * `H10-most-profound`
   * Example of a Global, revocable rule (new leader supersedes previous holder)
+* `H11-achievement-farmer`
+  * Example of a meta-achievement that's granted given the `AchievementLog` rather than
+    `Observation`s

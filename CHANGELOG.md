@@ -16,12 +16,17 @@ focus on the user impact** rather than the actual changes made.
 
 Added the following achievements:
 
-| ID                 | Kind              | Description                              |
-| ------------------ | ----------------- | ---------------------------------------- |
-| H7-first-profanity | Global            | Be the first person to swear in the repo |
-| H8-potty-mouth     | Per-user          | Use profanity in a commit message        |
-| H9-like-a-sailor   | Per-user, repeat  | Use profanity in many commit messages    |
-| H10-most-profound  | Global, revocable | The author with the most profanity       |
+| ID                     | Kind              | Description                              |
+| ---------------------- | ----------------- | ---------------------------------------- |
+| H7-first-profanity     | Global            | Be the first person to swear in the repo |
+| H8-potty-mouth         | Per-user          | Use profanity in a commit message        |
+| H9-like-a-sailor       | Per-user, repeat  | Use profanity in many commit messages    |
+| H10-most-profound      | Global, revocable | The author with the most profanity       |
+| H11-achievement-farmer | Global, revocable | Farm the most achievements               |
+
+Added the meta-achievement framework and the first meta-achievement (H11). Meta-achievements are
+evaluated after all rules have finalized, operating on the full achievement log rather than
+individual commits.
 
 ## Changed
 

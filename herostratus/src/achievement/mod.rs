@@ -3,6 +3,7 @@
 mod achievement_log;
 mod grant;
 mod meta;
+mod meta_achievements;
 mod pipeline;
 mod pipeline_checkpoint;
 
