@@ -10,6 +10,7 @@ mod h009_like_a_sailor;
 mod h010_most_profound;
 mod h012_quine_commit;
 mod h013_fortune_teller;
+mod h014_added_first_ci;
 
 pub use h002_shortest_subject::H002Config;
 pub use h003_longest_subject::H003Config;

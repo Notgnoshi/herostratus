@@ -28,6 +28,7 @@ Each achievement has a **kind** that controls how it is granted and whether it c
 | `H11-achievement-farmer`   | Global, revocable | Farm the most achievements                   |                                                                                                     |
 | `H12-quine-commit`         | Per-user, repeat  | Commit message contains its own hash prefix  | `rules.h12_quine_commit.min_matched_chars = 7`                                                      |
 | `H13-fortune-teller`       | Per-user, repeat  | Commit message predicts a future commit hash | `rules.h13_fortune_teller.min_matched_chars = 7`, `rules.h13_fortune_teller.max_matched_chars = 19` |
+| `H14-added-first-ci`       | Global            | Be the first to add a CI configuration file  |                                                                                                     |
 
 ## Notable example rules
 

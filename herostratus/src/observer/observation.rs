@@ -31,6 +31,9 @@ pub enum Observation {
     /// Hex-digit tokens extracted from the commit message (lowercased, length 5..20).
     HexTokens { tokens: Vec<String> },
 
+    /// The commit adds a CI configuration file (e.g., GitHub Actions workflow, .gitlab-ci.yml).
+    CiConfig,
+
     /// Test-only variant for use in unit tests.
     #[cfg(test)]
     Dummy,
@@ -61,6 +64,7 @@ impl Observation {
         std::mem::forget(obs);
         d
     };
+    pub const CI_CONFIG: Discriminant<Self> = discriminant(&Observation::CiConfig);
 
     #[cfg(test)]
     pub const DUMMY: Discriminant<Self> = discriminant(&Observation::Dummy);

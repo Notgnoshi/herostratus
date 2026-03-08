@@ -1,3 +1,4 @@
+mod ci_config;
 mod empty_commit;
 mod fixup;
 mod hex_tokens;

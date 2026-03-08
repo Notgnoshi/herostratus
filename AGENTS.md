@@ -8,7 +8,10 @@ The primary logic for processing a repository is in `herostratus/src/achievement
 of a `Rule` to graint `Achievement`s, along with the implementation of the `Rule`s is in
 `herostratus/src/rules/`.
 
-A list of `Rule`s is maintained at `RULES.md` as a form of user documentation.
+When new achievements are added,
+
+* They should be added to the `RULES.md`
+* They should be added to the `CHANGELOG.md`s unreleased section
 
 There are design documents in `docs/design/`.
 
