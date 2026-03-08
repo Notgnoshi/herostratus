@@ -43,3 +43,4 @@ tracing-subscriber.workspace = true
 gungraun.workspace = true
 herostratus-tests.path = "../herostratus-tests"
 predicates.workspace = true
+pretty_assertions.workspace = true

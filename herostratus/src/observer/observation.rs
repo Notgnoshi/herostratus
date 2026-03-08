@@ -65,3 +65,24 @@ impl Observation {
     #[cfg(test)]
     pub const DUMMY: Discriminant<Self> = discriminant(&Observation::Dummy);
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use super::*;
+    use crate::observer::builtin_observers;
+
+    #[test]
+    fn all_observers_emit_different_observations() {
+        let observers = builtin_observers();
+
+        let mut observations = HashSet::<Discriminant<Observation>>::new();
+        for observer in observers {
+            let observation = observer.emits();
+            if !observations.insert(observation) {
+                panic!("Some other Observer already emits {observation:?}");
+            }
+        }
+    }
+}
