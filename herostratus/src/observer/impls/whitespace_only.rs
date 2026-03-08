@@ -95,8 +95,10 @@ impl WhitespaceOnlyObserver {
         previous_id: gix::ObjectId,
         id: gix::ObjectId,
     ) -> eyre::Result<DiffAction> {
+        let guard = tracing::debug_span!(target: "perf", "WhitespaceOnly::find_object").entered();
         let before = repo.find_object(previous_id)?;
         let after = repo.find_object(id)?;
+        drop(guard);
         if before.kind == gix::object::Kind::Tree {
             return Ok(DiffAction::Continue);
         }
