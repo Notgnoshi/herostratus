@@ -87,8 +87,10 @@ impl WhitespaceOnly {
         previous_id: gix::Id,
         id: gix::Id,
     ) -> eyre::Result<gix::object::tree::diff::Action> {
+        let guard = tracing::debug_span!(target: "perf", "WhitespaceOnly::find_object").entered();
         let before = repo.find_object(previous_id)?;
         let after = repo.find_object(id)?;
+        drop(guard);
         if before.kind == gix::object::Kind::Tree {
             return Ok(gix::object::tree::diff::Action::Continue(()));
         }

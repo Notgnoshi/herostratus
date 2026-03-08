@@ -30,6 +30,7 @@ impl CheckpointStrategy {
     /// Evaluate what to do when we encounter this commit.
     ///
     /// `current_enabled_ids`: the rule IDs currently enabled in the engine.
+    #[tracing::instrument(target = "perf", skip_all)]
     pub fn on_commit(&mut self, oid: gix::ObjectId, current_enabled_ids: &[usize]) -> Continuation {
         if self.first_commit.is_none() {
             self.first_commit = Some(oid);
@@ -88,6 +89,7 @@ impl CheckpointStrategy {
     }
 
     /// Save the checkpoint with the given enabled rule IDs.
+    #[tracing::instrument(target = "perf", skip_all)]
     pub fn save_checkpoint(&mut self, enabled_rule_ids: Vec<usize>) -> eyre::Result<()> {
         self.checkpoint.data.rules = enabled_rule_ids;
         self.checkpoint.data.commit = self.first_commit;

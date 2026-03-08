@@ -16,6 +16,7 @@ pub struct GrantStats {
     pub elapsed: Duration,
 }
 
+#[tracing::instrument(target = "perf", level = "debug", skip_all)]
 pub fn grant(
     config: Option<&Config>,
     reference: &str,
@@ -44,6 +45,7 @@ pub fn grant(
     )
 }
 
+#[tracing::instrument(target = "perf", level = "debug", skip_all)]
 pub fn grant_with_rules(
     reference: &str,
     repo: &gix::Repository,
@@ -68,6 +70,7 @@ pub fn grant_with_rules(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[tracing::instrument(target = "perf", level = "debug", skip_all)]
 fn grant_with_rules_and_disabled(
     reference: &str,
     repo: &gix::Repository,
@@ -122,6 +125,7 @@ fn grant_with_rules_and_disabled(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[tracing::instrument(target = "perf", level = "debug", skip_all)]
 fn run_pipeline(
     oids: impl Iterator<Item = gix::ObjectId>,
     repo: &gix::Repository,
@@ -200,6 +204,7 @@ fn run_pipeline(
     })
 }
 
+#[tracing::instrument(target = "perf", skip_all)]
 fn load_checkpoint(
     data_dir: Option<&Path>,
     name: &str,
@@ -211,6 +216,7 @@ fn load_checkpoint(
     }
 }
 
+#[tracing::instrument(target = "perf", skip_all)]
 fn load_rule_caches(
     rules: &mut [Box<dyn RulePlugin>],
     data_dir: Option<&Path>,
@@ -235,6 +241,7 @@ fn load_rule_caches(
     Ok(())
 }
 
+#[tracing::instrument(target = "perf", skip_all)]
 fn save_caches(
     engine: &RuleEngine,
     strategy: &mut CheckpointStrategy,
@@ -261,6 +268,7 @@ fn save_caches(
 
 /// Apply the SuppressAndContinue directive: suppress old descriptors, early-finalize
 /// fully-inactive rules, and remove them from the engine.
+#[tracing::instrument(target = "perf", skip_all)]
 fn apply_suppress_and_continue(
     engine: &mut RuleEngine,
     rule_ids_to_suppress: &[usize],

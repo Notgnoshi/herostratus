@@ -48,6 +48,7 @@ impl<'repo> RuleEngine<'repo> {
 
     /// Apply all enabled rules to a single commit (process + diff).
     /// Filters returned achievements by `config_disabled ∪ suppressed`.
+    #[tracing::instrument(target = "perf", name = "RuleEngine::process_commit", skip_all)]
     pub fn process_commit(&mut self, oid: gix::ObjectId) -> eyre::Result<Vec<Achievement>> {
         let commit = self
             .repo
@@ -55,10 +56,15 @@ impl<'repo> RuleEngine<'repo> {
             .wrap_err_with(|| format!("Failed to find commit {oid}"))?;
         self.num_commits_processed += 1;
 
+        let guard = tracing::debug_span!(target: "perf", "RuleEngine::process").entered();
         let mut achievements = Vec::new();
         for rule in &mut self.rules {
+            let _span =
+                tracing::debug_span!(target: "perf", "RulePlugin::process", rule = rule.name())
+                    .entered();
             achievements.extend(rule.process(&commit, self.repo));
         }
+        drop(guard);
 
         achievements.extend(self.diff_commit(&commit)?);
 
@@ -97,6 +103,7 @@ impl<'repo> RuleEngine<'repo> {
 
     /// Call finalize() on all rules, returning accumulated achievements.
     /// Filters returned achievements by `config_disabled` only (suppressed rules pass through).
+    #[tracing::instrument(target = "perf", name = "RuleEngine::finalize", skip_all)]
     pub fn finalize(&mut self) -> Vec<Achievement> {
         tracing::debug!("Finalizing rules ...");
         let mut achievements = Vec::new();
@@ -202,6 +209,7 @@ impl<'repo> RuleEngine<'repo> {
         }
     }
 
+    #[tracing::instrument(target = "perf", name = "RuleEngine::diff_commit", skip_all)]
     fn diff_commit(&mut self, commit: &gix::Commit) -> eyre::Result<Vec<Achievement>> {
         // Per-commit tracking of which rules are still active for diff changes.
         // A rule starts active if interested in diffs, and becomes inactive if it
@@ -213,6 +221,9 @@ impl<'repo> RuleEngine<'repo> {
             .collect();
         for (idx, rule) in self.rules.iter_mut().enumerate() {
             if diff_active[idx] {
+                let _span =
+                    tracing::debug_span!(target: "perf", "rule::on_diff_start", rule = rule.name())
+                        .entered();
                 rule.on_diff_start(commit, self.repo);
             }
         }
@@ -224,6 +235,9 @@ impl<'repo> RuleEngine<'repo> {
             let mut achievements = Vec::new();
             for rule in &mut self.rules {
                 if rule.is_interested_in_diffs() {
+                    let _span =
+                        tracing::debug_span!(target: "perf", "rule::on_diff_end", rule = rule.name())
+                            .entered();
                     achievements.extend(rule.on_diff_end(commit, self.repo));
                 }
             }
@@ -258,6 +272,9 @@ impl<'repo> RuleEngine<'repo> {
         let repo = self.repo;
         let diff_cache = &mut self.diff_cache;
 
+        let guard =
+            tracing::debug_span!(target: "perf", "RuleEngine::diff_commit::for_each").entered();
+
         let outcome =
             changes.for_each_to_obtain_tree_with_cache(&commit_tree, diff_cache, |change| {
                 // Can only cancel the top-level diff processing if all rules agree to cancel.
@@ -265,6 +282,7 @@ impl<'repo> RuleEngine<'repo> {
                 let mut all_disinterested = true;
                 for (idx, rule) in rules.iter_mut().enumerate() {
                     if diff_active[idx] {
+                        let _span = tracing::debug_span!(target: "perf", "rule::on_diff_change", rule = rule.name()).entered();
                         let action = rule.on_diff_change(commit, repo, &change)?;
                         if let gix::object::tree::diff::Action::Break(()) = action {
                             diff_active[idx] = false;
@@ -293,10 +311,14 @@ impl<'repo> RuleEngine<'repo> {
                 return Err(e).wrap_err_with(|| format!("Failed to diff commit {}", commit.id()));
             }
         }
+        drop(guard);
 
         let mut achievements = Vec::new();
         for rule in &mut self.rules {
             if rule.is_interested_in_diffs() {
+                let _span =
+                    tracing::debug_span!(target: "perf", "rule::on_diff_end", rule = rule.name())
+                        .entered();
                 achievements.extend(rule.on_diff_end(commit, self.repo));
             }
         }

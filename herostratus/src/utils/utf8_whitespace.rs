@@ -1,6 +1,7 @@
 use crate::bstr::BStr;
 
 /// Do a two-finger comparison of `a` and `b` skipping over all unicode whitespace
+#[tracing::instrument(target = "perf", skip_all)]
 pub(crate) fn is_equal_ignoring_whitespace<A: AsRef<BStr>, B: AsRef<BStr>>(a: A, b: B) -> bool {
     let mut a_chunks = a.as_ref().utf8_chunks();
     let mut a_chars = WhiteSpaceSkipper::new(&mut a_chunks);
