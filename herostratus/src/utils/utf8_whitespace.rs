@@ -3,9 +3,9 @@ use crate::bstr::BStr;
 /// Do a two-finger comparison of `a` and `b` skipping over all unicode whitespace
 pub fn is_equal_ignoring_whitespace<A: AsRef<BStr>, B: AsRef<BStr>>(a: A, b: B) -> bool {
     let mut a_chunks = a.as_ref().utf8_chunks();
-    let mut a_chars = WhiteSpaceSkipper::new(&mut a_chunks);
+    let mut a_chars = WhitespaceSkipper::new(&mut a_chunks);
     let mut b_chunks = b.as_ref().utf8_chunks();
-    let mut b_chars = WhiteSpaceSkipper::new(&mut b_chunks);
+    let mut b_chars = WhitespaceSkipper::new(&mut b_chunks);
     loop {
         let a = a_chars.next();
         let b = b_chars.next();
@@ -28,7 +28,7 @@ enum CharOrByte {
 }
 
 /// A utility to skip over ascii and unicode whitespace in a [`BStr`]
-struct WhiteSpaceSkipper<'a, I> {
+struct WhitespaceSkipper<'a, I> {
     chunks: &'a mut I,
     current_valid: std::str::Chars<'a>,
     current_invalid: std::slice::Iter<'a, u8>,
@@ -36,7 +36,7 @@ struct WhiteSpaceSkipper<'a, I> {
 
 // This might not be very cache or branch predictor friendly, but it's simple enough until
 // performance becomes a concern.
-impl<'a, I> WhiteSpaceSkipper<'a, I>
+impl<'a, I> WhitespaceSkipper<'a, I>
 where
     I: Iterator<Item = std::str::Utf8Chunk<'a>>,
 {
@@ -91,7 +91,7 @@ where
     }
 }
 
-impl<'a, I> Iterator for WhiteSpaceSkipper<'a, I>
+impl<'a, I> Iterator for WhitespaceSkipper<'a, I>
 where
     I: Iterator<Item = std::str::Utf8Chunk<'a>>,
 {
