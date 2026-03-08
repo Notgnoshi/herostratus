@@ -1,7 +1,7 @@
 use std::hint::black_box;
 
 use gungraun::{library_benchmark, library_benchmark_group, main};
-use herostratus::utils::is_equal_ignoring_whitespace;
+use herostratus::utils::{is_equal_ignoring_whitespace, is_equal_ignoring_whitespace_v2};
 
 fn make_unicode_content(size: usize) -> Vec<u8> {
     // Mix of ASCII and multi-byte unicode: accented Latin, CJK, Cyrillic
@@ -72,9 +72,21 @@ fn bench_is_equal_ignoring_whitespace(pair: (Vec<u8>, Vec<u8>)) -> bool {
     black_box(is_equal_ignoring_whitespace(&pair.0[..], &pair.1[..]))
 }
 
+#[library_benchmark]
+#[bench::equal_small(equal_small())]
+#[bench::equal_medium(equal_medium())]
+#[bench::equal_large(equal_large())]
+#[bench::not_equal_early(not_equal_early())]
+#[bench::not_equal_late(not_equal_late())]
+#[bench::identical(identical())]
+fn bench_is_equal_ignoring_whitespace_v2(pair: (Vec<u8>, Vec<u8>)) -> bool {
+    black_box(is_equal_ignoring_whitespace_v2(&pair.0[..], &pair.1[..]))
+}
+
 library_benchmark_group!(
     name = whitespace_skipper;
-    benchmarks = bench_is_equal_ignoring_whitespace
+    compare_by_id = true;
+    benchmarks = bench_is_equal_ignoring_whitespace, bench_is_equal_ignoring_whitespace_v2
 );
 
 main!(library_benchmark_groups = whitespace_skipper);
