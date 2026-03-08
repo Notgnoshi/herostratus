@@ -11,8 +11,13 @@ description.workspace = true
 workspace = true
 
 [[bench]]
-name = "herostratus-bench"
-path = "benches/main.rs"
+name = "bench-cli"
+path = "benches/cli.rs"
+harness = false
+
+[[bench]]
+name = "bench-whitespace"
+path = "benches/whitespace.rs"
 harness = false
 
 [features]
@@ -43,3 +48,4 @@ tracing-subscriber.workspace = true
 gungraun.workspace = true
 herostratus-tests.path = "../herostratus-tests"
 predicates.workspace = true
+pretty_assertions.workspace = true

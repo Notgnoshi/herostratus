@@ -19,6 +19,9 @@ const MAX_TOKEN_LEN: usize = 20;
 /// Respects word boundaries: a hex run is only emitted when both the preceding and following
 /// characters are non-alphanumeric (or string start/end). This prevents extracting hex substrings
 /// from normal words while still allowing tokens delimited by punctuation like `[deadbeef]`.
+///
+/// Purely numeric tokens are ignored since they are far more likely to be issue numbers, version
+/// strings, or other non-hash values.
 fn extract_hex_tokens(text: &str) -> Vec<String> {
     let mut tokens = Vec::new();
     let mut current = String::new();
@@ -33,7 +36,10 @@ fn extract_hex_tokens(text: &str) -> Vec<String> {
             if !current.is_empty() {
                 let valid_len = current.len() >= MIN_TOKEN_LEN && current.len() < MAX_TOKEN_LEN;
                 let valid_boundary = !preceded_by_alnum && !ch.is_alphanumeric();
-                if valid_len && valid_boundary {
+                let has_hex_letter = current
+                    .bytes()
+                    .any(|b| b.is_ascii_lowercase() && !b.is_ascii_digit());
+                if valid_len && valid_boundary && has_hex_letter {
                     tokens.push(std::mem::take(&mut current));
                 } else {
                     current.clear();
@@ -44,7 +50,14 @@ fn extract_hex_tokens(text: &str) -> Vec<String> {
     }
 
     // Flush trailing token (end-of-string is a valid boundary)
-    if !preceded_by_alnum && current.len() >= MIN_TOKEN_LEN && current.len() < MAX_TOKEN_LEN {
+    let has_hex_letter = current
+        .bytes()
+        .any(|b| b.is_ascii_lowercase() && !b.is_ascii_digit());
+    if !preceded_by_alnum
+        && current.len() >= MIN_TOKEN_LEN
+        && current.len() < MAX_TOKEN_LEN
+        && has_hex_letter
+    {
         tokens.push(current);
     }
 
@@ -104,8 +117,8 @@ mod tests {
 
     #[test]
     fn multiple_tokens_extracted() {
-        let tokens = extract_hex_tokens("Compare abcdef0 and 1234567");
-        assert_eq!(tokens, vec!["abcdef0", "1234567"]);
+        let tokens = extract_hex_tokens("Compare abcdef0 and bace123");
+        assert_eq!(tokens, vec!["abcdef0", "bace123"]);
     }
 
     #[test]
@@ -193,6 +206,18 @@ mod tests {
     fn hex_at_string_end() {
         let tokens = extract_hex_tokens("the hash is abcdef1");
         assert_eq!(tokens, vec!["abcdef1"]);
+    }
+
+    #[test]
+    fn purely_numeric_token_rejected() {
+        let tokens = extract_hex_tokens("Issue 1234567 is fixed");
+        assert!(tokens.is_empty());
+    }
+
+    #[test]
+    fn purely_numeric_trailing_token_rejected() {
+        let tokens = extract_hex_tokens("See issue 1234567");
+        assert!(tokens.is_empty());
     }
 
     #[test]
