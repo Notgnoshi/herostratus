@@ -13,6 +13,9 @@ When new achievements are added,
 * They should be added to the `RULES.md`
 * They should be added to the `CHANGELOG.md`s unreleased section
 
+When new features are added, if they're notable enough (ask for clarification!) they should be added
+to the `CHANGELOG.md`s unreleased section.
+
 There are design documents in `docs/design/`. New design documents should follow the
 `docs/design/TEMPLATE.md` template document.
 
