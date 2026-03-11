@@ -132,6 +132,67 @@ fn check_one_by_url() {
     );
 }
 
+/// check-one fetches new upstream commits by default
+///
+/// 1. Create an upstream repo, add it, and establish a checkpoint
+/// 2. Add a new commit to upstream
+/// 3. check-one (default, fetches) sees the new commit
+/// 4. check-one --no-fetch after another upstream commit does NOT see it
+#[test]
+fn check_one_fetches_by_default() {
+    let upstream = Builder::new().commit("initial").build().unwrap();
+    let url = format!("file://{}", upstream.tempdir.path().display());
+
+    let h = TestHarness::new();
+    let mut cmd = h.command();
+    cmd.arg("add").arg("--name").arg("fetchy").arg(&url);
+    let output = cmd.captured_output();
+    assert!(output.status.success());
+
+    // Establish a checkpoint so the initial commit is already processed
+    h.update_config(|c| c.disable("all").enable("H5-empty-commit"));
+    let mut cmd = h.command();
+    cmd.arg("check-one").arg("--no-fetch").arg("fetchy");
+    let output = cmd.captured_output();
+    assert!(output.status.success());
+
+    // Add a new commit to upstream (new author so H5 fires again)
+    let new_commit = upstream
+        .commit("second")
+        .author("Alice", "alice@example.com")
+        .create()
+        .unwrap();
+
+    // check-one without --no-fetch should fetch and process the new commit
+    let mut cmd = h.command();
+    cmd.arg("check-one").arg("fetchy");
+    let output = cmd.captured_output();
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains(&new_commit.to_string()),
+        "check-one should fetch and grant H5 for new commit {new_commit}: {stdout}"
+    );
+
+    // Add another commit to upstream
+    let missed_commit = upstream
+        .commit("third")
+        .author("Bob", "bob@example.com")
+        .create()
+        .unwrap();
+
+    // check-one --no-fetch should NOT see the latest upstream commit
+    let mut cmd = h.command();
+    cmd.arg("check-one").arg("--no-fetch").arg("fetchy");
+    let output = cmd.captured_output();
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        !stdout.contains(&missed_commit.to_string()),
+        "check-one --no-fetch should not see unfetched commit {missed_commit}: {stdout}"
+    );
+}
+
 /// check-one with an unknown repository name fails with a helpful error
 #[test]
 fn check_one_unknown_repo() {
