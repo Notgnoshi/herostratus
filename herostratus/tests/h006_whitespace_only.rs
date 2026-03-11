@@ -1,15 +1,18 @@
 use herostratus::config::Config;
-use herostratus_tests::cmd::{CommandExt, herostratus};
+use herostratus_tests::cmd::{CommandExt, TestHarness};
 use predicates::prelude::*;
 use predicates::str;
 
 /// Run the CLI on a single commit (--depth=1 with the commit as the reference) and return whether
 /// it granted an achievement for that commit.
 fn granted_for(commit: &str) -> bool {
-    let config = Config::default()
-        .disable("all")
-        .enable("H6-whitespace-only");
-    let (mut cmd, _temp) = herostratus(None, Some(config));
+    let h = TestHarness::new();
+    h.write_config(
+        &Config::default()
+            .disable("all")
+            .enable("H6-whitespace-only"),
+    );
+    let mut cmd = h.command();
     cmd.arg("check").arg(".").arg(commit).arg("--depth=1");
 
     let output = cmd.captured_output();
@@ -64,10 +67,13 @@ fn h006_whitespace_only() {
 /// When the full branch is checked, only one grant should appear (PerUser deduplication).
 #[test]
 fn h006_whitespace_only_dedup() {
-    let config = Config::default()
-        .disable("all")
-        .enable("H6-whitespace-only");
-    let (mut cmd, _temp) = herostratus(None, Some(config));
+    let h = TestHarness::new();
+    h.write_config(
+        &Config::default()
+            .disable("all")
+            .enable("H6-whitespace-only"),
+    );
+    let mut cmd = h.command();
     cmd.arg("check").arg(".").arg("origin/test/whitespace-only");
 
     let output = cmd.captured_output();

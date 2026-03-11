@@ -1,4 +1,4 @@
-use herostratus_tests::cmd::{CommandExt, herostratus};
+use herostratus_tests::cmd::{CommandExt, TestHarness};
 use herostratus_tests::fixtures::repository::Builder;
 
 #[test]
@@ -8,14 +8,14 @@ fn add_and_fetch() {
     let url = format!("file://{}", temp_upstream_repo.tempdir.path().display());
 
     // 2. Add it to herostratus, skipping the clone
-    let (mut cmd, temp_data) = herostratus(None, None);
-    let data_dir = temp_data.as_ref().unwrap().path();
+    let h = TestHarness::new();
+    let mut cmd = h.command();
     cmd.arg("add").arg("--skip-clone").arg(url);
     let output = cmd.captured_output();
     assert!(output.status.success());
 
     // 3. Fetch the repo, which clones it under the hood, since it doesn't already exist
-    let (mut cmd, _) = herostratus(Some(data_dir), None);
+    let mut cmd = h.command();
     cmd.arg("fetch-all");
     let output = cmd.captured_output();
     assert!(output.status.success());
@@ -24,7 +24,7 @@ fn add_and_fetch() {
     temp_upstream_repo.commit("Second commit").create().unwrap();
 
     // 5. Fetch the new commit
-    let (mut cmd, _) = herostratus(Some(data_dir), None);
+    let mut cmd = h.command();
     cmd.arg("fetch-all");
     let output = cmd.captured_output();
     assert!(output.status.success());

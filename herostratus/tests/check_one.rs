@@ -1,5 +1,4 @@
-use herostratus::config::read_config;
-use herostratus_tests::cmd::{CommandExt, herostratus};
+use herostratus_tests::cmd::{CommandExt, TestHarness};
 use herostratus_tests::fixtures::repository::Builder;
 
 /// check-one processes only the named repository, leaving the other untouched.
@@ -20,23 +19,20 @@ fn check_one_processes_single_repo() {
     let url2 = format!("file://{}", upstream2.tempdir.path().display());
 
     // Add both repos
-    let (mut cmd, temp) = herostratus(None, None);
-    let data_dir = temp.as_ref().unwrap().path();
+    let h = TestHarness::new();
+    let mut cmd = h.command();
     cmd.arg("add").arg("--name").arg("repo1").arg(&url1);
     let output = cmd.captured_output();
     assert!(output.status.success());
 
-    let (mut cmd, _) = herostratus(Some(data_dir), None);
+    let mut cmd = h.command();
     cmd.arg("add").arg("--name").arg("repo2").arg(&url2);
     let output = cmd.captured_output();
     assert!(output.status.success());
 
     // -- Establish checkpoints: check-all --no-fetch with only H5 --
-    let config = read_config(data_dir)
-        .unwrap()
-        .disable("all")
-        .enable("H5-empty-commit");
-    let (mut cmd, _) = herostratus(Some(data_dir), Some(config));
+    h.update_config(|c| c.disable("all").enable("H5-empty-commit"));
+    let mut cmd = h.command();
     cmd.arg("check-all").arg("--no-fetch");
     let output = cmd.captured_output();
     assert!(output.status.success());
@@ -65,11 +61,7 @@ fn check_one_processes_single_repo() {
         .unwrap();
 
     // -- check-one repo1: should fetch + check only repo1 --
-    let config = read_config(data_dir)
-        .unwrap()
-        .disable("all")
-        .enable("H5-empty-commit");
-    let (mut cmd, _) = herostratus(Some(data_dir), Some(config));
+    let mut cmd = h.command();
     cmd.arg("check-one").arg("repo1");
     let output = cmd.captured_output();
     assert!(output.status.success());
@@ -92,11 +84,7 @@ fn check_one_processes_single_repo() {
     );
 
     // -- check-all: repo1 should early-exit, repo2 should process its new commit --
-    let config = read_config(data_dir)
-        .unwrap()
-        .disable("all")
-        .enable("H5-empty-commit");
-    let (mut cmd, _) = herostratus(Some(data_dir), Some(config));
+    let mut cmd = h.command();
     cmd.arg("check-all");
     let output = cmd.captured_output();
     assert!(output.status.success());
@@ -121,18 +109,15 @@ fn check_one_by_url() {
     let initial_commit = upstream.repo.head_id().unwrap();
     let url = format!("file://{}", upstream.tempdir.path().display());
 
-    let (mut cmd, temp) = herostratus(None, None);
-    let data_dir = temp.as_ref().unwrap().path();
+    let h = TestHarness::new();
+    let mut cmd = h.command();
     cmd.arg("add").arg("--name").arg("myrepo").arg(&url);
     let output = cmd.captured_output();
     assert!(output.status.success());
 
     // check-one by URL instead of name -- should find and process the repo
-    let config = read_config(data_dir)
-        .unwrap()
-        .disable("all")
-        .enable("H5-empty-commit");
-    let (mut cmd, _) = herostratus(Some(data_dir), Some(config));
+    h.update_config(|c| c.disable("all").enable("H5-empty-commit"));
+    let mut cmd = h.command();
     cmd.arg("check-one").arg("--no-fetch").arg(&url);
     let output = cmd.captured_output();
     assert!(
@@ -153,13 +138,13 @@ fn check_one_unknown_repo() {
     let upstream = Builder::new().commit("initial").build().unwrap();
     let url = format!("file://{}", upstream.tempdir.path().display());
 
-    let (mut cmd, temp) = herostratus(None, None);
-    let data_dir = temp.as_ref().unwrap().path();
+    let h = TestHarness::new();
+    let mut cmd = h.command();
     cmd.arg("add").arg("--name").arg("myrepo").arg(&url);
     let output = cmd.captured_output();
     assert!(output.status.success());
 
-    let (mut cmd, _) = herostratus(Some(data_dir), None);
+    let mut cmd = h.command();
     cmd.arg("check-one").arg("nonexistent");
     let output = cmd.captured_output();
     assert!(!output.status.success());
