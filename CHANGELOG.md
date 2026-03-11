@@ -14,22 +14,26 @@ focus on the user impact** rather than the actual changes made.
 
 ## Added
 
-Added the following achievements:
+* Added the following achievements:
 
-| ID                     | Kind              | Description                              |
-| ---------------------- | ----------------- | ---------------------------------------- |
-| H7-first-profanity     | Global            | Be the first person to swear in the repo |
-| H8-potty-mouth         | Per-user          | Use profanity in a commit message        |
-| H9-like-a-sailor       | Per-user, repeat  | Use profanity in many commit messages    |
-| H10-most-profound      | Global, revocable | The author with the most profanity       |
-| H11-achievement-farmer | Global, revocable | Farm the most achievements               |
-| H12-quine-commit       | Per-user, repeat  | Commit message contains its own hash     |
-| H13-fortune-teller     | Per-user, repeat  | Commit message predicts a future hash    |
-| H14-added-first-ci     | Global            | Be the first to add a CI config file     |
+  | ID                     | Kind              | Description                              |
+  | ---------------------- | ----------------- | ---------------------------------------- |
+  | H7-first-profanity     | Global            | Be the first person to swear in the repo |
+  | H8-potty-mouth         | Per-user          | Use profanity in a commit message        |
+  | H9-like-a-sailor       | Per-user, repeat  | Use profanity in many commit messages    |
+  | H10-most-profound      | Global, revocable | The author with the most profanity       |
+  | H11-achievement-farmer | Global, revocable | Farm the most achievements               |
+  | H12-quine-commit       | Per-user, repeat  | Commit message contains its own hash     |
+  | H13-fortune-teller     | Per-user, repeat  | Commit message predicts a future hash    |
+  | H14-added-first-ci     | Global            | Be the first to add a CI config file     |
 
-Added the meta-achievement framework and the first meta-achievement (H11). Meta-achievements are
-evaluated after all rules have finalized, operating on the full achievement log rather than
-individual commits.
+* Added the meta-achievement framework and the first meta-achievement (H11). Meta-achievements are
+  evaluated after all rules have finalized, operating on the full achievement log rather than
+  individual commits.
+
+* Added the `check-one` subcommand to process a single configured repository by name or remote URL,
+  rather than processing all repositories with `check-all`. This is the expected subcommand to use
+  in a downstream CI pipeline when triggered by an upstream change.
 
 ## Changed
 
