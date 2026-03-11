@@ -47,6 +47,7 @@ pub struct Args {
 pub enum Command {
     Check(CheckArgs),
     Add(AddArgs),
+    CheckOne(CheckOneArgs),
     CheckAll(CheckAllArgs),
     FetchAll(FetchAllArgs),
 }
@@ -159,6 +160,27 @@ pub struct AddArgs {
 #[derive(Debug, clap::Args)]
 pub struct CheckAllArgs {
     /// Skip fetching all repositories before checking
+    #[clap(long, short)]
+    pub no_fetch: bool,
+
+    /// How many commits to process
+    #[clap(short, long)]
+    pub depth: Option<usize>,
+
+    /// Print a summary of achievements to stdout
+    #[clap(short, long)]
+    pub summary: bool,
+}
+
+/// Process rules on a single configured repository
+#[derive(Debug, clap::Args)]
+pub struct CheckOneArgs {
+    /// The repository name or remote URL
+    ///
+    /// First matched as a repository name in config.toml, then as a remote URL.
+    pub repository: String,
+
+    /// Skip fetching the repository before checking
     #[clap(long, short)]
     pub no_fetch: bool,
 

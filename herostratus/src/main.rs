@@ -78,6 +78,13 @@ fn main() -> eyre::Result<()> {
                     herostratus::commands::add(&args, &mut config, &data_dir)
                         .wrap_err(format!("Failed to add repository with url: {:?}", args.url))?;
                 }
+                herostratus::cli::Command::CheckOne(args) => {
+                    let stats = herostratus::commands::check_one(&args, &config, &data_dir)
+                        .wrap_err(format!("Failed to check repository {:?}", args.repository))?;
+                    if args.summary {
+                        herostratus::commands::print_check_all_summary(&stats);
+                    }
+                }
                 herostratus::cli::Command::CheckAll(args) => {
                     let stats = herostratus::commands::check_all(&args, &config, &data_dir)
                         .wrap_err("Failed to check all repositories")?;
