@@ -104,15 +104,8 @@ impl Rule for ShortestSubject {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
-    fn ctx(name: &str) -> CommitContext {
-        CommitContext {
-            oid: gix::ObjectId::null(gix::hash::Kind::Sha1),
-            author_name: name.to_string(),
-            author_email: format!("{name}@example.com"),
-        }
-    }
+    use super::*;
 
     #[test]
     fn grants_shortest() {
@@ -120,10 +113,16 @@ mod tests {
             threshold: 10,
             ..Default::default()
         };
-        rule.process(&ctx("Alice"), &Observation::SubjectLength { length: 5 })
-            .unwrap();
-        rule.process(&ctx("Bob"), &Observation::SubjectLength { length: 8 })
-            .unwrap();
+        rule.process(
+            &CommitContext::test("Alice"),
+            &Observation::SubjectLength { length: 5 },
+        )
+        .unwrap();
+        rule.process(
+            &CommitContext::test("Bob"),
+            &Observation::SubjectLength { length: 8 },
+        )
+        .unwrap();
         let grant = rule.finalize().unwrap();
         assert!(grant.is_some());
         assert_eq!(grant.unwrap().author_name, "Alice");
@@ -135,8 +134,11 @@ mod tests {
             threshold: 5,
             ..Default::default()
         };
-        rule.process(&ctx("Alice"), &Observation::SubjectLength { length: 8 })
-            .unwrap();
+        rule.process(
+            &CommitContext::test("Alice"),
+            &Observation::SubjectLength { length: 8 },
+        )
+        .unwrap();
         let grant = rule.finalize().unwrap();
         assert!(grant.is_none());
     }
@@ -147,8 +149,11 @@ mod tests {
             threshold: 10,
             ..Default::default()
         };
-        rule.process(&ctx("Alice"), &Observation::SubjectLength { length: 3 })
-            .unwrap();
+        rule.process(
+            &CommitContext::test("Alice"),
+            &Observation::SubjectLength { length: 3 },
+        )
+        .unwrap();
         let cache = rule.fini_cache();
         assert_eq!(cache.shortest_length, Some(3));
 
@@ -159,7 +164,10 @@ mod tests {
         rule2.init_cache(cache);
         // Length 5 is shorter than threshold (10) but not shorter than cached (3)
         rule2
-            .process(&ctx("Bob"), &Observation::SubjectLength { length: 5 })
+            .process(
+                &CommitContext::test("Bob"),
+                &Observation::SubjectLength { length: 5 },
+            )
             .unwrap();
         let grant = rule2.finalize().unwrap();
         assert!(grant.is_none());

@@ -66,15 +66,8 @@ impl Rule for LikeASailor {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
-    fn ctx_with_email(email: &str) -> CommitContext {
-        CommitContext {
-            oid: gix::ObjectId::null(gix::hash::Kind::Sha1),
-            author_name: "Test".to_string(),
-            author_email: email.to_string(),
-        }
-    }
+    use super::*;
 
     fn profanity() -> Observation {
         Observation::Profanity {
@@ -85,7 +78,7 @@ mod tests {
     #[test]
     fn no_grant_below_threshold() {
         let mut rule = LikeASailor::default();
-        let ctx = ctx_with_email("alice@example.com");
+        let ctx = CommitContext::test("Alice");
         for _ in 0..4 {
             let grant = rule.process(&ctx, &profanity()).unwrap();
             assert!(grant.is_none());
@@ -95,7 +88,7 @@ mod tests {
     #[test]
     fn grants_at_threshold() {
         let mut rule = LikeASailor::default();
-        let ctx = ctx_with_email("alice@example.com");
+        let ctx = CommitContext::test("Alice");
         let mut granted = false;
         for _ in 0..5 {
             if let Some(_grant) = rule.process(&ctx, &profanity()).unwrap() {
@@ -108,8 +101,8 @@ mod tests {
     #[test]
     fn counts_are_per_user() {
         let mut rule = LikeASailor::default();
-        let alice = ctx_with_email("alice@example.com");
-        let bob = ctx_with_email("bob@example.com");
+        let alice = CommitContext::test("Alice");
+        let bob = CommitContext::test("Bob");
 
         // Give alice 4 profanities
         for _ in 0..4 {
@@ -132,7 +125,7 @@ mod tests {
     #[test]
     fn cache_preserves_counts() {
         let mut rule = LikeASailor::default();
-        let ctx = ctx_with_email("alice@example.com");
+        let ctx = CommitContext::test("Alice");
 
         // Accumulate 3 profanities
         for _ in 0..3 {

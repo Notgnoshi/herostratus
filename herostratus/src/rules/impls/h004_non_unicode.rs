@@ -45,21 +45,17 @@ impl Rule for NonUnicode {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
-    fn ctx() -> CommitContext {
-        CommitContext {
-            oid: gix::ObjectId::null(gix::hash::Kind::Sha1),
-            author_name: "Test".to_string(),
-            author_email: "test@example.com".to_string(),
-        }
-    }
+    use super::*;
 
     #[test]
     fn grants_on_non_unicode() {
         let mut rule = NonUnicode;
         let grant = rule
-            .process(&ctx(), &Observation::NonUnicodeMessage)
+            .process(
+                &CommitContext::test("Test"),
+                &Observation::NonUnicodeMessage,
+            )
             .unwrap();
         assert!(grant.is_some());
     }

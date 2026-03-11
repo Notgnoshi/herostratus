@@ -203,20 +203,14 @@ impl Rule for FortuneTeller {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
-    fn oid(hex: &str) -> gix::ObjectId {
-        // Pad short hex strings to 40 chars for a valid SHA-1
+    fn ctx_with_oid(name: &str, hex: &str) -> CommitContext {
         let padded = format!("{:0<40}", hex);
-        gix::ObjectId::from_hex(padded.as_bytes()).unwrap()
-    }
-
-    fn ctx_with_oid(name: &str, email: &str, hex: &str) -> CommitContext {
-        CommitContext {
-            oid: oid(hex),
-            author_name: name.to_string(),
-            author_email: email.to_string(),
-        }
+        let mut ctx = CommitContext::test(name);
+        ctx.oid = gix::ObjectId::from_hex(padded.as_bytes()).unwrap();
+        ctx
     }
 
     #[test]
@@ -228,11 +222,11 @@ mod tests {
         };
 
         // Process newest commit first (the "future" commit)
-        let future_ctx = ctx_with_oid("Future", "future@example.com", "abcdef1234");
+        let future_ctx = ctx_with_oid("Future", "abcdef1234");
         rule.commit_start(&future_ctx).unwrap();
 
         // Process older commit whose message contains the future commit's hash prefix
-        let old_ctx = ctx_with_oid("Alice", "alice@example.com", "1111111111");
+        let old_ctx = ctx_with_oid("Alice", "1111111111");
         rule.commit_start(&old_ctx).unwrap();
         let obs = Observation::HexTokens {
             tokens: vec!["abcdef1".to_string()],
@@ -255,7 +249,7 @@ mod tests {
         };
 
         // Only one commit -- its own token can't match itself
-        let ctx = ctx_with_oid("Alice", "alice@example.com", "abcdef1234");
+        let ctx = ctx_with_oid("Alice", "abcdef1234");
         rule.commit_start(&ctx).unwrap();
         let obs = Observation::HexTokens {
             tokens: vec!["abcdef1".to_string()],
@@ -274,10 +268,10 @@ mod tests {
             ..Default::default()
         };
 
-        let future_ctx = ctx_with_oid("Future", "future@example.com", "abcdef1234");
+        let future_ctx = ctx_with_oid("Future", "abcdef1234");
         rule.commit_start(&future_ctx).unwrap();
 
-        let old_ctx = ctx_with_oid("Alice", "alice@example.com", "1111111111");
+        let old_ctx = ctx_with_oid("Alice", "1111111111");
         rule.commit_start(&old_ctx).unwrap();
         // Token is only 5 chars, below min_matched_chars of 7
         let obs = Observation::HexTokens {
@@ -297,10 +291,10 @@ mod tests {
             ..Default::default()
         };
 
-        let future_ctx = ctx_with_oid("Future", "future@example.com", "abcdef1234567890ab");
+        let future_ctx = ctx_with_oid("Future", "abcdef1234567890ab");
         rule.commit_start(&future_ctx).unwrap();
 
-        let old_ctx = ctx_with_oid("Alice", "alice@example.com", "1111111111");
+        let old_ctx = ctx_with_oid("Alice", "1111111111");
         rule.commit_start(&old_ctx).unwrap();
         // Token is 15 chars, above max_matched_chars of 10
         let obs = Observation::HexTokens {
@@ -323,10 +317,10 @@ mod tests {
             ..Default::default()
         };
 
-        let future_ctx = ctx_with_oid("Future", "future@example.com", "abcdef1234");
+        let future_ctx = ctx_with_oid("Future", "abcdef1234");
         rule.commit_start(&future_ctx).unwrap();
 
-        let old_ctx = ctx_with_oid("Alice", "alice@example.com", "1111111111");
+        let old_ctx = ctx_with_oid("Alice", "1111111111");
         rule.commit_start(&old_ctx).unwrap();
         let obs = Observation::HexTokens {
             tokens: vec!["9999999".to_string()],
@@ -357,7 +351,7 @@ mod tests {
         rule.init_cache(cache);
 
         // In this run, we process a commit whose hash matches the cached token
-        let future_ctx = ctx_with_oid("Future", "future@example.com", "abcdef1234");
+        let future_ctx = ctx_with_oid("Future", "abcdef1234");
         rule.commit_start(&future_ctx).unwrap();
 
         let grant = rule.finalize().unwrap();
@@ -376,11 +370,11 @@ mod tests {
         };
 
         // A visited oid that starts with "abcdef1"
-        let ctx = ctx_with_oid("Future", "future@example.com", "abcdef1234");
+        let ctx = ctx_with_oid("Future", "abcdef1234");
         rule.commit_start(&ctx).unwrap();
 
         // A token that is a prefix of the visited oid -- should be filtered out
-        let old_ctx = ctx_with_oid("Alice", "alice@example.com", "1111111111");
+        let old_ctx = ctx_with_oid("Alice", "1111111111");
         rule.commit_start(&old_ctx).unwrap();
         let obs = Observation::HexTokens {
             tokens: vec!["abcdef1".to_string()],
@@ -402,10 +396,10 @@ mod tests {
             ..Default::default()
         };
 
-        let ctx = ctx_with_oid("Future", "future@example.com", "1111111111");
+        let ctx = ctx_with_oid("Future", "1111111111");
         rule.commit_start(&ctx).unwrap();
 
-        let old_ctx = ctx_with_oid("Alice", "alice@example.com", "2222222222");
+        let old_ctx = ctx_with_oid("Alice", "2222222222");
         rule.commit_start(&old_ctx).unwrap();
         let obs = Observation::HexTokens {
             tokens: vec!["9999999".to_string()],
@@ -425,7 +419,7 @@ mod tests {
             ..Default::default()
         };
 
-        let ctx = ctx_with_oid("Alice", "alice@example.com", "1111111111");
+        let ctx = ctx_with_oid("Alice", "1111111111");
         rule1.commit_start(&ctx).unwrap();
         let obs = Observation::HexTokens {
             tokens: vec!["9999999".to_string()],

@@ -79,23 +79,16 @@ impl Rule for AddedFirstCi {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
-    fn ctx_with(name: &str, email: &str) -> CommitContext {
-        CommitContext {
-            oid: gix::ObjectId::null(gix::hash::Kind::Sha1),
-            author_name: name.to_string(),
-            author_email: email.to_string(),
-        }
-    }
+    use super::*;
 
     #[test]
     fn grants_last_seen_at_finalize() {
         let mut rule = AddedFirstCi::default();
         // Walk order is newest-first, so Alice is visited first, then Bob.
         // Bob being last means Bob was the actual first CI adder in the repo.
-        let alice = ctx_with("Alice", "alice@example.com");
-        let bob = ctx_with("Bob", "bob@example.com");
+        let alice = CommitContext::test("Alice");
+        let bob = CommitContext::test("Bob");
 
         assert!(
             rule.process(&alice, &Observation::CiConfig)
@@ -118,7 +111,7 @@ mod tests {
             commit: Some("abc123".to_string()),
         });
 
-        let ctx = ctx_with("Alice", "alice@example.com");
+        let ctx = CommitContext::test("Alice");
         rule.process(&ctx, &Observation::CiConfig).unwrap();
 
         let grant = rule.finalize().unwrap();

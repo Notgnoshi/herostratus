@@ -94,15 +94,8 @@ impl Rule for MostProfound {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
-    fn ctx_with(name: &str, email: &str) -> CommitContext {
-        CommitContext {
-            oid: gix::ObjectId::null(gix::hash::Kind::Sha1),
-            author_name: name.to_string(),
-            author_email: email.to_string(),
-        }
-    }
+    use super::*;
 
     fn profanity() -> Observation {
         Observation::Profanity {
@@ -113,8 +106,8 @@ mod tests {
     #[test]
     fn grants_to_top_swearer_at_finalize() {
         let mut rule = MostProfound::default();
-        let alice = ctx_with("Alice", "alice@example.com");
-        let bob = ctx_with("Bob", "bob@example.com");
+        let alice = CommitContext::test("Alice");
+        let bob = CommitContext::test("Bob");
 
         // Alice swears 3 times
         for _ in 0..3 {
@@ -139,7 +132,7 @@ mod tests {
     #[test]
     fn does_not_grant_during_process() {
         let mut rule = MostProfound::default();
-        let ctx = ctx_with("Alice", "alice@example.com");
+        let ctx = CommitContext::test("Alice");
         let grant = rule.process(&ctx, &profanity()).unwrap();
         assert!(
             grant.is_none(),
@@ -150,7 +143,7 @@ mod tests {
     #[test]
     fn cache_preserves_counts_and_leader() {
         let mut rule = MostProfound::default();
-        let alice = ctx_with("Alice", "alice@example.com");
+        let alice = CommitContext::test("Alice");
 
         for _ in 0..3 {
             rule.process(&alice, &profanity()).unwrap();
@@ -172,7 +165,7 @@ mod tests {
     #[test]
     fn cached_leader_wins_over_new_author_with_fewer() {
         let mut rule = MostProfound::default();
-        let alice = ctx_with("Alice", "alice@example.com");
+        let alice = CommitContext::test("Alice");
 
         // Alice swears 5 times in run 1
         for _ in 0..5 {
@@ -184,7 +177,7 @@ mod tests {
         let mut rule2 = MostProfound::default();
         rule2.init_cache(cache);
 
-        let bob = ctx_with("Bob", "bob@example.com");
+        let bob = CommitContext::test("Bob");
         for _ in 0..2 {
             rule2.process(&bob, &profanity()).unwrap();
         }

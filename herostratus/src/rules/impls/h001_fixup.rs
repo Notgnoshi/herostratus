@@ -45,20 +45,15 @@ impl Rule for Fixup {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
-    fn ctx() -> CommitContext {
-        CommitContext {
-            oid: gix::ObjectId::null(gix::hash::Kind::Sha1),
-            author_name: "Test".to_string(),
-            author_email: "test@example.com".to_string(),
-        }
-    }
+    use super::*;
 
     #[test]
     fn grants_on_fixup() {
         let mut rule = Fixup;
-        let grant = rule.process(&ctx(), &Observation::Fixup).unwrap();
+        let grant = rule
+            .process(&CommitContext::test("Test"), &Observation::Fixup)
+            .unwrap();
         assert!(grant.is_some());
     }
 }
