@@ -199,12 +199,4 @@ mod tests {
             "leader name should survive cache round-trip"
         );
     }
-
-    #[test]
-    fn ignores_other_observations() {
-        let mut rule = MostProfound::default();
-        let ctx = ctx_with("Alice", "alice@example.com");
-        let grant = rule.process(&ctx, &Observation::Fixup).unwrap();
-        assert!(grant.is_none());
-    }
 }

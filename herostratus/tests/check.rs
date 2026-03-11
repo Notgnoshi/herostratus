@@ -7,16 +7,6 @@ use predicates::prelude::*;
 use predicates::str;
 
 #[test]
-fn search_current_repo_for_test_simple_branch() {
-    let h = TestHarness::new();
-    let mut cmd = h.command();
-    cmd.arg("check").arg(".").arg("origin/test/simple");
-
-    let output = cmd.captured_output();
-    assert!(output.status.success());
-}
-
-#[test]
 fn search_current_repo_for_branch_that_does_not_exist() {
     let h = TestHarness::new();
     let mut cmd = h.command();

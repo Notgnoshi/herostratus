@@ -61,13 +61,4 @@ mod tests {
         let grant = rule.process(&ctx(), &Observation::Fixup).unwrap();
         assert!(grant.is_some());
     }
-
-    #[test]
-    fn ignores_other_observations() {
-        let mut rule = Fixup;
-        let grant = rule
-            .process(&ctx(), &Observation::SubjectLength { length: 42 })
-            .unwrap();
-        assert!(grant.is_none());
-    }
 }

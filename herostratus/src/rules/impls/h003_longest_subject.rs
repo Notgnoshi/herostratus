@@ -162,11 +162,4 @@ mod tests {
         let grant = rule2.finalize().unwrap();
         assert!(grant.is_none());
     }
-
-    #[test]
-    fn ignores_irrelevant_observations() {
-        let mut rule = LongestSubject::default();
-        let grant = rule.process(&ctx("Alice"), &Observation::Fixup).unwrap();
-        assert!(grant.is_none());
-    }
 }

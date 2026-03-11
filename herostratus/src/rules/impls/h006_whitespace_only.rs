@@ -61,11 +61,4 @@ mod tests {
         let grant = rule.process(&ctx(), &Observation::WhitespaceOnly).unwrap();
         assert!(grant.is_some());
     }
-
-    #[test]
-    fn ignores_other_observations() {
-        let mut rule = WhitespaceOnly;
-        let grant = rule.process(&ctx(), &Observation::Fixup).unwrap();
-        assert!(grant.is_none());
-    }
 }

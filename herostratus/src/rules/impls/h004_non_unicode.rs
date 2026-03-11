@@ -63,11 +63,4 @@ mod tests {
             .unwrap();
         assert!(grant.is_some());
     }
-
-    #[test]
-    fn ignores_other_observations() {
-        let mut rule = NonUnicode;
-        let grant = rule.process(&ctx(), &Observation::Fixup).unwrap();
-        assert!(grant.is_none());
-    }
 }

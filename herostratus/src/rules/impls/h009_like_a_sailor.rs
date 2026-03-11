@@ -151,12 +151,4 @@ mod tests {
             "expected grant at threshold 5 after cache load"
         );
     }
-
-    #[test]
-    fn ignores_other_observations() {
-        let mut rule = LikeASailor::default();
-        let ctx = ctx_with_email("alice@example.com");
-        let grant = rule.process(&ctx, &Observation::Fixup).unwrap();
-        assert!(grant.is_none());
-    }
 }

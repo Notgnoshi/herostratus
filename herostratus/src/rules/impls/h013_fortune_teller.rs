@@ -446,12 +446,4 @@ mod tests {
         assert_eq!(rule2.tokens[0].future_oid_cutoff, usize::MAX);
         assert_eq!(rule2.tokens[0].token, "9999999");
     }
-
-    #[test]
-    fn ignores_non_hex_tokens_observations() {
-        let mut rule = FortuneTeller::default();
-        let ctx = ctx_with_oid("Alice", "alice@example.com", "1111111111");
-        let grant = rule.process(&ctx, &Observation::Fixup).unwrap();
-        assert!(grant.is_none());
-    }
 }

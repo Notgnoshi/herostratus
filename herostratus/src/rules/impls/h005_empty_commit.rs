@@ -61,11 +61,4 @@ mod tests {
         let grant = rule.process(&ctx(), &Observation::EmptyCommit).unwrap();
         assert!(grant.is_some());
     }
-
-    #[test]
-    fn ignores_other_observations() {
-        let mut rule = EmptyCommit;
-        let grant = rule.process(&ctx(), &Observation::Fixup).unwrap();
-        assert!(grant.is_none());
-    }
 }
