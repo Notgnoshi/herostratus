@@ -1,10 +1,11 @@
-use herostratus_tests::cmd::{CommandExt, exclude_all_rules_except, herostratus};
+use herostratus::config::Config;
+use herostratus_tests::cmd::{CommandExt, herostratus};
 use predicates::prelude::*;
 use predicates::str;
 
 #[test]
 fn h005_empty_commit() {
-    let config = exclude_all_rules_except("H5-empty-commit");
+    let config = Config::default().disable("all").enable("H5-empty-commit");
     let (mut cmd, _temp) = herostratus(None, Some(config));
     // This test serves two purposes:
     // 1. Use an early tag so this test doesn't have to parse a variable number of commits as the

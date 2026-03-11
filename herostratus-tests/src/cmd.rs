@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::process::Output;
 use std::sync::LazyLock;
 
-use herostratus::config::{Config, RulesConfig, write_config};
+use herostratus::config::{Config, write_config};
 use tempfile::{TempDir, tempdir};
 
 // I'm using cargo_bin to discovery a binary provided by another crate in the workspace. That's not
@@ -10,17 +10,6 @@ use tempfile::{TempDir, tempdir};
 #[expect(deprecated)]
 static HEROSTRATUS: LazyLock<PathBuf> =
     LazyLock::new(|| assert_cmd::cargo::cargo_bin("herostratus"));
-
-pub fn exclude_all_rules_except(rule: &str) -> Config {
-    Config {
-        rules: Some(RulesConfig {
-            exclude: Some(vec!["all".into()]),
-            include: Some(vec![rule.into()]),
-            ..Default::default()
-        }),
-        ..Default::default()
-    }
-}
 
 /// Get a [`assert_cmd::Command`] for the herostratus binary and the [`TempDir`] data dir used in
 /// the test

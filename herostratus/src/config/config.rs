@@ -40,6 +40,42 @@ pub struct RulesConfig {
     pub h13_fortune_teller: Option<H013Config>,
 }
 
+impl Config {
+    /// Add a rule to the exclude list, creating the [RulesConfig] if needed.
+    pub fn disable(mut self, rule: &str) -> Self {
+        self.rules
+            .get_or_insert_with(RulesConfig::default)
+            .disable(rule);
+        self
+    }
+
+    /// Add a rule to the include list, creating the [RulesConfig] if needed.
+    pub fn enable(mut self, rule: &str) -> Self {
+        self.rules
+            .get_or_insert_with(RulesConfig::default)
+            .enable(rule);
+        self
+    }
+}
+
+impl RulesConfig {
+    /// Add a rule to the exclude list.
+    pub fn disable(&mut self, rule: &str) -> &mut Self {
+        self.exclude
+            .get_or_insert_with(Vec::new)
+            .push(rule.to_string());
+        self
+    }
+
+    /// Add a rule to the include list.
+    pub fn enable(&mut self, rule: &str) -> &mut Self {
+        self.include
+            .get_or_insert_with(Vec::new)
+            .push(rule.to_string());
+        self
+    }
+}
+
 /// Configuration for cloning, fetching, and processing a repository
 #[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
 pub struct RepositoryConfig {

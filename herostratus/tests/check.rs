@@ -1,7 +1,8 @@
 use std::path::Path;
 
+use herostratus::config::Config;
 use herostratus::git::clone::find_local_repository;
-use herostratus_tests::cmd::{CommandExt, exclude_all_rules_except, herostratus};
+use herostratus_tests::cmd::{CommandExt, herostratus};
 use predicates::prelude::*;
 use predicates::str;
 
@@ -27,7 +28,7 @@ fn search_current_repo_for_branch_that_does_not_exist() {
 
 #[test]
 fn search_depth() {
-    let config = exclude_all_rules_except("H1-fixup");
+    let config = Config::default().disable("all").enable("H1-fixup");
     let (mut cmd, _temp) = herostratus(None, Some(config.clone()));
     // The fixup branch's HEAD is not a fixup commit, but its parent is.
     cmd.arg("check")
@@ -57,7 +58,7 @@ fn search_depth() {
 
 #[test]
 fn search_current_repo_for_fixup_commits() {
-    let config = exclude_all_rules_except("H1-fixup");
+    let config = Config::default().disable("all").enable("H1-fixup");
     let (mut cmd, _temp) = herostratus(None, Some(config));
     cmd.arg("check").arg(".").arg("origin/test/fixup");
 

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use herostratus::config::{RulesConfig, read_config};
+use herostratus::config::read_config;
 use herostratus_tests::cmd::{CommandExt, herostratus};
 use herostratus_tests::fixtures::repository::Builder;
 use predicates::prelude::*;
@@ -45,12 +45,10 @@ fn early_exit_cache() {
     assert!(output.status.success());
 
     // -- Run 1: only H5 enabled, processes 1 commit --
-    let mut config = read_config(data_dir).unwrap();
-    config.rules = Some(RulesConfig {
-        exclude: Some(vec!["all".into()]),
-        include: Some(vec!["H5-empty-commit".into()]),
-        ..Default::default()
-    });
+    let config = read_config(data_dir)
+        .unwrap()
+        .disable("all")
+        .enable("H5-empty-commit");
     let (mut check1, _) = herostratus(Some(data_dir), Some(config));
     check1.arg("check-all");
     let output = check1.captured_output();
@@ -68,12 +66,10 @@ fn early_exit_cache() {
     );
 
     // -- Run 2: same rules, no new commits -> checkpoint early exit --
-    let mut config = read_config(data_dir).unwrap();
-    config.rules = Some(RulesConfig {
-        exclude: Some(vec!["all".into()]),
-        include: Some(vec!["H5-empty-commit".into()]),
-        ..Default::default()
-    });
+    let config = read_config(data_dir)
+        .unwrap()
+        .disable("all")
+        .enable("H5-empty-commit");
     let (mut check2, _) = herostratus(Some(data_dir), Some(config));
     check2.arg("check-all");
     let output = check2.captured_output();
@@ -92,12 +88,11 @@ fn early_exit_cache() {
 
     // -- Add a new commit and a new rule --
     let second_commit = temp_upstream.commit("fixup!").create().unwrap();
-    let mut config = read_config(data_dir).unwrap();
-    config.rules = Some(RulesConfig {
-        exclude: Some(vec!["all".into()]),
-        include: Some(vec!["H5-empty-commit".into(), "H1-fixup".into()]),
-        ..Default::default()
-    });
+    let config = read_config(data_dir)
+        .unwrap()
+        .disable("all")
+        .enable("H5-empty-commit")
+        .enable("H1-fixup");
 
     // -- Run 3: new commit + new rule -> retire H5 at checkpoint, continue with H1 --
     let (mut check3, _) = herostratus(Some(data_dir), Some(config));
@@ -147,12 +142,10 @@ fn revoke_and_regrant() {
     assert!(output.status.success());
 
     // -- Run 1: only H10 enabled -> Alice gets the grant --
-    let mut config = read_config(data_dir).unwrap();
-    config.rules = Some(RulesConfig {
-        exclude: Some(vec!["all".into()]),
-        include: Some(vec!["H10-most-profound".into()]),
-        ..Default::default()
-    });
+    let config = read_config(data_dir)
+        .unwrap()
+        .disable("all")
+        .enable("H10-most-profound");
     let (mut check1, _) = herostratus(Some(data_dir), Some(config));
     check1.arg("check-all");
     let output = check1.captured_output();
@@ -187,12 +180,10 @@ fn revoke_and_regrant() {
     }
 
     // -- Run 2: fetch new commits, Bob overtakes Alice -> revoke Alice, grant Bob --
-    let mut config = read_config(data_dir).unwrap();
-    config.rules = Some(RulesConfig {
-        exclude: Some(vec!["all".into()]),
-        include: Some(vec!["H10-most-profound".into()]),
-        ..Default::default()
-    });
+    let config = read_config(data_dir)
+        .unwrap()
+        .disable("all")
+        .enable("H10-most-profound");
     let (mut check2, _) = herostratus(Some(data_dir), Some(config));
     check2.arg("check-all");
     let output = check2.captured_output();

@@ -1,14 +1,6 @@
-use herostratus::config::{RulesConfig, read_config};
+use herostratus::config::read_config;
 use herostratus_tests::cmd::{CommandExt, herostratus};
 use herostratus_tests::fixtures::repository::Builder;
-
-fn h5_only() -> RulesConfig {
-    RulesConfig {
-        exclude: Some(vec!["all".into()]),
-        include: Some(vec!["H5-empty-commit".into()]),
-        ..Default::default()
-    }
-}
 
 /// check-one processes only the named repository, leaving the other untouched.
 ///
@@ -40,8 +32,10 @@ fn check_one_processes_single_repo() {
     assert!(output.status.success());
 
     // -- Establish checkpoints: check-all --no-fetch with only H5 --
-    let mut config = read_config(data_dir).unwrap();
-    config.rules = Some(h5_only());
+    let config = read_config(data_dir)
+        .unwrap()
+        .disable("all")
+        .enable("H5-empty-commit");
     let (mut cmd, _) = herostratus(Some(data_dir), Some(config));
     cmd.arg("check-all").arg("--no-fetch");
     let output = cmd.captured_output();
@@ -71,8 +65,10 @@ fn check_one_processes_single_repo() {
         .unwrap();
 
     // -- check-one repo1: should fetch + check only repo1 --
-    let mut config = read_config(data_dir).unwrap();
-    config.rules = Some(h5_only());
+    let config = read_config(data_dir)
+        .unwrap()
+        .disable("all")
+        .enable("H5-empty-commit");
     let (mut cmd, _) = herostratus(Some(data_dir), Some(config));
     cmd.arg("check-one").arg("repo1");
     let output = cmd.captured_output();
@@ -96,8 +92,10 @@ fn check_one_processes_single_repo() {
     );
 
     // -- check-all: repo1 should early-exit, repo2 should process its new commit --
-    let mut config = read_config(data_dir).unwrap();
-    config.rules = Some(h5_only());
+    let config = read_config(data_dir)
+        .unwrap()
+        .disable("all")
+        .enable("H5-empty-commit");
     let (mut cmd, _) = herostratus(Some(data_dir), Some(config));
     cmd.arg("check-all");
     let output = cmd.captured_output();
@@ -130,8 +128,10 @@ fn check_one_by_url() {
     assert!(output.status.success());
 
     // check-one by URL instead of name -- should find and process the repo
-    let mut config = read_config(data_dir).unwrap();
-    config.rules = Some(h5_only());
+    let config = read_config(data_dir)
+        .unwrap()
+        .disable("all")
+        .enable("H5-empty-commit");
     let (mut cmd, _) = herostratus(Some(data_dir), Some(config));
     cmd.arg("check-one").arg("--no-fetch").arg(&url);
     let output = cmd.captured_output();
