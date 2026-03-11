@@ -6,8 +6,8 @@
 
 This document describes the high-level architecture of the observer/rule split. For detailed
 software design (types, interfaces, data flow, parallelism, checkpoint integration), see
-[observer-design.md](observer-design.md). For concrete API designs, see
-[observer-apis.md](observer-apis.md).
+[11-observer-design.md](11-observer-design.md). For concrete API designs, see
+[12-observer-apis.md](12-observer-apis.md).
 
 # Motivation
 
@@ -50,7 +50,7 @@ works fine. But it breaks down for:
 * **Meta-achievements** like "most achievements overall" -- these have no commit to visit and
   fundamentally can't be expressed as a `Rule` today.
 
-This tension has made the [achievement-variations.md](achievement-variations.md) design more
+This tension has made the [07-achievement-variations.md](07-achievement-variations.md) design more
 challenging, as there's not obviously correct mechanisms within the current model for handling these
 cases.
 
@@ -194,8 +194,8 @@ take the canonical paths. Observer and rule implementations live in `impls/` sub
 avoiding path conflicts with old files. Both old and new code coexist and compile until the final
 cleanup commit deletes all `_old` files and switches the binary to the new pipeline.
 
-See [observer-design.md](observer-design.md) for the full module layout, coexistence strategy, and
-step-by-step migration order.
+See [11-observer-design.md](11-observer-design.md) for the full module layout, coexistence strategy,
+and step-by-step migration order.
 
 # Impact on existing rules
 
@@ -224,13 +224,13 @@ detailed design work.
    returning `&'static [Discriminant<Observation>]` for checkpoint dependency tracking only.
 
 2. **Migration path.** Clean break with `_old` coexistence. All six existing rules are migrated at
-   once. No adapter layer. See [observer-design.md](observer-design.md) for the full module layout
-   and migration strategy.
+   once. No adapter layer. See [11-observer-design.md](11-observer-design.md) for the full module
+   layout and migration strategy.
 
 3. **How does this impact the `RulePlugin` type erasure pattern?** Two separate `inventory`
    collections (`ObserverFactory` and `RuleFactory`). Observers are object-safe and don't need a
    plugin wrapper. Rules continue to use `RulePlugin` for cache type-erasure. See
-   [observer-apis.md](observer-apis.md) sections 4d and 4f.
+   [12-observer-apis.md](12-observer-apis.md) sections 4d and 4f.
 
 4. **Observer statefulness.** Observers are stateless across commits. No `init_cache`/`fini_cache`.
    `&mut self` allows transient per-commit state (e.g., flags set in `observe()` and checked in the
@@ -238,7 +238,7 @@ detailed design work.
 
 5. **Achievement persistence.** Append-only CSV log. Engine-only access. Schema:
    `timestamp,event,achievement_id,commit,author_name,author_email`. Paired with checkpoint data.
-   See [observer-design.md](observer-design.md) for persistence integration details.
+   See [11-observer-design.md](11-observer-design.md) for persistence integration details.
 
 6. **Incremental processing details.** Dependency graph computed from `emits()`/`consumes()` at
    initialization. Not persisted. Checkpoint tracks which observer and rule IDs have processed which
@@ -258,10 +258,10 @@ detailed design work.
 
 # References
 
-* [observer-design.md](observer-design.md) -- detailed software design (types, interfaces, data
-  flow, parallelism, checkpoint integration)
-* [observer-apis.md](observer-apis.md) -- concrete API designs for Observer, Rule, plugins, and
-  channel protocol
-* [achievement-variations.md](achievement-variations.md) -- achievement variation taxonomy
-* [persistence.md](persistence.md) -- data storage design
-* [parallelism.md](parallelism.md) -- parallelism strategies
+* [11-observer-design.md](11-observer-design.md) -- detailed software design (types, interfaces,
+  data flow, parallelism, checkpoint integration)
+* [12-observer-apis.md](12-observer-apis.md) -- concrete API designs for Observer, Rule, plugins,
+  and channel protocol
+* [07-achievement-variations.md](07-achievement-variations.md) -- achievement variation taxonomy
+* [06-persistence.md](06-persistence.md) -- data storage design
+* [03-parallelism.md](03-parallelism.md) -- parallelism strategies

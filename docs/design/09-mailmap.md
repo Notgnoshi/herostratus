@@ -16,7 +16,8 @@ See also: <https://github.com/Notgnoshi/herostratus/issues/17>
 
 The `Achievement` struct does not yet include author identity. Before user-aware achievements (e.g.,
 "most prolific swearer"), unique/stealable achievements, user database, or the achievement event log
-from [persistence.md](/docs/design/persistence.md) can work, identity resolution must be in place.
+from [06-persistence.md](/docs/design/06-persistence.md) can work, identity resolution must be in
+place.
 
 # Mailmap sources
 
@@ -76,8 +77,8 @@ let resolved = snapshot.resolve(signature);
 
 The `RuleEngine` builds the snapshot once per repository and resolves identities as commits are
 processed. This is consistent with the "user database" proposal in
-[persistence.md](/docs/design/persistence.md) -- the `RuleEngine` resolves identities centrally, and
-passes them to rules.
+[06-persistence.md](/docs/design/06-persistence.md) -- the `RuleEngine` resolves identities
+centrally, and passes them to rules.
 
 ## Changes to `Achievement`
 

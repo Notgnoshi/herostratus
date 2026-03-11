@@ -8,7 +8,7 @@
 
 This document contains the concrete API designs for the observer/rule split. It builds on decisions
 made in the design roadmap (achievement variations, persistence, error handling). The module layout
-in [observer-design.md](observer-design.md) maps these APIs to their file locations.
+in [11-observer-design.md](11-observer-design.md) maps these APIs to their file locations.
 
 Each section corresponds to a design work item.
 
@@ -21,8 +21,8 @@ enum is the contract between the two halves of the pipeline.
 
 ## Design decisions
 
-**One enum, `#[non_exhaustive]`.** As decided in [observer-design.md](observer-design.md), a single
-enum (rather than per-observer associated types) preserves exhaustiveness checking and avoids
+**One enum, `#[non_exhaustive]`.** As decided in [11-observer-design.md](11-observer-design.md), a
+single enum (rather than per-observer associated types) preserves exhaustiveness checking and avoids
 `TypeId` downcasting through the `inventory` type-erasure boundary.
 
 **Observers always emit when the fact is present.** Observers do not apply rule-specific thresholds.
@@ -1090,7 +1090,7 @@ truncated file -- the log is small enough that a full rewrite is acceptable.
 
 # References
 
-* [observer-design.md](observer-design.md) -- the architectural design
-* [observer-architecture.md](observer-architecture.md) -- the original proposal
-* [achievement-variations.md](achievement-variations.md) -- achievement variation taxonomy
-* [persistence.md](persistence.md) -- data storage design
+* [11-observer-design.md](11-observer-design.md) -- the architectural design
+* [10-observer-architecture.md](10-observer-architecture.md) -- the original proposal
+* [07-achievement-variations.md](07-achievement-variations.md) -- achievement variation taxonomy
+* [06-persistence.md](06-persistence.md) -- data storage design

@@ -22,8 +22,8 @@ Herostratus's primary use-case is running in CI/CD pipelines. When a repository 
 main branch, a CI job runs Herostratus to check for new achievements. The results should be
 presentable as a static website hosted on GitHub Pages or GitLab Pages.
 
-See [integrations.md](integrations.md) for the broader integration design and the CI/CD deployment
-pipeline diagram.
+See [02-integrations.md](02-integrations.md) for the broader integration design and the CI/CD
+deployment pipeline diagram.
 
 The existing achievement log (`achievements.csv`) persists grant/revoke events per-repository. This
 design extends that with an export format suitable for cross-repository aggregation and site
@@ -350,6 +350,6 @@ parsing the existing file.
 # References
 
 * [GitHub issue #104](https://github.com/Notgnoshi/herostratus/issues/104)
-* [integrations.md](integrations.md) - broader integration design
-* [data-model.md](data-model.md) - achievement data model
-* [persistence.md](persistence.md) - persistence design
+* [02-integrations.md](02-integrations.md) - broader integration design
+* [01-data-model.md](01-data-model.md) - achievement data model
+* [06-persistence.md](06-persistence.md) - persistence design

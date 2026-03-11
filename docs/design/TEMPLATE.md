@@ -11,7 +11,7 @@ What questions does this document answer? What problem does it address?
 # Background
 
 Context the reader needs to understand the problem. Link to related design documents where relevant,
-e.g., [persistence.md](persistence.md).
+e.g., [06-persistence.md](06-persistence.md).
 
 # Proposal
 

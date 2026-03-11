@@ -7,13 +7,13 @@
 # Scope
 
 This document drills into the software design of the observer/rule split proposed in
-[observer-architecture.md](observer-architecture.md). It covers the types, interfaces, data flow,
-parallelism, checkpoint integration, and orchestration -- enough to scaffold future detailed design
-sessions for each area.
+[10-observer-architecture.md](10-observer-architecture.md). It covers the types, interfaces, data
+flow, parallelism, checkpoint integration, and orchestration -- enough to scaffold future detailed
+design sessions for each area.
 
 This document was originally a scaffold. The concrete API designs have since been finalized in
-[observer-apis.md](observer-apis.md). The pseudocode below has been updated to reflect the final
-decisions, but observer-apis.md is the authoritative reference for API shapes.
+[12-observer-apis.md](12-observer-apis.md). The pseudocode below has been updated to reflect the
+final decisions, but 12-observer-apis.md is the authoritative reference for API shapes.
 
 # Architecture Overview
 
@@ -116,7 +116,8 @@ enum DiffAction {
 }
 ```
 
-See [observer-apis.md](observer-apis.md) section 4c for the full trait definition with examples.
+See [12-observer-apis.md](12-observer-apis.md) section 4c for the full trait definition with
+examples.
 
 Each observer emits exactly one type of observation. `emits()` returns a single discriminant, not a
 collection. One observer = one observation type.
@@ -186,7 +187,7 @@ impl Observation {
 }
 ```
 
-See [observer-apis.md](observer-apis.md) sections 4a and 4b for the full variant list and
+See [12-observer-apis.md](12-observer-apis.md) sections 4a and 4b for the full variant list and
 `CommitContext` design.
 
 An associated-type alternative (each observer defines its own observation type) was considered and
@@ -266,8 +267,8 @@ Rules have three emission points: `process()` (per-observation), `commit_complet
 and `finalize()` (per-run). All return `Result<Option<Grant>>`. The engine interprets grants
 according to the rule's `AchievementKind`.
 
-See [observer-apis.md](observer-apis.md) sections 4e and 4f for the full trait definition, examples,
-and the `RulePlugin` type-erasure wrapper.
+See [12-observer-apis.md](12-observer-apis.md) sections 4e and 4f for the full trait definition,
+examples, and the `RulePlugin` type-erasure wrapper.
 
 ## Achievement variations
 
@@ -298,7 +299,7 @@ directory. The `RulePlugin` type-erasure approach (blanket impl over `Rule`) car
 # Parallelism
 
 Observers and rules have very different performance profiles, which suggests different parallelism
-strategies. See [parallelism.md](parallelism.md) for broader context.
+strategies. See [03-parallelism.md](03-parallelism.md) for broader context.
 
 ## Observers: parallel (expensive)
 
@@ -355,7 +356,7 @@ Rules that consume multiple observation types must not assume any particular ord
 types within a commit, but they can rely on all observations for commit N arriving between its
 `CommitStart` and `CommitComplete`, and before any messages from commit N+1.
 
-See [observer-apis.md](observer-apis.md) section 4g for the full channel protocol design.
+See [12-observer-apis.md](12-observer-apis.md) section 4g for the full channel protocol design.
 
 ## Rules: sequential (cheap)
 
@@ -379,7 +380,7 @@ variation enforcement (deduplication, revocation) using the `AchievementLog`.
 # Checkpoint System
 
 The checkpoint system integrates with both engines to avoid redundant work across runs. It builds on
-the existing checkpoint design in [persistence.md](persistence.md).
+the existing checkpoint design in [06-persistence.md](06-persistence.md).
 
 ## Observer-to-rule dependency tracking
 
@@ -404,7 +405,7 @@ fn consumes(&self) -> &'static [Discriminant<Observation>] {
 ```
 
 Associated discriminant constants (`Observation::SUBJECT_LENGTH`, etc.) avoid the need to construct
-dummy values. See [observer-apis.md](observer-apis.md) section 4a for the full constant list.
+dummy values. See [12-observer-apis.md](12-observer-apis.md) section 4a for the full constant list.
 
 `Discriminant<Observation>` supports `Eq + Hash`, so the orchestration layer can determine which
 observers are needed by active rules. An observer is needed if any active rule's `consumes()` set
@@ -481,7 +482,7 @@ inventory::collect!(RuleFactory);
 The `Observer` trait is already object-safe (`Box<dyn Observer>` works directly), so no
 `ObserverPlugin` wrapper is needed -- only an `ObserverFactory` for `inventory` registration. Rules
 continue to use the `RulePlugin` type-erasure pattern for the `Rule::Cache` associated type. See
-[observer-apis.md](observer-apis.md) sections 4d and 4f for the factory and plugin designs.
+[12-observer-apis.md](12-observer-apis.md) sections 4d and 4f for the factory and plugin designs.
 
 # Module Structure
 
@@ -578,7 +579,7 @@ unchanged. The public API (`grant()`, `grant_with_rules()`, `GrantStats`) stays 
 ## Cache module
 
 Reuse `JsonFileCache<T>` and `RuleCache` as-is. Adapt `Checkpoint` minimally. New `AchievementLog`.
-See [observer-apis.md](observer-apis.md) section 4i for the `AchievementLog` API.
+See [12-observer-apis.md](12-observer-apis.md) section 4i for the `AchievementLog` API.
 
 | Component            | Action | Details                                              |
 | -------------------- | ------ | ---------------------------------------------------- |
@@ -692,10 +693,10 @@ Consolidated from all sections. All resolved during the detailed design work.
 
 # References
 
-* [observer-architecture.md](observer-architecture.md) -- the architectural proposal
-* [observer-apis.md](observer-apis.md) -- concrete API designs for all entities
-* [achievement-variations.md](achievement-variations.md) -- kinds of achievements and their
+* [10-observer-architecture.md](10-observer-architecture.md) -- the architectural proposal
+* [12-observer-apis.md](12-observer-apis.md) -- concrete API designs for all entities
+* [07-achievement-variations.md](07-achievement-variations.md) -- kinds of achievements and their
   implications
-* [parallelism.md](parallelism.md) -- parallelism strategies
-* [persistence.md](persistence.md) -- data storage and checkpoint design
-* [performance-considerations.md](performance-considerations.md) -- diff computation costs
+* [03-parallelism.md](03-parallelism.md) -- parallelism strategies
+* [06-persistence.md](06-persistence.md) -- data storage and checkpoint design
+* [08-performance-considerations.md](08-performance-considerations.md) -- diff computation costs

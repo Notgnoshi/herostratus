@@ -10,7 +10,7 @@ methods of improving Herostratus's performance.
 **IMPLEMENTED**: Caches are saved to `~/.local/share/herostratus/cache/<repository>/*.json`
 
 The best way to improve performance is to do less work. Cache the last commit processed, and stop
-processing commits when you reach it. See [persistence.md](/docs/design/persistence.md).
+processing commits when you reach it. See [06-persistence.md](/docs/design/06-persistence.md).
 
 This gets tricky when you consider that adding more rules over time is likely to happen, so you'll
 want the previously processed commits to be reprocessed when new rules are added.
@@ -20,7 +20,7 @@ figure out, because of how intertwined persistence is with other features.
 
 # Parallelism
 
-**DRAFT:** [See parallelism.md](/docs/design/parallelism.md).
+**DRAFT:** [See 03-parallelism.md](/docs/design/03-parallelism.md).
 
 # Benchmarks
 
