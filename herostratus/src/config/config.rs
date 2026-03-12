@@ -83,6 +83,16 @@ pub struct RepositoryConfig {
     pub reference: Option<String>,
     pub url: String,
 
+    /// URL prefix for linking to commits on the Git forge's web UI.
+    ///
+    /// When set, concatenating this prefix with a commit hash produces a valid link to the commit
+    /// (e.g., `https://github.com/owner/repo/commit/` + `abc123`).
+    ///
+    /// If not set, Herostratus will attempt to infer it from the clone URL by detecting the forge
+    /// type. Use [resolve_commit_url_prefix](Self::resolve_commit_url_prefix) to get the effective
+    /// value.
+    pub commit_url_prefix: Option<String>,
+
     /// The username to authenticate with.
     ///
     /// If the username cannot be parsed from a clone URL, it will default to 'git'.
@@ -114,6 +124,19 @@ pub struct RepositoryConfig {
     ///
     /// Merged after the global `mailmap_file`, so per-repository entries take precedence.
     pub mailmap_file: Option<PathBuf>,
+}
+
+impl RepositoryConfig {
+    /// Returns the commit URL prefix, either the explicitly configured value or one inferred from
+    /// the clone URL.
+    ///
+    /// Returns None if no prefix is configured and the forge cannot be detected from the URL.
+    pub fn resolve_commit_url_prefix(&self) -> Option<String> {
+        if self.commit_url_prefix.is_some() {
+            return self.commit_url_prefix.clone();
+        }
+        super::infer_commit_url_prefix(&self.url)
+    }
 }
 
 pub fn config_path(data_dir: &Path) -> PathBuf {
