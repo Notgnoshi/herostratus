@@ -85,6 +85,8 @@ fn achievement_farmer(log: &AchievementLog) -> Option<RuleOutput> {
             commit: commits[leader_email],
             user_name: names[leader_email].to_string(),
             user_email: leader_email.to_string(),
+            name_override: None,
+            description_override: None,
         },
     })
 }
@@ -106,6 +108,8 @@ mod tests {
             commit: gix::ObjectId::null(gix::hash::Kind::Sha1),
             user_name: name.to_string(),
             user_email: email.to_string(),
+            name_override: None,
+            description_override: None,
         };
         log.resolve(&meta, grant);
     }

@@ -12,4 +12,21 @@ pub struct Grant {
     pub commit: gix::ObjectId,
     pub user_name: String,
     pub user_email: String,
+    /// When present, overrides [Meta.name](super::Meta::name) for this achievement instance.
+    pub name_override: Option<String>,
+    /// When present, overrides [Meta.description](super::Meta::description) for this achievement
+    /// instance.
+    pub description_override: Option<String>,
+}
+
+impl Grant {
+    pub fn with_name(mut self, name: String) -> Self {
+        self.name_override = Some(name);
+        self
+    }
+
+    pub fn with_description(mut self, description: String) -> Self {
+        self.description_override = Some(description);
+        self
+    }
 }

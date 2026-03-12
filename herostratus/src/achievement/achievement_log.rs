@@ -313,6 +313,8 @@ mod tests {
             commit: oid,
             user_name: name.to_string(),
             user_email: email.to_string(),
+            name_override: None,
+            description_override: None,
         }
     }
 

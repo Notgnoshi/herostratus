@@ -15,7 +15,12 @@ pub use pipeline::{GrantStats, grant};
 pub struct Achievement {
     pub descriptor_id: usize,
     pub human_id: &'static str,
-    pub name: &'static str,
+    /// Resolved display name: [Grant.name_override](Grant::name_override) if set, otherwise
+    /// [Meta.name](Meta::name).
+    pub name: String,
+    /// Resolved display description: [Grant.description_override](Grant::description_override) if
+    /// set, otherwise [Meta.description](Meta::description).
+    pub description: String,
     pub commit: gix::ObjectId,
     /// The mailmap-resolved user name
     pub user_name: String,

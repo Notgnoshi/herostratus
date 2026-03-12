@@ -145,6 +145,8 @@ impl Rule for FortuneTeller {
                             .unwrap_or_else(|_| gix::ObjectId::null(gix::hash::Kind::Sha1)),
                         user_name: token.user_name.clone(),
                         user_email: token.user_email.clone(),
+                        name_override: None,
+                        description_override: None,
                     }));
                 }
             }

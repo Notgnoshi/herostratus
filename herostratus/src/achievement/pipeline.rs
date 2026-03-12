@@ -293,12 +293,15 @@ impl<'repo> Pipeline<'repo> {
     ) -> u64 {
         let mut count = 0;
         for output in outputs {
+            let name_override = output.grant.name_override.clone();
+            let description_override = output.grant.description_override.clone();
             if let Some(resolution) = self.achievement_log.resolve(&output.meta, output.grant) {
                 if let Some(ref revoke) = resolution.revoke {
                     let achievement = Achievement {
                         descriptor_id: output.meta.id,
                         human_id: output.meta.human_id,
-                        name: output.meta.name,
+                        name: output.meta.name.to_string(),
+                        description: output.meta.description.to_string(),
                         commit: revoke.commit,
                         user_name: revoke.user_name.clone(),
                         user_email: revoke.user_email.clone(),
@@ -314,7 +317,9 @@ impl<'repo> Pipeline<'repo> {
                 let achievement = Achievement {
                     descriptor_id: output.meta.id,
                     human_id: output.meta.human_id,
-                    name: output.meta.name,
+                    name: name_override.unwrap_or_else(|| output.meta.name.to_string()),
+                    description: description_override
+                        .unwrap_or_else(|| output.meta.description.to_string()),
                     commit: resolution.grant.commit,
                     user_name: resolution.grant.user_name,
                     user_email: resolution.grant.user_email,
