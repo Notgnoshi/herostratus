@@ -14,6 +14,22 @@ focus on the user impact** rather than the actual changes made.
 
 ## Added
 
+## Changed
+
+## Deprecated
+
+## Removed
+
+## Fixed
+
+# Herostratus - 0.5.0 - (2026-03-12)
+
+This is a big release! Herostratus is gearing up to enable
+[static site generation](https://github.com/Notgnoshi/herostratus/issues/104), and this release lays
+the bulk of the groundwork for this.
+
+## Added
+
 * Added the following achievements:
 
   | ID                     | Kind              | Description                              |
@@ -26,6 +42,8 @@ focus on the user impact** rather than the actual changes made.
   | H12-quine-commit       | Per-user, repeat  | Commit message contains its own hash     |
   | H13-fortune-teller     | Per-user, repeat  | Commit message predicts a future hash    |
   | H14-added-first-ci     | Global            | Be the first to add a CI config file     |
+
+  Notice that achievements now have an achievement _kind_!
 
 * Added the meta-achievement framework and the first meta-achievement (H11). Meta-achievements are
   evaluated after all rules have finalized, operating on the full achievement log rather than
@@ -50,17 +68,13 @@ focus on the user impact** rather than the actual changes made.
 ## Changed
 
 * Refactored the achievement processing pipeline. Commits are now analyzed by `Observer`s that emit
-  `Observation`s, which are consumed by `Rule`s that grant achievements. The pipeline now emits
-  `AchievementEvent`s (grants and revocations) instead of just grants, enabling global, revocable
-  achievements like H10 to revoke a previous holder when a new leader emerges.
+  `Observation`s, which are consumed by `Rule`s that grant achievements of different
+  `AchievementKind`s. The pipeline now emits `AchievementEvent`s (grants and revocations) instead of
+  just grants, enabling global, revocable achievements like H10 to revoke a previous holder when a
+  new leader emerges.
+
 * Achievement `Grant`s can now override the achievement name and description with dynamic content
   determined at grant time.
-
-## Deprecated
-
-## Removed
-
-## Fixed
 
 # Herostratus - 0.4.0 - (2026-02-26)
 
