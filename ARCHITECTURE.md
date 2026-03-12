@@ -55,10 +55,10 @@ graph TD
         config_toml[config.toml]
     end
 
-    subgraph persistence[$datadir/cache/$repo]
-        checkpoint_json[(checkpoint.json)]
-        rule_cache[(rule_*.json)]
-        achievements_csv[(achievements.csv)]
+    subgraph persistence[Persistence]
+        checkpoint_json[("checkpoint.json<br/>$datadir/cache/$repo/")]
+        rule_cache[("rule_*.json<br/>$datadir/cache/$repo/")]
+        achievements_csv[("$repo.csv<br/>$datadir/export/events/")]
     end
 
     subgraph pipeline[Pipeline]

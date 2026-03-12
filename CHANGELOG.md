@@ -39,6 +39,8 @@ focus on the user impact** rather than the actual changes made.
   enabled achievement rules (not the granted achievement events). The intended use case is to
   facilitate generating an achievement dashboard / website.
 
+* `check-one` and `check-all` now write achievement events to `{data_dir}/export/events/<repo>.csv`
+
 * Added `RepoConfig::commit_url_prefix` config option. When set, it provides a URL prefix for
   linking commit hashes to the forge's web UI (e.g., `https://github.com/owner/repo/commit/`). If
   not set, Herostratus infers it from the clone URL by detecting the forge type of common forges.
