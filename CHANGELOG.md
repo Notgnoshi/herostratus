@@ -35,11 +35,13 @@ focus on the user impact** rather than the actual changes made.
   rather than processing all repositories with `check-all`. This is the expected subcommand to use
   in a downstream CI pipeline when triggered by an upstream change.
 
-* `check-one` and `check-all` now write `{data_dir}/export/achievements.csv`. This is a list of all
-  enabled achievement rules (not the granted achievement events). The intended use case is to
-  facilitate generating an achievement dashboard / website.
+* `check-one` and `check-all` now write
 
-* `check-one` and `check-all` now write achievement events to `{data_dir}/export/events/<repo>.csv`
+  * `{data_dir}/export/achievements.csv` - all enabled achievement rules
+  * `{data_dir}/export/repositories.csv` - configured repository information
+  * `{data_dir}/export/events/{repo_name}.csv` - generated achievement events
+
+  The intended use case is to facilitate generating an achievement dashboard / website.
 
 * Added `RepoConfig::commit_url_prefix` config option. When set, it provides a URL prefix for
   linking commit hashes to the forge's web UI (e.g., `https://github.com/owner/repo/commit/`). If

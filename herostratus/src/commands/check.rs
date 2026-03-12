@@ -68,6 +68,20 @@ fn check_impl(
         events.push(e);
     })?;
 
+    if let Some(data_dir) = data_dir {
+        let repo_config = config.and_then(|c| c.repositories.get(name));
+        let url = repo_config.map(|rc| rc.url.as_str()).unwrap_or("");
+        let commit_url_prefix = repo_config.and_then(|rc| rc.resolve_commit_url_prefix());
+        crate::achievement::upsert_repository_csv(
+            data_dir,
+            name,
+            url,
+            commit_url_prefix.as_deref(),
+            reference,
+            stats.num_commits_processed,
+        )?;
+    }
+
     let counts = tally_achievements(&events);
     for (pretty_id, count) in &counts {
         tracing::info!("{pretty_id}: {count}");
