@@ -125,7 +125,7 @@ mod tests {
         .unwrap();
         let grant = rule.finalize().unwrap();
         assert!(grant.is_some());
-        assert_eq!(grant.unwrap().author_name, "Alice");
+        assert_eq!(grant.unwrap().user_name, "Alice");
     }
 
     #[test]

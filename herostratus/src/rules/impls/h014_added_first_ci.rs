@@ -98,7 +98,7 @@ mod tests {
         rule.process(&bob, &Observation::CiConfig).unwrap();
 
         let grant = rule.finalize().unwrap().unwrap();
-        assert_eq!(grant.author_email, "bob@example.com");
+        assert_eq!(grant.user_email, "bob@example.com");
 
         let cache = rule.fini_cache();
         assert!(cache.commit.is_some());

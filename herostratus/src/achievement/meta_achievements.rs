@@ -54,10 +54,10 @@ fn achievement_farmer(log: &AchievementLog) -> Option<RuleOutput> {
             continue;
         }
         total += 1;
-        *counts.entry(event.email.as_str()).or_default() += 1;
+        *counts.entry(event.user_email.as_str()).or_default() += 1;
         // Overwrite with the latest seen (events are in chronological order)
-        names.insert(event.email.as_str(), event.name.as_str());
-        commits.insert(event.email.as_str(), event.commit);
+        names.insert(event.user_email.as_str(), event.user_name.as_str());
+        commits.insert(event.user_email.as_str(), event.commit);
     }
 
     if counts.len() <= 2 {
@@ -83,8 +83,8 @@ fn achievement_farmer(log: &AchievementLog) -> Option<RuleOutput> {
         meta: ACHIEVEMENT_FARMER.clone(),
         grant: Grant {
             commit: commits[leader_email],
-            author_name: names[leader_email].to_string(),
-            author_email: leader_email.to_string(),
+            user_name: names[leader_email].to_string(),
+            user_email: leader_email.to_string(),
         },
     })
 }
@@ -104,8 +104,8 @@ mod tests {
         };
         let grant = Grant {
             commit: gix::ObjectId::null(gix::hash::Kind::Sha1),
-            author_name: name.to_string(),
-            author_email: email.to_string(),
+            user_name: name.to_string(),
+            user_email: email.to_string(),
         };
         log.resolve(&meta, grant);
     }
@@ -166,8 +166,8 @@ mod tests {
         assert!(result.is_some(), "all thresholds met");
         let output = result.unwrap();
         assert_eq!(output.meta.id, 11);
-        assert_eq!(output.grant.author_email, "alice@example.com");
-        assert_eq!(output.grant.author_name, "Alice");
+        assert_eq!(output.grant.user_email, "alice@example.com");
+        assert_eq!(output.grant.user_name, "Alice");
     }
 
     #[test]
@@ -197,7 +197,7 @@ mod tests {
 
         let result = achievement_farmer(&log).unwrap();
         assert_eq!(
-            result.grant.author_email, "alice@example.com",
+            result.grant.user_email, "alice@example.com",
             "ties should be broken by alphabetically first email"
         );
     }

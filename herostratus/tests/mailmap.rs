@@ -36,11 +36,11 @@ fn test_bare_repo_reads_mailmap_from_head() {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains(&format!("author_name: \"{CANONICAL_NAME}\"")),
+        stdout.contains(&format!("user_name: \"{CANONICAL_NAME}\"")),
         "Expected canonical name in output, got: {stdout}"
     );
     assert!(
-        stdout.contains(&format!("author_email: \"{CANONICAL_EMAIL}\"")),
+        stdout.contains(&format!("user_email: \"{CANONICAL_EMAIL}\"")),
         "Expected canonical email in output, got: {stdout}"
     );
     assert!(
@@ -74,11 +74,11 @@ fn test_non_bare_repo_reads_mailmap_from_worktree() {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains(&format!("author_name: \"{CANONICAL_NAME}\"")),
+        stdout.contains(&format!("user_name: \"{CANONICAL_NAME}\"")),
         "Expected canonical name in output, got: {stdout}"
     );
     assert!(
-        stdout.contains(&format!("author_email: \"{CANONICAL_EMAIL}\"")),
+        stdout.contains(&format!("user_email: \"{CANONICAL_EMAIL}\"")),
         "Expected canonical email in output, got: {stdout}"
     );
     assert!(

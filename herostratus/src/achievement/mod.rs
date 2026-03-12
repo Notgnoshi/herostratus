@@ -17,10 +17,10 @@ pub struct Achievement {
     pub human_id: &'static str,
     pub name: &'static str,
     pub commit: gix::ObjectId,
-    /// The mailmap-resolved author name
-    pub author_name: String,
-    /// The mailmap-resolved author email
-    pub author_email: String,
+    /// The mailmap-resolved user name
+    pub user_name: String,
+    /// The mailmap-resolved user email
+    pub user_email: String,
 }
 
 /// An achievement event emitted by the pipeline.
