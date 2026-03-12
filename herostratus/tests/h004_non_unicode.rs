@@ -1,11 +1,13 @@
-use herostratus_tests::cmd::{CommandExt, exclude_all_rules_except, herostratus};
+use herostratus::config::Config;
+use herostratus_tests::cmd::{CommandExt, TestHarness};
 use predicates::prelude::*;
 use predicates::str;
 
 #[test]
 fn h004_non_unicode() {
-    let config = exclude_all_rules_except("H4-non-unicode");
-    let (mut cmd, _temp) = herostratus(None, Some(config));
+    let h = TestHarness::new();
+    h.write_config(&Config::default().disable("all").enable("H4-non-unicode"));
+    let mut cmd = h.command();
     cmd.arg("check").arg(".").arg("origin/test/non-unicode");
 
     let output = cmd.captured_output();

@@ -1,10 +1,10 @@
 use herostratus::config::{Config, RepositoryConfig, config_path, read_config};
-use herostratus_tests::cmd::{CommandExt, herostratus};
+use herostratus_tests::cmd::{CommandExt, TestHarness};
 
 #[test]
 fn test_clone_herostratus() {
-    let (mut cmd, temp) = herostratus(None, None);
-    let data_dir = temp.as_ref().unwrap().path();
+    let h = TestHarness::new();
+    let data_dir = h.path();
 
     let expected_bare_repo = data_dir
         .join("git")
@@ -12,6 +12,7 @@ fn test_clone_herostratus() {
         .join("herostratus.git");
 
     let url = "https://github.com/Notgnoshi/herostratus.git";
+    let mut cmd = h.command();
     cmd.arg("add").arg(url);
 
     assert!(!data_dir.join("git").exists());
@@ -38,7 +39,7 @@ fn test_clone_herostratus() {
     assert_eq!(repo_config, &expected);
 
     // Adding the same URL again in the same data_dir succeeds
-    let (mut cmd, _temp) = herostratus(Some(data_dir), None);
+    let mut cmd = h.command();
     cmd.arg("add").arg(url);
 
     let output = cmd.captured_output();
@@ -51,27 +52,26 @@ fn test_clone_herostratus() {
 
 #[test]
 fn test_clone_herostratus_branch() {
-    let (mut cmd, temp) = herostratus(None, None);
-    let clone_dir = temp
-        .as_ref()
-        .unwrap()
+    let h = TestHarness::new();
+    let clone_dir = h
         .path()
         .join("git")
         .join("Notgnoshi")
         .join("herostratus.git");
 
     let url = "https://github.com/Notgnoshi/herostratus.git";
+    let mut cmd = h.command();
     cmd.arg("add").arg(url).arg("test/fixup");
 
     assert!(!clone_dir.exists());
-    assert!(!config_path(temp.as_ref().unwrap().path()).exists());
+    assert!(!config_path(h.path()).exists());
 
     let output = cmd.captured_output();
     assert!(output.status.success());
     assert!(clone_dir.exists());
 
     let default_config = Config::default();
-    let actual_config = read_config(temp.as_ref().unwrap().path()).unwrap();
+    let actual_config = read_config(h.path()).unwrap();
     assert_ne!(
         default_config, actual_config,
         "Adding the repo modified the config"
@@ -90,26 +90,25 @@ fn test_clone_herostratus_branch() {
 #[test]
 #[cfg_attr(feature = "ci", ignore = "Requires SSH (not available in CI)")]
 fn clone_herostratus_ssh() {
-    let (mut cmd, temp) = herostratus(None, None);
-    let clone_dir = temp
-        .as_ref()
-        .unwrap()
+    let h = TestHarness::new();
+    let clone_dir = h
         .path()
         .join("git")
         .join("Notgnoshi")
         .join("herostratus.git");
 
     let url = "git@github.com:Notgnoshi/herostratus.git";
+    let mut cmd = h.command();
     cmd.arg("add").arg(url);
 
     assert!(!clone_dir.exists());
-    assert!(!config_path(temp.as_ref().unwrap().path()).exists());
+    assert!(!config_path(h.path()).exists());
 
     let output = cmd.captured_output();
     assert!(output.status.success());
     assert!(clone_dir.exists());
 
-    let contents = std::fs::read_to_string(config_path(temp.as_ref().unwrap().path())).unwrap();
+    let contents = std::fs::read_to_string(config_path(h.path())).unwrap();
     let expected = format!(
         "[repositories.\"herostratus.git\"]\n\
          path = \"{}\"\n\
@@ -122,23 +121,19 @@ fn clone_herostratus_ssh() {
 
 #[test]
 fn add_the_same_repo_twice() {
-    let (mut cmd1, temp) = herostratus(None, None);
-    let (mut cmd2, _) = herostratus(Some(temp.as_ref().unwrap().path()), None);
-    let (mut cmd3, _) = herostratus(Some(temp.as_ref().unwrap().path()), None);
-    let data_dir = temp.as_ref().unwrap().path();
-    let clone_dir = temp
-        .as_ref()
-        .unwrap()
-        .path()
+    let h = TestHarness::new();
+    let data_dir = h.path();
+    let clone_dir = data_dir
         .join("git")
         .join("Notgnoshi")
         .join("herostratus.git");
 
     let url1 = "git@github.com:Notgnoshi/herostratus.git";
-    cmd1.arg("add").arg(url1).arg("--skip-clone");
+    let mut cmd = h.command();
+    cmd.arg("add").arg(url1).arg("--skip-clone");
 
-    let output1 = cmd1.captured_output();
-    assert!(output1.status.success());
+    let output = cmd.captured_output();
+    assert!(output.status.success());
 
     let contents = std::fs::read_to_string(config_path(data_dir)).unwrap();
     let expected = format!(
@@ -151,9 +146,10 @@ fn add_the_same_repo_twice() {
     assert_eq!(contents, expected);
 
     let url2 = "https://github.com/Notgnoshi/herostratus.git";
-    cmd2.arg("add").arg(url2).arg("--skip-clone");
-    let output2 = cmd2.captured_output();
-    assert!(output2.status.success());
+    let mut cmd = h.command();
+    cmd.arg("add").arg(url2).arg("--skip-clone");
+    let output = cmd.captured_output();
+    assert!(output.status.success());
 
     // The URL gets replaced, because the name didn't change
     let contents = std::fs::read_to_string(config_path(data_dir)).unwrap();
@@ -172,13 +168,14 @@ fn add_the_same_repo_twice() {
     // Adding the same URL again with a different name adds a second instance with the same clone
     // dir
     let url3 = "https://github.com/Notgnoshi/herostratus.git";
-    cmd3.arg("add")
+    let mut cmd = h.command();
+    cmd.arg("add")
         .arg(url3)
         .arg("--skip-clone")
         .arg("--name")
         .arg("unique-name");
-    let output3 = cmd3.captured_output();
-    assert!(output3.status.success());
+    let output = cmd.captured_output();
+    assert!(output.status.success());
 
     let actual_config = read_config(data_dir).unwrap();
     assert_eq!(actual_config.repositories.len(), 2);
@@ -191,28 +188,26 @@ fn add_the_same_repo_twice() {
 
 #[test]
 fn test_two_branches_share_one_bare_repo() {
-    let (mut cmd1, temp) = herostratus(None, None);
-    let (mut cmd2, _) = herostratus(Some(temp.as_ref().unwrap().path()), None);
+    let h = TestHarness::new();
 
-    let clone_dir = temp
-        .as_ref()
-        .unwrap()
+    let clone_dir = h
         .path()
         .join("git")
         .join("Notgnoshi")
         .join("herostratus.git");
 
     let url = "https://github.com/Notgnoshi/herostratus.git";
-    cmd1.arg("add")
+    let mut cmd = h.command();
+    cmd.arg("add")
         .arg(url)
         .arg("--name")
         .arg("herostratus-1")
         .arg("test/simple");
 
-    let output1 = cmd1.captured_output();
-    assert!(output1.status.success());
+    let output = cmd.captured_output();
+    assert!(output.status.success());
 
-    let contents = std::fs::read_to_string(config_path(temp.as_ref().unwrap().path())).unwrap();
+    let contents = std::fs::read_to_string(config_path(h.path())).unwrap();
     let expected = format!(
         "[repositories.herostratus-1]\n\
          path = \"{}\"\n\
@@ -223,18 +218,19 @@ fn test_two_branches_share_one_bare_repo() {
     );
     assert_eq!(contents, expected);
 
-    cmd2.arg("add")
+    let mut cmd = h.command();
+    cmd.arg("add")
         .arg(url)
         .arg("test/fixup")
         .arg("--name")
         .arg("herostratus-2");
 
-    let output2 = cmd2.captured_output();
-    assert!(output2.status.success());
+    let output = cmd.captured_output();
+    assert!(output.status.success());
 
     // NOTE: The TOML file doesn't preserve order or comments, so parse the config file, and
     // compare config values
-    let config = read_config(temp.as_ref().unwrap().path()).unwrap();
+    let config = read_config(h.path()).unwrap();
     assert!(config.repositories.contains_key("herostratus-1"));
     assert!(config.repositories.contains_key("herostratus-2"));
 

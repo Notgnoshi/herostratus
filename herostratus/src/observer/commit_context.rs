@@ -8,3 +8,17 @@ pub struct CommitContext {
     pub author_name: String,
     pub author_email: String,
 }
+
+#[cfg(test)]
+impl CommitContext {
+    /// Create a test CommitContext with a null OID and an email derived from the name.
+    ///
+    /// The email is `{lowercase_name}@example.com`.
+    pub fn test(name: &str) -> Self {
+        Self {
+            oid: gix::ObjectId::null(gix::hash::Kind::Sha1),
+            author_name: name.to_string(),
+            author_email: format!("{}@example.com", name.to_lowercase()),
+        }
+    }
+}

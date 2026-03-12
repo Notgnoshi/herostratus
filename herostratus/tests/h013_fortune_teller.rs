@@ -1,4 +1,5 @@
-use herostratus_tests::cmd::{CommandExt, exclude_all_rules_except, herostratus};
+use herostratus::config::Config;
+use herostratus_tests::cmd::{CommandExt, TestHarness};
 use predicates::prelude::*;
 use predicates::str;
 
@@ -7,8 +8,13 @@ use predicates::str;
 /// fortune-teller rule should grant an achievement to the author of the predicting commit.
 #[test]
 fn h013_fortune_teller() {
-    let config = exclude_all_rules_except("H13-fortune-teller");
-    let (mut cmd, _temp) = herostratus(None, Some(config));
+    let h = TestHarness::new();
+    h.write_config(
+        &Config::default()
+            .disable("all")
+            .enable("H13-fortune-teller"),
+    );
+    let mut cmd = h.command();
     cmd.arg("check").arg(".").arg("origin/test/quine");
 
     let output = cmd.captured_output();

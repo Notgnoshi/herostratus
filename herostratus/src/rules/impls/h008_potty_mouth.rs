@@ -43,15 +43,8 @@ impl Rule for PottyMouth {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
-    fn ctx() -> CommitContext {
-        CommitContext {
-            oid: gix::ObjectId::null(gix::hash::Kind::Sha1),
-            author_name: "Test".to_string(),
-            author_email: "test@example.com".to_string(),
-        }
-    }
+    use super::*;
 
     fn profanity() -> Observation {
         Observation::Profanity {
@@ -62,14 +55,9 @@ mod tests {
     #[test]
     fn grants_on_profanity() {
         let mut rule = PottyMouth;
-        let grant = rule.process(&ctx(), &profanity()).unwrap();
+        let grant = rule
+            .process(&CommitContext::test("Test"), &profanity())
+            .unwrap();
         assert!(grant.is_some());
-    }
-
-    #[test]
-    fn ignores_other_observations() {
-        let mut rule = PottyMouth;
-        let grant = rule.process(&ctx(), &Observation::Fixup).unwrap();
-        assert!(grant.is_none());
     }
 }

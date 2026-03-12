@@ -1,22 +1,15 @@
 use std::path::Path;
 
+use herostratus::config::Config;
 use herostratus::git::clone::find_local_repository;
-use herostratus_tests::cmd::{CommandExt, exclude_all_rules_except, herostratus};
+use herostratus_tests::cmd::{CommandExt, TestHarness};
 use predicates::prelude::*;
 use predicates::str;
 
 #[test]
-fn search_current_repo_for_test_simple_branch() {
-    let (mut cmd, _temp) = herostratus(None, None);
-    cmd.arg("check").arg(".").arg("origin/test/simple");
-
-    let output = cmd.captured_output();
-    assert!(output.status.success());
-}
-
-#[test]
 fn search_current_repo_for_branch_that_does_not_exist() {
-    let (mut cmd, _temp) = herostratus(None, None);
+    let h = TestHarness::new();
+    let mut cmd = h.command();
     cmd.arg("check")
         .arg(".")
         .arg("origin/test/this-branch-will-never-exist");
@@ -27,9 +20,12 @@ fn search_current_repo_for_branch_that_does_not_exist() {
 
 #[test]
 fn search_depth() {
-    let config = exclude_all_rules_except("H1-fixup");
-    let (mut cmd, _temp) = herostratus(None, Some(config.clone()));
+    let config = Config::default().disable("all").enable("H1-fixup");
+    let h = TestHarness::new();
+    h.write_config(&config);
+
     // The fixup branch's HEAD is not a fixup commit, but its parent is.
+    let mut cmd = h.command();
     cmd.arg("check")
         .arg(".")
         .arg("origin/test/fixup")
@@ -41,7 +37,7 @@ fn search_depth() {
     let assertion = str::contains("processing 1 commits");
     assert!(assertion.eval(&stderr), "Found != 1 commits");
 
-    let (mut cmd, _temp) = herostratus(None, Some(config));
+    let mut cmd = h.command();
     cmd.arg("check")
         .arg(".")
         .arg("origin/test/fixup")
@@ -57,8 +53,10 @@ fn search_depth() {
 
 #[test]
 fn search_current_repo_for_fixup_commits() {
-    let config = exclude_all_rules_except("H1-fixup");
-    let (mut cmd, _temp) = herostratus(None, Some(config));
+    let config = Config::default().disable("all").enable("H1-fixup");
+    let h = TestHarness::new();
+    h.write_config(&config);
+    let mut cmd = h.command();
     cmd.arg("check").arg(".").arg("origin/test/fixup");
 
     let output = cmd.captured_output();
@@ -103,7 +101,8 @@ fn smoke_test_on_all_own_branches() {
         let reference = reference.unwrap();
         let name = std::ffi::OsString::from_vec(reference.name().as_bstr().to_vec());
 
-        let (mut cmd, _temp) = herostratus(None, None);
+        let h = TestHarness::new();
+        let mut cmd = h.command();
         cmd.arg("check").arg(".").arg(name);
 
         let output = cmd.captured_output();

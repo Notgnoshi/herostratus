@@ -79,15 +79,8 @@ impl Rule for FirstProfanity {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
-    fn ctx_with(name: &str, email: &str) -> CommitContext {
-        CommitContext {
-            oid: gix::ObjectId::null(gix::hash::Kind::Sha1),
-            author_name: name.to_string(),
-            author_email: email.to_string(),
-        }
-    }
+    use super::*;
 
     fn profanity() -> Observation {
         Observation::Profanity {
@@ -100,8 +93,8 @@ mod tests {
         let mut rule = FirstProfanity::default();
         // Walk order is newest-first, so Alice is visited first, then Bob.
         // Bob being last means Bob was the actual first swearer in the repo.
-        let alice = ctx_with("Alice", "alice@example.com");
-        let bob = ctx_with("Bob", "bob@example.com");
+        let alice = CommitContext::test("Alice");
+        let bob = CommitContext::test("Bob");
 
         assert!(rule.process(&alice, &profanity()).unwrap().is_none());
         rule.process(&bob, &profanity()).unwrap();
@@ -120,7 +113,7 @@ mod tests {
             commit: Some("abc123".to_string()),
         });
 
-        let ctx = ctx_with("Alice", "alice@example.com");
+        let ctx = CommitContext::test("Alice");
         rule.process(&ctx, &profanity()).unwrap();
 
         let grant = rule.finalize().unwrap();

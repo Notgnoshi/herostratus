@@ -1,4 +1,5 @@
-use herostratus_tests::cmd::{CommandExt, exclude_all_rules_except, herostratus};
+use herostratus::config::Config;
+use herostratus_tests::cmd::{CommandExt, TestHarness};
 use herostratus_tests::fixtures::repository::Builder;
 
 const NOREPLY_NAME: &str = "testuser";
@@ -25,8 +26,9 @@ fn test_bare_repo_reads_mailmap_from_head() {
         .create()
         .unwrap();
 
-    let config = exclude_all_rules_except("H5-empty-commit");
-    let (mut cmd, _temp) = herostratus(None, Some(config));
+    let h = TestHarness::new();
+    h.write_config(&Config::default().disable("all").enable("H5-empty-commit"));
+    let mut cmd = h.command();
     cmd.arg("check").arg(temp_repo.path()).arg("HEAD");
 
     let output = cmd.captured_output();
@@ -62,8 +64,9 @@ fn test_non_bare_repo_reads_mailmap_from_worktree() {
         .create()
         .unwrap();
 
-    let config = exclude_all_rules_except("H5-empty-commit");
-    let (mut cmd, _temp) = herostratus(None, Some(config));
+    let h = TestHarness::new();
+    h.write_config(&Config::default().disable("all").enable("H5-empty-commit"));
+    let mut cmd = h.command();
     cmd.arg("check").arg(temp_repo.path()).arg("HEAD");
 
     let output = cmd.captured_output();

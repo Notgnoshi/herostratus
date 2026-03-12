@@ -78,21 +78,17 @@ impl Rule for QuineCommit {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
-    fn ctx() -> CommitContext {
-        CommitContext {
-            oid: gix::ObjectId::null(gix::hash::Kind::Sha1),
-            author_name: "Test".to_string(),
-            author_email: "test@example.com".to_string(),
-        }
-    }
+    use super::*;
 
     #[test]
     fn grants_when_match_meets_threshold() {
         let mut rule = QuineCommit { threshold: 7 };
         let grant = rule
-            .process(&ctx(), &Observation::QuinePrefix { matched_length: 10 })
+            .process(
+                &CommitContext::test("Test"),
+                &Observation::QuinePrefix { matched_length: 10 },
+            )
             .unwrap();
         assert!(grant.is_some());
     }
@@ -101,7 +97,10 @@ mod tests {
     fn rejects_below_threshold() {
         let mut rule = QuineCommit { threshold: 6 };
         let grant = rule
-            .process(&ctx(), &Observation::QuinePrefix { matched_length: 5 })
+            .process(
+                &CommitContext::test("Test"),
+                &Observation::QuinePrefix { matched_length: 5 },
+            )
             .unwrap();
         assert!(grant.is_none());
     }

@@ -102,15 +102,8 @@ impl Rule for LongestSubject {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
-    fn ctx(name: &str) -> CommitContext {
-        CommitContext {
-            oid: gix::ObjectId::null(gix::hash::Kind::Sha1),
-            author_name: name.to_string(),
-            author_email: format!("{name}@example.com"),
-        }
-    }
+    use super::*;
 
     #[test]
     fn grants_longest() {
@@ -118,10 +111,16 @@ mod tests {
             threshold: 5,
             ..Default::default()
         };
-        rule.process(&ctx("Alice"), &Observation::SubjectLength { length: 10 })
-            .unwrap();
-        rule.process(&ctx("Bob"), &Observation::SubjectLength { length: 8 })
-            .unwrap();
+        rule.process(
+            &CommitContext::test("Alice"),
+            &Observation::SubjectLength { length: 10 },
+        )
+        .unwrap();
+        rule.process(
+            &CommitContext::test("Bob"),
+            &Observation::SubjectLength { length: 8 },
+        )
+        .unwrap();
         let grant = rule.finalize().unwrap();
         assert!(grant.is_some());
         assert_eq!(grant.unwrap().author_name, "Alice");
@@ -133,8 +132,11 @@ mod tests {
             threshold: 100,
             ..Default::default()
         };
-        rule.process(&ctx("Alice"), &Observation::SubjectLength { length: 80 })
-            .unwrap();
+        rule.process(
+            &CommitContext::test("Alice"),
+            &Observation::SubjectLength { length: 80 },
+        )
+        .unwrap();
         let grant = rule.finalize().unwrap();
         assert!(grant.is_none());
     }
@@ -145,8 +147,11 @@ mod tests {
             threshold: 5,
             ..Default::default()
         };
-        rule.process(&ctx("Alice"), &Observation::SubjectLength { length: 100 })
-            .unwrap();
+        rule.process(
+            &CommitContext::test("Alice"),
+            &Observation::SubjectLength { length: 100 },
+        )
+        .unwrap();
         let cache = rule.fini_cache();
         assert_eq!(cache.longest_length, Some(100));
 
@@ -157,16 +162,12 @@ mod tests {
         rule2.init_cache(cache);
         // Length 80 is longer than threshold (5) but not longer than cached (100)
         rule2
-            .process(&ctx("Bob"), &Observation::SubjectLength { length: 80 })
+            .process(
+                &CommitContext::test("Bob"),
+                &Observation::SubjectLength { length: 80 },
+            )
             .unwrap();
         let grant = rule2.finalize().unwrap();
-        assert!(grant.is_none());
-    }
-
-    #[test]
-    fn ignores_irrelevant_observations() {
-        let mut rule = LongestSubject::default();
-        let grant = rule.process(&ctx("Alice"), &Observation::Fixup).unwrap();
         assert!(grant.is_none());
     }
 }

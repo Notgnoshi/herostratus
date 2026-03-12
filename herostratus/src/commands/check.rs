@@ -3,8 +3,8 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 
 use crate::achievement::{AchievementEvent, grant};
-use crate::cli::{CheckAllArgs, CheckArgs};
-use crate::commands::fetch_all::FetchStat;
+use crate::cli::{CheckAllArgs, CheckArgs, CheckOneArgs};
+use crate::commands::fetch_all::{FetchStat, fetch_one};
 use crate::config::Config;
 use crate::git::clone::find_local_repository;
 
@@ -174,6 +174,59 @@ pub fn check_all(
     );
 
     Ok(merge_stats(fetch_stats, check_stats))
+}
+
+/// Look up a repository by name or remote URL
+fn find_repository<'a>(
+    config: &'a Config,
+    repository: &str,
+) -> eyre::Result<(&'a str, &'a crate::config::RepositoryConfig)> {
+    // Try name match first
+    if let Some((name, repo_config)) = config.repositories.get_key_value(repository) {
+        return Ok((name, repo_config));
+    }
+
+    // Try URL match
+    for (name, repo_config) in config.repositories.iter() {
+        if repo_config.url == repository {
+            return Ok((name, repo_config));
+        }
+    }
+
+    let available: Vec<_> = config.repositories.keys().collect();
+    eyre::bail!(
+        "Repository {:?} not found. Available repositories: {:?}",
+        repository,
+        available
+    );
+}
+
+pub fn check_one(
+    args: &CheckOneArgs,
+    config: &Config,
+    data_dir: &Path,
+) -> eyre::Result<Vec<CheckAllStat>> {
+    let (name, repo_config) = find_repository(config, &args.repository)?;
+
+    let mut fetch_stats = Vec::new();
+    if !args.no_fetch {
+        fetch_stats.push(fetch_one(name, repo_config)?);
+    }
+
+    let reference = repo_config
+        .reference
+        .clone()
+        .unwrap_or_else(|| String::from("HEAD"));
+    let check_stat = check_impl(
+        Some(config),
+        name,
+        &repo_config.path,
+        &reference,
+        args.depth,
+        Some(data_dir),
+    )?;
+
+    Ok(merge_stats(fetch_stats, vec![check_stat]))
 }
 
 /// A common event sink that both check and check_all can use

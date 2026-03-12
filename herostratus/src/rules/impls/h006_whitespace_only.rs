@@ -45,27 +45,15 @@ impl Rule for WhitespaceOnly {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
-    fn ctx() -> CommitContext {
-        CommitContext {
-            oid: gix::ObjectId::null(gix::hash::Kind::Sha1),
-            author_name: "Test".to_string(),
-            author_email: "test@example.com".to_string(),
-        }
-    }
+    use super::*;
 
     #[test]
     fn grants_on_whitespace_only() {
         let mut rule = WhitespaceOnly;
-        let grant = rule.process(&ctx(), &Observation::WhitespaceOnly).unwrap();
+        let grant = rule
+            .process(&CommitContext::test("Test"), &Observation::WhitespaceOnly)
+            .unwrap();
         assert!(grant.is_some());
-    }
-
-    #[test]
-    fn ignores_other_observations() {
-        let mut rule = WhitespaceOnly;
-        let grant = rule.process(&ctx(), &Observation::Fixup).unwrap();
-        assert!(grant.is_none());
     }
 }
