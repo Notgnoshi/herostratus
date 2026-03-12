@@ -15,6 +15,7 @@ fn args_to_config(args: &AddArgs, data_dir: &Path) -> eyre::Result<RepositoryCon
         path,
         url: args.url.clone(),
         reference: args.branch.clone(),
+        commit_url_prefix: args.commit_url_prefix.clone(),
         remote_username: args.remote_username.clone(),
         ssh_private_key: args.ssh_private_key.clone(),
         ssh_public_key: args.ssh_public_key.clone(),

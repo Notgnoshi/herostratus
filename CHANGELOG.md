@@ -14,6 +14,22 @@ focus on the user impact** rather than the actual changes made.
 
 ## Added
 
+## Changed
+
+## Deprecated
+
+## Removed
+
+## Fixed
+
+# Herostratus - 0.5.0 - (2026-03-12)
+
+This is a big release! Herostratus is gearing up to enable
+[static site generation](https://github.com/Notgnoshi/herostratus/issues/104), and this release lays
+the bulk of the groundwork for this.
+
+## Added
+
 * Added the following achievements:
 
   | ID                     | Kind              | Description                              |
@@ -27,6 +43,8 @@ focus on the user impact** rather than the actual changes made.
   | H13-fortune-teller     | Per-user, repeat  | Commit message predicts a future hash    |
   | H14-added-first-ci     | Global            | Be the first to add a CI config file     |
 
+  Notice that achievements now have an achievement _kind_!
+
 * Added the meta-achievement framework and the first meta-achievement (H11). Meta-achievements are
   evaluated after all rules have finalized, operating on the full achievement log rather than
   individual commits.
@@ -35,24 +53,28 @@ focus on the user impact** rather than the actual changes made.
   rather than processing all repositories with `check-all`. This is the expected subcommand to use
   in a downstream CI pipeline when triggered by an upstream change.
 
-* `check-one` and `check-all` now write `{data_dir}/export/achievements.csv`. This is a list of all
-  enabled achievement rules (not the granted achievement events). The intended use case is to
-  facilitate generating an achievement dashboard / website.
+* `check-one` and `check-all` now write
+
+  * `{data_dir}/export/achievements.csv` - all enabled achievement rules
+  * `{data_dir}/export/repositories.csv` - configured repository information
+  * `{data_dir}/export/events/{repo_name}.csv` - generated achievement events
+
+  The intended use case is to facilitate generating an achievement dashboard / website.
+
+* Added `RepoConfig::commit_url_prefix` config option. When set, it provides a URL prefix for
+  linking commit hashes to the forge's web UI (e.g., `https://github.com/owner/repo/commit/`). If
+  not set, Herostratus infers it from the clone URL by detecting the forge type of common forges.
 
 ## Changed
 
 * Refactored the achievement processing pipeline. Commits are now analyzed by `Observer`s that emit
-  `Observation`s, which are consumed by `Rule`s that grant achievements. The pipeline now emits
-  `AchievementEvent`s (grants and revocations) instead of just grants, enabling global, revocable
-  achievements like H10 to revoke a previous holder when a new leader emerges.
+  `Observation`s, which are consumed by `Rule`s that grant achievements of different
+  `AchievementKind`s. The pipeline now emits `AchievementEvent`s (grants and revocations) instead of
+  just grants, enabling global, revocable achievements like H10 to revoke a previous holder when a
+  new leader emerges.
+
 * Achievement `Grant`s can now override the achievement name and description with dynamic content
   determined at grant time.
-
-## Deprecated
-
-## Removed
-
-## Fixed
 
 # Herostratus - 0.4.0 - (2026-02-26)
 

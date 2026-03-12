@@ -8,6 +8,7 @@ mod meta_achievements;
 mod pipeline;
 mod pipeline_checkpoint;
 
+pub use export::upsert_repository_csv;
 pub use grant::Grant;
 pub use meta::{AchievementKind, Meta};
 pub use pipeline::{GrantStats, grant};

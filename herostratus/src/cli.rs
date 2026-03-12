@@ -154,6 +154,16 @@ pub struct AddArgs {
     /// configured Git `credential.helper`.
     #[clap(long)]
     pub https_password: Option<String>,
+
+    /// URL prefix for linking to commits on the Git forge's web UI
+    ///
+    /// When set, concatenating this prefix with a commit hash produces a valid link. For example,
+    /// `https://github.com/owner/repo/commit/` concatenated with `abc123`.
+    ///
+    /// If not set, Herostratus will try to infer it from the clone URL by detecting the forge
+    /// type (GitHub, GitLab, Bitbucket, Forgejo, Azure DevOps, SourceHut).
+    #[clap(long, verbatim_doc_comment)]
+    pub commit_url_prefix: Option<String>,
 }
 
 /// Process rules on all cloned repositories

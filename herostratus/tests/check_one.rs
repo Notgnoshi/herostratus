@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use herostratus_tests::cmd::{CommandExt, TestHarness};
 use herostratus_tests::fixtures::repository::Builder;
 
@@ -270,4 +272,114 @@ fn exports_achievements_csv_with_enabled_rules() {
     assert_eq!(&rows[0][1], "fixup");
     assert_eq!(&rows[1][0], "5", "second row should be H5");
     assert_eq!(&rows[1][1], "empty-commit");
+}
+
+/// check-all exports a repositories.csv with per-repo metadata including commit URL prefixes
+/// inferred from URLs or explicitly configured.
+#[test]
+fn exports_repositories_csv_with_commit_url_prefixes() {
+    // All repos share the same underlying git repo (content doesn't matter for this test)
+    let upstream = Builder::new().commit("initial").build().unwrap();
+    let repo_path = upstream.tempdir.path();
+    let file_url = format!("file://{}", repo_path.display());
+
+    let h = TestHarness::new();
+
+    // github-repo: inferred GitHub prefix
+    let mut cmd = h.command();
+    cmd.arg("add")
+        .arg("--name")
+        .arg("github-repo")
+        .arg("--skip-clone")
+        .arg("--path")
+        .arg(repo_path)
+        .arg("https://github.com/owner/repo.git");
+    let output = cmd.captured_output();
+    assert!(output.status.success());
+
+    // gitlab-repo: inferred GitLab prefix
+    let mut cmd = h.command();
+    cmd.arg("add")
+        .arg("--name")
+        .arg("gitlab-repo")
+        .arg("--skip-clone")
+        .arg("--path")
+        .arg(repo_path)
+        .arg("https://gitlab.example.com/owner/repo.git");
+    let output = cmd.captured_output();
+    assert!(output.status.success());
+
+    // explicit-prefix: explicit commit URL prefix
+    let mut cmd = h.command();
+    cmd.arg("add")
+        .arg("--name")
+        .arg("explicit-prefix")
+        .arg("--skip-clone")
+        .arg("--path")
+        .arg(repo_path)
+        .arg("--commit-url-prefix")
+        .arg("https://code.example.com/owner/repo/commit/")
+        .arg("https://code.example.com/owner/repo.git");
+    let output = cmd.captured_output();
+    assert!(output.status.success());
+
+    // local-repo: file:// URL, no prefix inferrable
+    let mut cmd = h.command();
+    cmd.arg("add")
+        .arg("--name")
+        .arg("local-repo")
+        .arg(&file_url);
+    let output = cmd.captured_output();
+    assert!(output.status.success());
+
+    // Enable only H5 and run check-all
+    h.update_config(|c| c.disable("all").enable("H5-empty-commit"));
+    let mut cmd = h.command();
+    cmd.arg("check-all").arg("--no-fetch");
+    let output = cmd.captured_output();
+    assert!(
+        output.status.success(),
+        "check-all failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Read and verify repositories.csv
+    let csv_path = h.path().join("export/repositories.csv");
+    assert!(csv_path.exists(), "repositories.csv should be created");
+
+    let mut reader = csv::Reader::from_path(&csv_path).unwrap();
+    let rows: HashMap<String, csv::StringRecord> = reader
+        .records()
+        .map(|r| {
+            let r = r.unwrap();
+            (r[0].to_string(), r)
+        })
+        .collect();
+
+    assert_eq!(rows.len(), 4, "expected 4 repository rows: {rows:?}");
+
+    // Verify commit URL prefixes
+    assert_eq!(
+        &rows["github-repo"][2],
+        "https://github.com/owner/repo/commit/"
+    );
+    assert_eq!(
+        &rows["gitlab-repo"][2],
+        "https://gitlab.example.com/owner/repo/-/commit/"
+    );
+    assert_eq!(
+        &rows["explicit-prefix"][2],
+        "https://code.example.com/owner/repo/commit/"
+    );
+    assert_eq!(&rows["local-repo"][2], "");
+
+    // All should have commits_checked=1, ref=HEAD, non-empty last_checked
+    for (name, row) in &rows {
+        assert_eq!(&row[3], "HEAD", "{name} should have ref=HEAD");
+        assert_eq!(&row[4], "1", "{name} should have commits_checked=1");
+        assert!(
+            !row[5].is_empty(),
+            "{name} should have non-empty last_checked"
+        );
+    }
 }

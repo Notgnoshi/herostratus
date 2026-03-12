@@ -139,7 +139,11 @@ impl<'repo> Pipeline<'repo> {
         let observer_engine = ObserverEngine::new(repo, observers, mailmap)?;
         let rule_engine = RuleEngine::new(rules);
 
-        let log_path = data_dir.map(|d| d.join("cache").join(repo_name).join("achievements.csv"));
+        let log_path = data_dir.map(|d| {
+            d.join("export")
+                .join("events")
+                .join(format!("{repo_name}.csv"))
+        });
         let achievement_log = AchievementLog::load(log_path.as_deref())?;
 
         let checkpoint = if let Some(dir) = data_dir {
