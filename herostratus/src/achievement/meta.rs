@@ -26,8 +26,10 @@ impl Meta {
     pub fn grant(&self, ctx: &CommitContext) -> Grant {
         Grant {
             commit: ctx.oid,
-            author_name: ctx.author_name.clone(),
-            author_email: ctx.author_email.clone(),
+            user_name: ctx.author_name.clone(),
+            user_email: ctx.author_email.clone(),
+            name_override: None,
+            description_override: None,
         }
     }
 

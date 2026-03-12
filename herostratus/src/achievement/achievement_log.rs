@@ -21,8 +21,8 @@ pub struct AchievementEvent {
     pub achievement_id: String,
     #[serde(with = "object_id_serde")]
     pub commit: gix::ObjectId,
-    pub name: String,
-    pub email: String,
+    pub user_name: String,
+    pub user_email: String,
 }
 
 impl AchievementEvent {
@@ -32,8 +32,8 @@ impl AchievementEvent {
             event: EventKind::Grant,
             achievement_id: meta.human_id.to_string(),
             commit: grant.commit,
-            name: grant.author_name,
-            email: grant.author_email,
+            user_name: grant.user_name,
+            user_email: grant.user_email,
         }
     }
 }
@@ -120,10 +120,10 @@ impl AchievementLog {
         self.events.push(event);
     }
 
-    /// Append a revocation event for the given achievement and author.
+    /// Append a revocation event for the given achievement and user.
     ///
-    /// Copies the commit/author fields from the grant being revoked and sets the timestamp to now.
-    fn record_revocation(&mut self, achievement_id: &str, author_email: &str) {
+    /// Copies the commit/user fields from the grant being revoked and sets the timestamp to now.
+    fn record_revocation(&mut self, achievement_id: &str, user_email: &str) {
         // Find the grant being revoked to copy its fields
         let grant = self
             .events
@@ -132,7 +132,7 @@ impl AchievementLog {
             .find(|e| {
                 e.event == EventKind::Grant
                     && e.achievement_id == achievement_id
-                    && e.email == author_email
+                    && e.user_email == user_email
             })
             .expect("record_revocation called without a matching grant");
 
@@ -141,17 +141,17 @@ impl AchievementLog {
             event: EventKind::Revoke,
             achievement_id: achievement_id.to_string(),
             commit: grant.commit,
-            name: grant.name.clone(),
-            email: grant.email.clone(),
+            user_name: grant.user_name.clone(),
+            user_email: grant.user_email.clone(),
         };
         self.events.push(revoke);
     }
 
-    /// True if there is an active (non-revoked) grant for this achievement and author.
-    fn is_granted_to(&self, achievement_id: &str, author_email: &str) -> bool {
+    /// True if there is an active (non-revoked) grant for this achievement and user.
+    fn is_granted_to(&self, achievement_id: &str, user_email: &str) -> bool {
         let mut granted = false;
         for event in &self.events {
-            if event.achievement_id != achievement_id || event.email != author_email {
+            if event.achievement_id != achievement_id || event.user_email != user_email {
                 continue;
             }
             match event.event {
@@ -162,7 +162,7 @@ impl AchievementLog {
         granted
     }
 
-    /// The most recent non-revoked grant event for this achievement (any author).
+    /// The most recent non-revoked grant event for this achievement (any user).
     fn current_holder(&self, achievement_id: &str) -> Option<&AchievementEvent> {
         // Find the most recent grant that hasn't been revoked.
         // For Global achievements, there should be at most one active holder.
@@ -173,7 +173,7 @@ impl AchievementLog {
             }
             match event.event {
                 EventKind::Grant => holder = Some(event),
-                EventKind::Revoke if holder.is_some_and(|h| h.email == event.email) => {
+                EventKind::Revoke if holder.is_some_and(|h| h.user_email == event.user_email) => {
                     holder = None;
                 }
                 EventKind::Revoke => {}
@@ -182,7 +182,7 @@ impl AchievementLog {
         holder
     }
 
-    /// All grant events that have no subsequent revocation for the same achievement+author.
+    /// All grant events that have no subsequent revocation for the same achievement+user.
     pub fn active_grants(&self) -> impl Iterator<Item = &AchievementEvent> {
         // Collect active grants by scanning all events
         let mut active: Vec<&AchievementEvent> = Vec::new();
@@ -191,7 +191,8 @@ impl AchievementLog {
                 EventKind::Grant => active.push(event),
                 EventKind::Revoke => {
                     active.retain(|g| {
-                        !(g.achievement_id == event.achievement_id && g.email == event.email)
+                        !(g.achievement_id == event.achievement_id
+                            && g.user_email == event.user_email)
                     });
                 }
             }
@@ -206,7 +207,7 @@ impl AchievementLog {
     pub fn resolve(&mut self, meta: &Meta, grant: Grant) -> Option<Resolution> {
         match meta.kind {
             AchievementKind::PerUser { recurrent: false } => {
-                if self.is_granted_to(meta.human_id, &grant.author_email) {
+                if self.is_granted_to(meta.human_id, &grant.user_email) {
                     return None;
                 }
                 let event = AchievementEvent::from_meta_and_grant(meta, grant);
@@ -237,12 +238,12 @@ impl AchievementLog {
             }
             AchievementKind::Global { revocable: true } => {
                 if let Some(holder) = self.current_holder(meta.human_id) {
-                    if holder.email == grant.author_email {
-                        // Same author already holds it -- skip
+                    if holder.user_email == grant.user_email {
+                        // Same user already holds it -- skip
                         return None;
                     }
-                    // Different author -- revoke the previous holder, grant to new
-                    let prev_email = holder.email.clone();
+                    // Different user -- revoke the previous holder, grant to new
+                    let prev_email = holder.user_email.clone();
                     self.record_revocation(meta.human_id, &prev_email);
                     let revoke_event = self.events.last().cloned().unwrap();
 
@@ -310,8 +311,10 @@ mod tests {
     fn test_grant(oid: gix::ObjectId, name: &str, email: &str) -> Grant {
         Grant {
             commit: oid,
-            author_name: name.to_string(),
-            author_email: email.to_string(),
+            user_name: name.to_string(),
+            user_email: email.to_string(),
+            name_override: None,
+            description_override: None,
         }
     }
 
@@ -321,8 +324,8 @@ mod tests {
             event: kind,
             achievement_id: achievement_id.to_string(),
             commit: test_oid(0xAA),
-            name: "Test".to_string(),
-            email: email.to_string(),
+            user_name: "Test".to_string(),
+            user_email: email.to_string(),
         }
     }
 
@@ -349,8 +352,8 @@ mod tests {
         assert_eq!(loaded.events.len(), 3);
         assert_eq!(loaded.events[0].event, EventKind::Grant);
         assert_eq!(loaded.events[0].achievement_id, "fixup");
-        assert_eq!(loaded.events[0].email, "alice@example.com");
-        assert_eq!(loaded.events[1].email, "bob@example.com");
+        assert_eq!(loaded.events[0].user_email, "alice@example.com");
+        assert_eq!(loaded.events[1].user_email, "bob@example.com");
         assert_eq!(loaded.events[2].event, EventKind::Revoke);
 
         // Verify ObjectId round-tripped correctly
@@ -426,7 +429,7 @@ mod tests {
         // Grant to alice
         log.record_grant(test_event("fixup", "alice@example.com", EventKind::Grant));
         let holder = log.current_holder("fixup").unwrap();
-        assert_eq!(holder.email, "alice@example.com");
+        assert_eq!(holder.user_email, "alice@example.com");
 
         // Revoke alice
         log.record_revocation("fixup", "alice@example.com");
@@ -435,7 +438,7 @@ mod tests {
         // Grant to bob
         log.record_grant(test_event("fixup", "bob@example.com", EventKind::Grant));
         let holder = log.current_holder("fixup").unwrap();
-        assert_eq!(holder.email, "bob@example.com");
+        assert_eq!(holder.user_email, "bob@example.com");
     }
 
     #[test]
@@ -454,12 +457,12 @@ mod tests {
         assert!(
             active
                 .iter()
-                .any(|e| e.achievement_id == "b" && e.email == "bob@example.com")
+                .any(|e| e.achievement_id == "b" && e.user_email == "bob@example.com")
         );
         assert!(
             active
                 .iter()
-                .any(|e| e.achievement_id == "a" && e.email == "carol@example.com")
+                .any(|e| e.achievement_id == "a" && e.user_email == "carol@example.com")
         );
     }
 
@@ -474,7 +477,7 @@ mod tests {
         assert!(res.is_some());
         let res = res.unwrap();
         assert!(res.revoke.is_none());
-        assert_eq!(res.grant.email, "alice@example.com");
+        assert_eq!(res.grant.user_email, "alice@example.com");
 
         // Second grant to same user is suppressed
         let grant = test_grant(test_oid(2), "Alice", "alice@example.com");
@@ -532,7 +535,7 @@ mod tests {
         let grant = test_grant(test_oid(1), "Alice", "alice@example.com");
         let res = log.resolve(&meta, grant).unwrap();
         assert!(res.revoke.is_none());
-        assert_eq!(res.grant.email, "alice@example.com");
+        assert_eq!(res.grant.user_email, "alice@example.com");
 
         // Same user is skipped (already holds it)
         let grant = test_grant(test_oid(2), "Alice", "alice@example.com");
@@ -545,7 +548,7 @@ mod tests {
         assert!(res.revoke.is_some());
         let revoke = res.revoke.unwrap();
         assert_eq!(revoke.event, EventKind::Revoke);
-        assert_eq!(revoke.email, "alice@example.com");
-        assert_eq!(res.grant.email, "bob@example.com");
+        assert_eq!(revoke.user_email, "alice@example.com");
+        assert_eq!(res.grant.user_email, "bob@example.com");
     }
 }

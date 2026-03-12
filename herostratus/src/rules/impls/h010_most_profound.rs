@@ -74,8 +74,10 @@ impl Rule for MostProfound {
         };
         Ok(Some(Grant {
             commit: gix::ObjectId::null(gix::hash::Kind::Sha1),
-            author_name: name.clone(),
-            author_email: email.clone(),
+            user_name: name.clone(),
+            user_email: email.clone(),
+            name_override: None,
+            description_override: None,
         }))
     }
 
@@ -119,7 +121,7 @@ mod tests {
         let grant = rule.finalize().unwrap();
         assert!(grant.is_some());
         let grant = grant.unwrap();
-        assert_eq!(grant.author_email, "alice@example.com");
+        assert_eq!(grant.user_email, "alice@example.com");
     }
 
     #[test]
@@ -184,11 +186,11 @@ mod tests {
 
         let grant = rule2.finalize().unwrap().unwrap();
         assert_eq!(
-            grant.author_email, "alice@example.com",
+            grant.user_email, "alice@example.com",
             "Alice (cached count 5) should beat Bob (count 2)"
         );
         assert_eq!(
-            grant.author_name, "Alice",
+            grant.user_name, "Alice",
             "leader name should survive cache round-trip"
         );
     }

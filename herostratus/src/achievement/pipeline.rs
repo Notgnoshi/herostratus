@@ -71,6 +71,10 @@ fn run_grant(
         }
     });
 
+    if let Some(data_dir) = data_dir {
+        super::export::write_achievements_csv(data_dir, &rules)?;
+    }
+
     let pipeline = Pipeline::new(repo, rules, mailmap, data_dir, name)?;
 
     if let Some(depth) = depth {
@@ -293,20 +297,23 @@ impl<'repo> Pipeline<'repo> {
     ) -> u64 {
         let mut count = 0;
         for output in outputs {
+            let name_override = output.grant.name_override.clone();
+            let description_override = output.grant.description_override.clone();
             if let Some(resolution) = self.achievement_log.resolve(&output.meta, output.grant) {
                 if let Some(ref revoke) = resolution.revoke {
                     let achievement = Achievement {
                         descriptor_id: output.meta.id,
                         human_id: output.meta.human_id,
-                        name: output.meta.name,
+                        name: output.meta.name.to_string(),
+                        description: output.meta.description.to_string(),
                         commit: revoke.commit,
-                        author_name: revoke.name.clone(),
-                        author_email: revoke.email.clone(),
+                        user_name: revoke.user_name.clone(),
+                        user_email: revoke.user_email.clone(),
                     };
                     tracing::info!(
                         "revoked achievement: {:?} from {}",
                         achievement.name,
-                        achievement.author_email
+                        achievement.user_email
                     );
                     on_event(AchievementEvent::Revoke(achievement));
                 }
@@ -314,15 +321,17 @@ impl<'repo> Pipeline<'repo> {
                 let achievement = Achievement {
                     descriptor_id: output.meta.id,
                     human_id: output.meta.human_id,
-                    name: output.meta.name,
+                    name: name_override.unwrap_or_else(|| output.meta.name.to_string()),
+                    description: description_override
+                        .unwrap_or_else(|| output.meta.description.to_string()),
                     commit: resolution.grant.commit,
-                    author_name: resolution.grant.name,
-                    author_email: resolution.grant.email,
+                    user_name: resolution.grant.user_name,
+                    user_email: resolution.grant.user_email,
                 };
                 tracing::info!(
                     "granted achievement: {:?} to {:?} for commit {}",
                     achievement.name,
-                    achievement.author_name,
+                    achievement.user_name,
                     achievement.commit
                 );
                 on_event(AchievementEvent::Grant(achievement));
@@ -595,7 +604,7 @@ mod tests {
             .filter(|a| a.descriptor_id == 7)
             .collect();
         assert_eq!(h7.len(), 1, "expected exactly one H7 grant: {h7:?}");
-        assert_eq!(h7[0].author_email, "bob@example.com");
+        assert_eq!(h7[0].user_email, "bob@example.com");
 
         // H8 (PerUser{recurrent:false}): one grant per author
         let h8: Vec<_> = achievements
@@ -603,7 +612,7 @@ mod tests {
             .filter(|a| a.descriptor_id == 8)
             .collect();
         assert_eq!(h8.len(), 2, "expected one H8 per author: {h8:?}");
-        let h8_emails: HashSet<_> = h8.iter().map(|a| a.author_email.as_str()).collect();
+        let h8_emails: HashSet<_> = h8.iter().map(|a| a.user_email.as_str()).collect();
         assert!(h8_emails.contains("alice@example.com"));
         assert!(h8_emails.contains("bob@example.com"));
 
@@ -613,7 +622,7 @@ mod tests {
             .filter(|a| a.descriptor_id == 9)
             .collect();
         assert_eq!(h9.len(), 1, "expected one H9 grant at threshold 5: {h9:?}");
-        assert_eq!(h9[0].author_email, "alice@example.com");
+        assert_eq!(h9[0].user_email, "alice@example.com");
 
         // H10 (Global{revocable:true}): Alice is the most profane at finalize
         let h10: Vec<_> = achievements
@@ -621,7 +630,7 @@ mod tests {
             .filter(|a| a.descriptor_id == 10)
             .collect();
         assert_eq!(h10.len(), 1, "expected one H10 grant: {h10:?}");
-        assert_eq!(h10[0].author_email, "alice@example.com");
+        assert_eq!(h10[0].user_email, "alice@example.com");
 
         assert_eq!(stats.num_commits_processed, 6);
     }
@@ -741,7 +750,7 @@ mod tests {
             .filter(|a| a.descriptor_id == 8)
             .collect();
         assert_eq!(h8.len(), 1, "expected one H8 for Bob in run 2: {h8:?}");
-        assert_eq!(h8[0].author_email, "bob@example.com");
+        assert_eq!(h8[0].user_email, "bob@example.com");
 
         // H9 (PerUser{recurrent:true}): Bob hits thresholds 5 and 10
         let h9: Vec<_> = achievements2
@@ -753,7 +762,7 @@ mod tests {
             2,
             "expected two H9 grants (thresholds 5 and 10): {h9:?}"
         );
-        assert!(h9.iter().all(|a| a.author_email == "bob@example.com"));
+        assert!(h9.iter().all(|a| a.user_email == "bob@example.com"));
 
         // H10 (Global{revocable:true}): Bob supersedes Alice (10 > 3)
         // Alice's H10 is revoked, then Bob gets the grant
@@ -765,14 +774,14 @@ mod tests {
             })
             .collect();
         assert_eq!(revokes.len(), 1, "expected one H10 revocation: {revokes:?}");
-        assert_eq!(revokes[0].author_email, "alice@example.com");
+        assert_eq!(revokes[0].user_email, "alice@example.com");
 
         let h10: Vec<_> = achievements2
             .iter()
             .filter(|a| a.descriptor_id == 10)
             .collect();
         assert_eq!(h10.len(), 1, "expected H10 for Bob in run 2: {h10:?}");
-        assert_eq!(h10[0].author_email, "bob@example.com");
+        assert_eq!(h10[0].user_email, "bob@example.com");
     }
 
     #[test]

@@ -34,8 +34,8 @@ const META: Meta = Meta {
 struct Token {
     token: String,
     source_oid: String,
-    author_name: String,
-    author_email: String,
+    user_name: String,
+    user_email: String,
     /// Index into `visited_oids`. Commits at indices `0..future_oid_cutoff` are descendants
     /// (future commits) of this token's source commit. The source commit itself is at
     /// `visited_oids[future_oid_cutoff]`, excluded from the search.
@@ -46,8 +46,8 @@ struct Token {
 struct CachedToken {
     token: String,
     source_oid: String,
-    author_name: String,
-    author_email: String,
+    user_name: String,
+    user_email: String,
 }
 
 #[derive(Default, Clone, serde::Deserialize, serde::Serialize)]
@@ -121,8 +121,8 @@ impl Rule for FortuneTeller {
             self.tokens.push(Token {
                 token: token.clone(),
                 source_oid: ctx.oid.to_string(),
-                author_name: ctx.author_name.clone(),
-                author_email: ctx.author_email.clone(),
+                user_name: ctx.author_name.clone(),
+                user_email: ctx.author_email.clone(),
                 future_oid_cutoff: self.visited_oids.len() - 1,
             });
         }
@@ -143,8 +143,10 @@ impl Rule for FortuneTeller {
                     return Ok(Some(Grant {
                         commit: gix::ObjectId::from_hex(token.source_oid.as_bytes())
                             .unwrap_or_else(|_| gix::ObjectId::null(gix::hash::Kind::Sha1)),
-                        author_name: token.author_name.clone(),
-                        author_email: token.author_email.clone(),
+                        user_name: token.user_name.clone(),
+                        user_email: token.user_email.clone(),
+                        name_override: None,
+                        description_override: None,
                     }));
                 }
             }
@@ -158,8 +160,8 @@ impl Rule for FortuneTeller {
             self.tokens.push(Token {
                 token: ct.token,
                 source_oid: ct.source_oid,
-                author_name: ct.author_name,
-                author_email: ct.author_email,
+                user_name: ct.user_name,
+                user_email: ct.user_email,
                 future_oid_cutoff: usize::MAX,
             });
         }
@@ -180,16 +182,14 @@ impl Rule for FortuneTeller {
             .map(|t| CachedToken {
                 token: t.token.clone(),
                 source_oid: t.source_oid.clone(),
-                author_name: t.author_name.clone(),
-                author_email: t.author_email.clone(),
+                user_name: t.user_name.clone(),
+                user_email: t.user_email.clone(),
             })
             .collect::<Vec<_>>();
 
         let size_bytes: usize = tokens
             .iter()
-            .map(|t| {
-                t.token.len() + t.source_oid.len() + t.author_name.len() + t.author_email.len()
-            })
+            .map(|t| t.token.len() + t.source_oid.len() + t.user_name.len() + t.user_email.len())
             .sum();
         tracing::info!(
             "fortune-teller cache: {} orphan tokens, ~{} bytes",
@@ -236,8 +236,8 @@ mod tests {
         let grant = rule.finalize().unwrap();
         assert!(grant.is_some());
         let grant = grant.unwrap();
-        assert_eq!(grant.author_name, "Alice");
-        assert_eq!(grant.author_email, "alice@example.com");
+        assert_eq!(grant.user_name, "Alice");
+        assert_eq!(grant.user_email, "alice@example.com");
     }
 
     #[test]
@@ -344,8 +344,8 @@ mod tests {
             tokens: vec![CachedToken {
                 token: "abcdef1".to_string(),
                 source_oid: format!("{:0<40}", "2222222222"),
-                author_name: "Alice".to_string(),
-                author_email: "alice@example.com".to_string(),
+                user_name: "Alice".to_string(),
+                user_email: "alice@example.com".to_string(),
             }],
         };
         rule.init_cache(cache);
@@ -357,8 +357,8 @@ mod tests {
         let grant = rule.finalize().unwrap();
         assert!(grant.is_some());
         let grant = grant.unwrap();
-        assert_eq!(grant.author_name, "Alice");
-        assert_eq!(grant.author_email, "alice@example.com");
+        assert_eq!(grant.user_name, "Alice");
+        assert_eq!(grant.user_email, "alice@example.com");
     }
 
     #[test]

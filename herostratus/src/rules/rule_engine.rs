@@ -243,7 +243,7 @@ mod tests {
         let outputs = commit_cycle(&mut engine, &[Observation::Dummy]);
         assert_eq!(outputs.len(), 1);
         assert_eq!(outputs[0].meta.id, 100);
-        assert_eq!(outputs[0].grant.author_email, "test@example.com");
+        assert_eq!(outputs[0].grant.user_email, "test@example.com");
     }
 
     #[test]

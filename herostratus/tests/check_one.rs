@@ -219,3 +219,55 @@ fn check_one_unknown_repo() {
         "Should list available repo names: {stderr}"
     );
 }
+
+/// check-one writes an achievements.csv catalog to the export directory containing only the
+/// enabled rules, sorted by ID.
+#[test]
+fn exports_achievements_csv_with_enabled_rules() {
+    let upstream = Builder::new().commit("initial").build().unwrap();
+    let url = format!("file://{}", upstream.tempdir.path().display());
+
+    let h = TestHarness::new();
+    let mut cmd = h.command();
+    cmd.arg("add").arg("--name").arg("export-test").arg(&url);
+    let output = cmd.captured_output();
+    assert!(output.status.success());
+
+    // Enable only H1 (fixup) and H5 (empty-commit)
+    h.update_config(|c| {
+        c.disable("all")
+            .enable("H1-fixup")
+            .enable("H5-empty-commit")
+    });
+
+    let mut cmd = h.command();
+    cmd.arg("check-one").arg("--no-fetch").arg("export-test");
+    let output = cmd.captured_output();
+    assert!(
+        output.status.success(),
+        "check-one failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Verify the catalog CSV was written
+    let csv_path = h.path().join("export/achievements.csv");
+    assert!(csv_path.exists(), "achievements.csv should be created");
+
+    let mut reader = csv::Reader::from_path(&csv_path).unwrap();
+    let rows: Vec<csv::StringRecord> = reader.records().map(|r| r.unwrap()).collect();
+
+    // Should contain exactly the 2 enabled rules
+    assert_eq!(
+        rows.len(),
+        2,
+        "expected 2 rows (H1 + H5), got {}: {:?}",
+        rows.len(),
+        rows
+    );
+
+    // Rows should be sorted by ID, H1 first then H5
+    assert_eq!(&rows[0][0], "1", "first row should be H1");
+    assert_eq!(&rows[0][1], "fixup");
+    assert_eq!(&rows[1][0], "5", "second row should be H5");
+    assert_eq!(&rows[1][1], "empty-commit");
+}
