@@ -43,6 +43,7 @@ Each achievement has a **kind** that controls how it is granted and whether it c
   * Example of a Global rule (first person wins permanently)
 * `H9-like-a-sailor`
   * Example of a Per-user, repeatable rule (grants at milestone thresholds)
+  * Example of a dynamic achievement name
 * `H10-most-profound`
   * Example of a Global, revocable rule (new leader supersedes previous holder)
 * `H11-achievement-farmer`

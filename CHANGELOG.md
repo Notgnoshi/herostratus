@@ -37,10 +37,12 @@ focus on the user impact** rather than the actual changes made.
 
 ## Changed
 
-Refactored the achievement processing pipeline. Commits are now analyzed by `Observer`s that emit
-`Observation`s, which are consumed by `Rule`s that grant achievements. The pipeline now emits
-`AchievementEvent`s (grants and revocations) instead of just grants, enabling global, revocable
-achievements like H10 to revoke a previous holder when a new leader emerges.
+* Refactored the achievement processing pipeline. Commits are now analyzed by `Observer`s that emit
+  `Observation`s, which are consumed by `Rule`s that grant achievements. The pipeline now emits
+  `AchievementEvent`s (grants and revocations) instead of just grants, enabling global, revocable
+  achievements like H10 to revoke a previous holder when a new leader emerges.
+* Achievement `Grant`s can now override the achievement name and description with dynamic content
+  determined at grant time.
 
 ## Deprecated
 

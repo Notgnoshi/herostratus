@@ -14,8 +14,6 @@ const META: Meta = Meta {
     kind: AchievementKind::PerUser { recurrent: true },
 };
 
-// TODO: It would be best to have the thresholds defined in the Meta, and include them in the
-// generated AchievementEvents
 const THRESHOLDS: &[usize] = &[5, 10, 25, 100];
 
 /// Grant an achievement when a user hits profanity count milestones.
@@ -49,7 +47,10 @@ impl Rule for LikeASailor {
         *count += 1;
 
         if THRESHOLDS.contains(count) {
-            Ok(Some(META.grant(ctx)))
+            Ok(Some(
+                META.grant(ctx)
+                    .with_name(format!("{} ({})", META.name, count)),
+            ))
         } else {
             Ok(None)
         }
@@ -120,6 +121,30 @@ mod tests {
         // Bob's 5th should also trigger
         let grant = rule.process(&bob, &profanity()).unwrap();
         assert!(grant.is_some());
+    }
+
+    #[test]
+    fn grant_has_dynamic_name_with_count() {
+        let mut rule = LikeASailor::default();
+        let ctx = CommitContext::test("Alice");
+        let mut grant = None;
+        for i in 1..=6 {
+            let g = rule.process(&ctx, &profanity()).unwrap();
+
+            if i == 5 {
+                assert!(g.is_some(), "granted on profanity #5");
+            } else {
+                assert!(g.is_none(), "not granted on profanity #{i}");
+            }
+            if g.is_some() {
+                grant = g;
+            }
+        }
+        let grant = grant.expect("expected grant at threshold 5");
+        assert_eq!(
+            grant.name_override.as_deref(),
+            Some("Swears Like a Sailor (5)")
+        );
     }
 
     #[test]
