@@ -71,6 +71,10 @@ fn run_grant(
         }
     });
 
+    if let Some(data_dir) = data_dir {
+        super::export::write_achievements_csv(data_dir, &rules)?;
+    }
+
     let pipeline = Pipeline::new(repo, rules, mailmap, data_dir, name)?;
 
     if let Some(depth) = depth {

@@ -1,6 +1,7 @@
 //! The API that defines an achievement, and its parsing rules
 
 mod achievement_log;
+mod export;
 mod grant;
 mod meta;
 mod meta_achievements;
