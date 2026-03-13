@@ -187,8 +187,10 @@ mod tests {
     fn rule_descriptors_increment_from_one_with_no_misses() {
         let rules = builtin_rules_all();
         let mut ids: Vec<_> = rules.iter().map(|r| r.meta().id).collect();
-        // H11 is a meta achievement that's not a RulePlugin
-        ids.push(11);
+        // Meta achievements are not RulePlugins, but their IDs must not collide
+        for meta in crate::achievement::meta_achievement_metas() {
+            ids.push(meta.id);
+        }
         ids.sort();
 
         assert!(!ids.is_empty());

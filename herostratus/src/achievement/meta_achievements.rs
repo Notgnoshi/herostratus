@@ -19,6 +19,15 @@ const ACHIEVEMENT_FARMER: Meta = Meta {
     kind: AchievementKind::Global { revocable: true },
 };
 
+/// Return the [Meta] for each meta-achievement.
+///
+/// Meta-achievements are not registered via the [inventory] crate like regular
+/// [RulePlugin](crate::rules::RulePlugin)s, so this function provides their metadata for catalog
+/// listings and exports.
+pub fn meta_achievement_metas() -> Vec<Meta> {
+    vec![ACHIEVEMENT_FARMER.clone()]
+}
+
 /// Evaluate all meta-achievements against the full achievement log.
 ///
 /// Meta-achievements are a single-pass post-processing step that runs after all rules have

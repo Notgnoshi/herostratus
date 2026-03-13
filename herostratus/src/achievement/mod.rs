@@ -11,6 +11,7 @@ mod pipeline_checkpoint;
 pub use export::upsert_repository_csv;
 pub use grant::Grant;
 pub use meta::{AchievementKind, Meta};
+pub use meta_achievements::meta_achievement_metas;
 pub use pipeline::{GrantStats, grant};
 
 #[derive(Debug)]

@@ -258,20 +258,22 @@ fn exports_achievements_csv_with_enabled_rules() {
     let mut reader = csv::Reader::from_path(&csv_path).unwrap();
     let rows: Vec<csv::StringRecord> = reader.records().map(|r| r.unwrap()).collect();
 
-    // Should contain exactly the 2 enabled rules
+    // Should contain the 2 enabled rules plus meta-achievements
     assert_eq!(
         rows.len(),
-        2,
-        "expected 2 rows (H1 + H5), got {}: {:?}",
+        3,
+        "expected 3 rows (H1 + H5 + H11), got {}: {:?}",
         rows.len(),
         rows
     );
 
-    // Rows should be sorted by ID, H1 first then H5
+    // Rows should be sorted by ID
     assert_eq!(&rows[0][0], "1", "first row should be H1");
     assert_eq!(&rows[0][1], "fixup");
     assert_eq!(&rows[1][0], "5", "second row should be H5");
     assert_eq!(&rows[1][1], "empty-commit");
+    assert_eq!(&rows[2][0], "11", "third row should be H11");
+    assert_eq!(&rows[2][1], "achievement-farmer");
 }
 
 /// check-all exports a repositories.csv with per-repo metadata including commit URL prefixes

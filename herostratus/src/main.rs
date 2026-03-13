@@ -31,10 +31,11 @@ fn main() -> eyre::Result<()> {
 
     if args.list_rules {
         let rules = herostratus::rules::builtin_rules_all();
-        let mut metas: Vec<_> = rules.iter().map(|r| r.meta()).collect();
+        let mut metas: Vec<_> = rules.iter().map(|r| r.meta().clone()).collect();
+        metas.extend(herostratus::achievement::meta_achievement_metas());
 
         metas.sort_by_key(|m| m.id);
-        for meta in metas {
+        for meta in &metas {
             println!(
                 "{:25}\t{}",
                 format!("H{}-{}", meta.id, meta.human_id),

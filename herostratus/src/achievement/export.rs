@@ -49,6 +49,17 @@ pub fn write_achievements_csv(data_dir: &Path, rules: &[Box<dyn RulePlugin>]) ->
             }
         })
         .collect();
+
+    for meta in super::meta_achievements::meta_achievement_metas() {
+        rows.push(AchievementRow {
+            id: meta.id,
+            human_id: meta.human_id,
+            name: meta.name,
+            description: meta.description,
+            kind: kind_label(&meta.kind),
+        });
+    }
+
     rows.sort_by_key(|r| r.id);
 
     let mut writer = csv::Writer::from_path(&path)?;
@@ -140,6 +151,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let rules = builtin_rules(&RulesConfig::default());
         let num_rules = rules.len();
+        let num_meta = super::super::meta_achievements::meta_achievement_metas().len();
 
         write_achievements_csv(dir.path(), &rules).unwrap();
 
@@ -148,7 +160,7 @@ mod tests {
 
         let mut reader = csv::Reader::from_path(&path).unwrap();
         let rows: Vec<csv::StringRecord> = reader.records().map(|r| r.unwrap()).collect();
-        assert_eq!(rows.len(), num_rules);
+        assert_eq!(rows.len(), num_rules + num_meta);
 
         // Rows are sorted by ID
         assert_eq!(&rows[0][0], "1");
