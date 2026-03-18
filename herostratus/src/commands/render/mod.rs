@@ -1,4 +1,5 @@
 mod data;
+mod users;
 
 use crate::cli::RenderArgs;
 
@@ -15,12 +16,14 @@ pub fn render(args: &RenderArgs) -> eyre::Result<()> {
     let achievements = data::load_achievements(&args.export_dir)?;
     let repositories = data::load_repositories(&args.export_dir)?;
     let events = data::load_events(&args.export_dir)?;
+    let users = users::derive_users(&events);
 
     let total_events: usize = events.values().map(|v| v.len()).sum();
     tracing::info!(
         achievements = achievements.len(),
         repositories = repositories.len(),
         event_files = events.len(),
+        users = users.len(),
         total_events,
         "Loaded export data"
     );
