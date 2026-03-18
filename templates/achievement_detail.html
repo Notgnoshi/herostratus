@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}{{ achievement.name }} - {{ site_title }}{% endblock %}
+
+{% block content %}
+<h1>{{ achievement.name }}</h1>
+<p>{{ achievement.description }}</p>
+<p>Kind: {{ achievement.kind }}</p>
+<p>Total grants: {{ achievement.total_grants }} | Unique holders: {{ achievement.unique_holders }}</p>
+
+{% if achievement.kind == "global-revocable" %}
+<h2>Current Holders</h2>
+{% if achievement.holders %}
+<table>
+    <tr>
+        <th>User</th>
+        <th>Repository</th>
+        <th>Commit</th>
+        <th>Date</th>
+    </tr>
+    {% for holder in achievement.holders %}
+    <tr>
+        <td><a href="user/{{ holder.user_slug }}.html">{{ holder.user_name }}</a></td>
+        <td><a href="repo/{{ holder.repo_name }}.html">{{ holder.repo_name }}</a></td>
+        <td>{{ holder.commit[:12] }}</td>
+        <td>{{ holder.timestamp }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% else %}
+<p>No one currently holds this achievement.</p>
+{% endif %}
+
+<h2>History</h2>
+{% if achievement.history %}
+<table>
+    <tr>
+        <th>Time</th>
+        <th>Event</th>
+        <th>User</th>
+        <th>Repository</th>
+        <th>Commit</th>
+    </tr>
+    {% for entry in achievement.history %}
+    <tr>
+        <td>{{ entry.timestamp }}</td>
+        <td>{{ entry.event }}</td>
+        <td><a href="user/{{ entry.user_slug }}.html">{{ entry.user_name }}</a></td>
+        <td><a href="repo/{{ entry.repo_name }}.html">{{ entry.repo_name }}</a></td>
+        <td>{{ entry.commit[:12] }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% else %}
+<p>No history.</p>
+{% endif %}
+{% else %}
+<h2>Holders</h2>
+{% if achievement.holders %}
+<table>
+    <tr>
+        <th>User</th>
+        <th>Repository</th>
+        <th>Commit</th>
+        <th>Date</th>
+    </tr>
+    {% for holder in achievement.holders %}
+    <tr>
+        <td><a href="user/{{ holder.user_slug }}.html">{{ holder.user_name }}</a></td>
+        <td><a href="repo/{{ holder.repo_name }}.html">{{ holder.repo_name }}</a></td>
+        <td>{{ holder.commit[:12] }}</td>
+        <td>{{ holder.timestamp }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% else %}
+<p>No one holds this achievement.</p>
+{% endif %}
+{% endif %}
+{% endblock %}

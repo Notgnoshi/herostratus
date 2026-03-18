@@ -60,6 +60,34 @@ pub fn render(args: &RenderArgs) -> eyre::Result<()> {
         &args.output_dir.join("index.html"),
     )?;
 
+    // Render achievements.html
+    render_page(
+        &env,
+        "achievements.html",
+        minijinja::context! {
+            site_title => &args.site_title,
+            base_url => &args.base_url,
+            achievements => &site.achievements,
+        },
+        &args.output_dir.join("achievements.html"),
+    )?;
+
+    // Render achievement detail pages
+    for achievement in &site.achievements {
+        render_page(
+            &env,
+            "achievement_detail.html",
+            minijinja::context! {
+                site_title => &args.site_title,
+                base_url => &args.base_url,
+                achievement => achievement,
+            },
+            &args
+                .output_dir
+                .join(format!("achievement/{}.html", achievement.human_id)),
+        )?;
+    }
+
     tracing::info!(
         output_dir = %args.output_dir.display(),
         "Site rendered"
