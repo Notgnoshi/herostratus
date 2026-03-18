@@ -33,6 +33,7 @@ directories.workspace = true
 eyre.workspace = true
 gix.workspace = true
 inventory.workspace = true
+minijinja.workspace = true
 rayon.workspace = true
 serde.workspace = true
 serde_json.workspace = true

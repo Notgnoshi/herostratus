@@ -7,7 +7,6 @@ use tempfile::TempDir;
 
 // I'm using cargo_bin to discovery a binary provided by another crate in the workspace. That's not
 // something the suggested cargo_bin! replacement supports.
-#[expect(deprecated)]
 static HEROSTRATUS: LazyLock<PathBuf> =
     LazyLock::new(|| assert_cmd::cargo::cargo_bin("herostratus"));
 
@@ -50,12 +49,20 @@ impl TestHarness {
     }
 
     /// Create a [assert_cmd::Command] for the herostratus binary with standard test arguments
+    ///
+    /// Includes --color, --log-level=DEBUG, and --data-dir pointing to the harness temp directory.
     pub fn command(&self) -> assert_cmd::Command {
+        let mut cmd = Self::stateless_command();
+        cmd.arg("--data-dir").arg(self.path());
+        cmd
+    }
+
+    /// Create a [assert_cmd::Command] with --color and --log-level=DEBUG but no --data-dir
+    ///
+    /// Use this for subcommands that do not need the global --data-dir flag (e.g., `render`).
+    pub fn stateless_command() -> assert_cmd::Command {
         let mut cmd = assert_cmd::Command::new(&*HEROSTRATUS);
-        cmd.arg("--color")
-            .arg("--log-level=DEBUG")
-            .arg("--data-dir")
-            .arg(self.path());
+        cmd.arg("--color").arg("--log-level=DEBUG");
         cmd
     }
 }

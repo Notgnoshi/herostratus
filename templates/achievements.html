@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Achievements - {{ site_title }}{% endblock %}
+
+{% block content %}
+<h1>Achievements</h1>
+
+{% if achievements %}
+<table>
+    <tr>
+        <th>ID</th>
+        <th>Name</th>
+        <th>Description</th>
+        <th>Kind</th>
+        <th>Holders</th>
+    </tr>
+    {% for a in achievements %}
+    <tr>
+        <td>{{ a.id }}</td>
+        <td><a href="{{ root }}achievement/{{ a.human_id }}.html">{{ a.name }}</a></td>
+        <td>{{ a.description }}</td>
+        <td>{{ a.kind }}</td>
+        <td>{{ a.unique_holders }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% else %}
+<p>No achievements defined.</p>
+{% endif %}
+{% endblock %}

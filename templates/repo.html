@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}{{ repo.name }} - {{ site_title }}{% endblock %}
+
+{% block content %}
+<h1>{{ repo.name }}</h1>
+<p><a href="{{ repo.url }}">{{ repo.url }}</a></p>
+<p>Branch: {{ repo.reference }} | Commits checked: {{ repo.commits_checked }} | Achievements: {{ repo.total_achievements }} | Contributors: {{ repo.unique_achievers }}</p>
+
+<h2>Achievement Summary</h2>
+{% if repo.achievement_summary %}
+<table>
+    <tr>
+        <th>Achievement</th>
+        <th>Grants</th>
+    </tr>
+    {% for entry in repo.achievement_summary %}
+    <tr>
+        <td><a href="{{ root }}achievement/{{ entry.achievement_human_id }}.html">{{ entry.achievement_name }}</a></td>
+        <td>{{ entry.grant_count }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% else %}
+<p>No achievements granted.</p>
+{% endif %}
+
+<h2>Timeline</h2>
+{% if repo.events %}
+<table>
+    <tr>
+        <th>Time</th>
+        <th>Event</th>
+        <th>Achievement</th>
+        <th>User</th>
+        <th>Commit</th>
+    </tr>
+    {% for entry in repo.events %}
+    <tr>
+        <td>{{ entry.timestamp }}</td>
+        <td>{{ entry.event }}</td>
+        <td><a href="{{ root }}achievement/{{ entry.achievement_human_id }}.html">{{ entry.achievement_name }}</a></td>
+        <td><a href="{{ root }}user/{{ entry.user_slug }}.html">{{ entry.user_name }}</a></td>
+        {% if repo.commit_url_prefix and entry.commit != "0000000000000000000000000000000000000000" %}
+        <td><a href="{{ repo.commit_url_prefix }}{{ entry.commit }}">{{ entry.commit[:12] }}</a></td>
+        {% else %}
+        <td>{{ entry.commit[:12] }}</td>
+        {% endif %}
+    </tr>
+    {% endfor %}
+</table>
+{% else %}
+<p>No activity.</p>
+{% endif %}
+{% endblock %}

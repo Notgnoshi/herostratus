@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}{{ user.name }} - {{ site_title }}{% endblock %}
+
+{% block content %}
+<h1>{{ user.name }}</h1>
+<p>Achievements: {{ user.active_achievements }} active ({{ user.total_achievements }} total) | Repositories: {{ user.repos_contributed_to }}</p>
+
+{% for group in user.achievements_by_repo %}
+<h2>{{ group.repo_name }}</h2>
+<table>
+    <tr>
+        <th>Achievement</th>
+        <th>Description</th>
+        <th>Commit</th>
+        <th>Date</th>
+    </tr>
+    {% for a in group.achievements %}
+    <tr>
+        <td><a href="{{ root }}achievement/{{ a.achievement_human_id }}.html">{{ a.achievement_name }}</a></td>
+        <td>{{ a.description }}</td>
+        {% if group.commit_url_prefix and a.commit != "0000000000000000000000000000000000000000" %}
+        <td><a href="{{ group.commit_url_prefix }}{{ a.commit }}">{{ a.commit[:12] }}</a></td>
+        {% else %}
+        <td>{{ a.commit[:12] }}</td>
+        {% endif %}
+        <td>{{ a.timestamp }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% endfor %}
+
+<h2>Timeline</h2>
+{% if user.timeline %}
+<table>
+    <tr>
+        <th>Time</th>
+        <th>Event</th>
+        <th>Achievement</th>
+        <th>Repository</th>
+        <th>Commit</th>
+    </tr>
+    {% for entry in user.timeline %}
+    <tr>
+        <td>{{ entry.timestamp }}</td>
+        <td>{{ entry.event }}</td>
+        <td><a href="{{ root }}achievement/{{ entry.achievement_human_id }}.html">{{ entry.achievement_name }}</a></td>
+        <td><a href="{{ root }}repo/{{ entry.repo_name }}.html">{{ entry.repo_name }}</a></td>
+        {% if entry.commit_url_prefix and entry.commit != "0000000000000000000000000000000000000000" %}
+        <td><a href="{{ entry.commit_url_prefix }}{{ entry.commit }}">{{ entry.commit[:12] }}</a></td>
+        {% else %}
+        <td>{{ entry.commit[:12] }}</td>
+        {% endif %}
+    </tr>
+    {% endfor %}
+</table>
+{% else %}
+<p>No activity.</p>
+{% endif %}
+{% endblock %}
