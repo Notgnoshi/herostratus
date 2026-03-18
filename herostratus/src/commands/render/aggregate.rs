@@ -34,6 +34,7 @@ pub struct HolderEntry {
     pub user_slug: String,
     pub repo_name: String,
     pub commit: String,
+    pub commit_url_prefix: String,
     pub timestamp: String,
 }
 
@@ -69,6 +70,7 @@ pub struct UserContext {
 #[derive(Debug, serde::Serialize)]
 pub struct UserRepoAchievements {
     pub repo_name: String,
+    pub commit_url_prefix: String,
     pub achievements: Vec<UserAchievementEntry>,
 }
 
@@ -101,6 +103,7 @@ pub struct ActivityEntry {
     pub user_slug: String,
     pub repo_name: String,
     pub commit: String,
+    pub commit_url_prefix: String,
 }
 
 /// Build all aggregated site data from loaded CSVs and derived users.
@@ -114,6 +117,10 @@ pub fn aggregate(
     let achievement_by_id: HashMap<&str, &AchievementRow> = achievements
         .iter()
         .map(|a| (a.human_id.as_str(), a))
+        .collect();
+    let prefix_by_repo: HashMap<&str, &str> = repositories
+        .iter()
+        .map(|r| (r.name.as_str(), r.commit_url_prefix.as_str()))
         .collect();
 
     // Build activity entries from all events
@@ -138,6 +145,10 @@ pub fn aggregate(
                 user_slug: user.map(|u| u.slug.clone()).unwrap_or_default(),
                 repo_name: repo_name.clone(),
                 commit: event.commit.to_string(),
+                commit_url_prefix: prefix_by_repo
+                    .get(repo_name.as_str())
+                    .unwrap_or(&"")
+                    .to_string(),
             });
         }
     }
@@ -149,8 +160,13 @@ pub fn aggregate(
     let active_grants = compute_active_grants(events);
 
     // Per-achievement contexts
-    let achievement_contexts =
-        build_achievement_contexts(achievements, &all_activity, &active_grants, &user_by_email);
+    let achievement_contexts = build_achievement_contexts(
+        achievements,
+        &all_activity,
+        &active_grants,
+        &user_by_email,
+        &prefix_by_repo,
+    );
 
     // Per-repo contexts
     let repo_contexts = build_repo_contexts(
@@ -168,6 +184,7 @@ pub fn aggregate(
         &all_activity,
         &active_grants,
         &achievement_by_id,
+        &prefix_by_repo,
     );
 
     SiteData {
@@ -223,6 +240,7 @@ fn build_achievement_contexts(
     all_activity: &[ActivityEntry],
     active_grants: &[ActiveGrant<'_>],
     user_by_email: &HashMap<&str, &User>,
+    prefix_by_repo: &HashMap<&str, &str>,
 ) -> Vec<AchievementContext> {
     achievements
         .iter()
@@ -239,6 +257,10 @@ fn build_achievement_contexts(
                         user_slug: user.map(|u| u.slug.clone()).unwrap_or_default(),
                         repo_name: g.repo_name.to_string(),
                         commit: g.event.commit.to_string(),
+                        commit_url_prefix: prefix_by_repo
+                            .get(g.repo_name)
+                            .unwrap_or(&"")
+                            .to_string(),
                         timestamp: g.event.timestamp.to_rfc3339(),
                     }
                 })
@@ -346,6 +368,7 @@ fn build_user_contexts(
     all_activity: &[ActivityEntry],
     active_grants: &[ActiveGrant<'_>],
     achievement_by_id: &HashMap<&str, &AchievementRow>,
+    prefix_by_repo: &HashMap<&str, &str>,
 ) -> Vec<UserContext> {
     users
         .iter()
@@ -378,6 +401,7 @@ fn build_user_contexts(
                 .into_iter()
                 .map(|(repo_name, achievements)| UserRepoAchievements {
                     repo_name: repo_name.to_string(),
+                    commit_url_prefix: prefix_by_repo.get(repo_name).unwrap_or(&"").to_string(),
                     achievements,
                 })
                 .collect();

@@ -22,7 +22,11 @@
     <tr>
         <td><a href="user/{{ holder.user_slug }}.html">{{ holder.user_name }}</a></td>
         <td><a href="repo/{{ holder.repo_name }}.html">{{ holder.repo_name }}</a></td>
+        {% if holder.commit_url_prefix and holder.commit != "0000000000000000000000000000000000000000" %}
+        <td><a href="{{ holder.commit_url_prefix }}{{ holder.commit }}">{{ holder.commit[:12] }}</a></td>
+        {% else %}
         <td>{{ holder.commit[:12] }}</td>
+        {% endif %}
         <td>{{ holder.timestamp }}</td>
     </tr>
     {% endfor %}
@@ -47,7 +51,11 @@
         <td>{{ entry.event }}</td>
         <td><a href="user/{{ entry.user_slug }}.html">{{ entry.user_name }}</a></td>
         <td><a href="repo/{{ entry.repo_name }}.html">{{ entry.repo_name }}</a></td>
+        {% if entry.commit_url_prefix and entry.commit != "0000000000000000000000000000000000000000" %}
+        <td><a href="{{ entry.commit_url_prefix }}{{ entry.commit }}">{{ entry.commit[:12] }}</a></td>
+        {% else %}
         <td>{{ entry.commit[:12] }}</td>
+        {% endif %}
     </tr>
     {% endfor %}
 </table>
@@ -68,7 +76,11 @@
     <tr>
         <td><a href="user/{{ holder.user_slug }}.html">{{ holder.user_name }}</a></td>
         <td><a href="repo/{{ holder.repo_name }}.html">{{ holder.repo_name }}</a></td>
+        {% if holder.commit_url_prefix and holder.commit != "0000000000000000000000000000000000000000" %}
+        <td><a href="{{ holder.commit_url_prefix }}{{ holder.commit }}">{{ holder.commit[:12] }}</a></td>
+        {% else %}
         <td>{{ holder.commit[:12] }}</td>
+        {% endif %}
         <td>{{ holder.timestamp }}</td>
     </tr>
     {% endfor %}
