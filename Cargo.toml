@@ -43,7 +43,7 @@ serde_json = "1.0.145"
 sha1 = "0.10"
 tempfile = "3.21.0"
 thread_local = "1.1"
-toml = "0.9.5"
+toml = "1.0.7"
 tracing = "0.1.41"
 tracing-chrome = "0.7"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
