@@ -14,6 +14,10 @@ focus on the user impact** rather than the actual changes made.
 
 ## Added
 
+Static site generation! The `check-one` and `check-all` subcommands generate data files in
+`{data_dir}/export`. The `render` subcommands reads these data files, and turns it into an HTML
+static site suitable for hosting on GitHub Pages.
+
 ## Changed
 
 ## Deprecated
