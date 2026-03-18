@@ -1,3 +1,4 @@
+mod aggregate;
 mod data;
 mod users;
 
@@ -26,6 +27,15 @@ pub fn render(args: &RenderArgs) -> eyre::Result<()> {
         users = users.len(),
         total_events,
         "Loaded export data"
+    );
+
+    let site = aggregate::aggregate(&achievements, &repositories, &events, &users);
+    tracing::info!(
+        achievement_pages = site.achievements.len(),
+        repo_pages = site.repositories.len(),
+        user_pages = site.users.len(),
+        recent_activity = site.recent_activity.len(),
+        "Aggregated site data"
     );
 
     Ok(())
