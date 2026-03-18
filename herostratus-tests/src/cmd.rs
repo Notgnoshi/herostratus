@@ -7,7 +7,6 @@ use tempfile::TempDir;
 
 // I'm using cargo_bin to discovery a binary provided by another crate in the workspace. That's not
 // something the suggested cargo_bin! replacement supports.
-#[expect(deprecated)]
 static HEROSTRATUS: LazyLock<PathBuf> =
     LazyLock::new(|| assert_cmd::cargo::cargo_bin("herostratus"));
 
