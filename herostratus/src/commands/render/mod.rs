@@ -93,6 +93,34 @@ pub fn render(args: &RenderArgs) -> eyre::Result<()> {
         )?;
     }
 
+    // Render repository pages
+    for repo in &site.repositories {
+        render_page(
+            &env,
+            "repo.html",
+            minijinja::context! {
+                site_title => &args.site_title,
+                root => NESTED_PAGE,
+                repo => repo,
+            },
+            &args.output_dir.join(format!("repo/{}.html", repo.name)),
+        )?;
+    }
+
+    // Render user pages
+    for user in &site.users {
+        render_page(
+            &env,
+            "user.html",
+            minijinja::context! {
+                site_title => &args.site_title,
+                root => NESTED_PAGE,
+                user => user,
+            },
+            &args.output_dir.join(format!("user/{}.html", user.slug)),
+        )?;
+    }
+
     tracing::info!(
         output_dir = %args.output_dir.display(),
         "Site rendered"
