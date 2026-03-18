@@ -16,7 +16,7 @@
     </tr>
     {% for repo in repositories %}
     <tr>
-        <td><a href="{{ base_url }}repo/{{ repo.name }}.html">{{ repo.name }}</a></td>
+        <td><a href="repo/{{ repo.name }}.html">{{ repo.name }}</a></td>
         <td>{{ repo.total_achievements }}</td>
         <td>{{ repo.unique_achievers }}</td>
         <td>{{ repo.last_checked }}</td>
@@ -42,9 +42,9 @@
     <tr>
         <td>{{ entry.timestamp }}</td>
         <td>{{ entry.event }}</td>
-        <td><a href="{{ base_url }}achievement/{{ entry.achievement_human_id }}.html">{{ entry.achievement_name }}</a></td>
-        <td><a href="{{ base_url }}user/{{ entry.user_slug }}.html">{{ entry.user_name }}</a></td>
-        <td><a href="{{ base_url }}repo/{{ entry.repo_name }}.html">{{ entry.repo_name }}</a></td>
+        <td><a href="achievement/{{ entry.achievement_human_id }}.html">{{ entry.achievement_name }}</a></td>
+        <td><a href="user/{{ entry.user_slug }}.html">{{ entry.user_name }}</a></td>
+        <td><a href="repo/{{ entry.repo_name }}.html">{{ entry.repo_name }}</a></td>
         <td>{{ entry.commit[:12] }}</td>
     </tr>
     {% endfor %}
