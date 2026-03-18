@@ -50,6 +50,7 @@ pub enum Command {
     CheckOne(CheckOneArgs),
     CheckAll(CheckAllArgs),
     FetchAll(FetchAllArgs),
+    Render(RenderArgs),
 }
 
 /// Statelessly process the given file path and reference
@@ -206,6 +207,39 @@ pub struct CheckOneArgs {
 /// Fetch each repository
 #[derive(Debug, clap::Args)]
 pub struct FetchAllArgs;
+
+/// Render a static HTML site from exported achievement data
+#[derive(Debug, clap::Args)]
+pub struct RenderArgs {
+    /// Path to the export data directory
+    ///
+    /// This is the directory containing achievements.csv, repositories.csv, and the events/
+    /// subdirectory. Typically this is the export/ subdirectory of the Herostratus data directory.
+    #[clap(short, long)]
+    pub export_dir: PathBuf,
+
+    /// Output directory for the generated site
+    #[clap(short, long, default_value = "public")]
+    pub output_dir: PathBuf,
+
+    /// Base URL prefix for all internal links
+    ///
+    /// Required when the site is hosted at a subpath (e.g., https://user.github.io/herostratus/).
+    /// All href and src attributes are prefixed with this value.
+    #[clap(short, long, default_value = "/")]
+    pub base_url: String,
+
+    /// Site title shown in headers and title tags
+    #[clap(short, long, default_value = "Herostratus")]
+    pub site_title: String,
+
+    /// Path to directory containing Jinja2 templates
+    ///
+    /// Expected templates: base.html, index.html, achievements.html, achievement_detail.html,
+    /// repo.html, user.html.
+    #[clap(short, long)]
+    pub templates: PathBuf,
+}
 
 impl From<&CheckAllArgs> for FetchAllArgs {
     fn from(_args: &CheckAllArgs) -> FetchAllArgs {

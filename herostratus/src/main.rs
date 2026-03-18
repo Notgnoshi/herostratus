@@ -71,6 +71,9 @@ fn main() -> eyre::Result<()> {
                 stats.print_summary();
             }
         }
+        Some(herostratus::cli::Command::Render(rargs)) => {
+            herostratus::commands::render(&rargs)?;
+        }
         // The other subcommands are stateful, and require reading the application configuration
         Some(command) => {
             let mut config = herostratus::config::read_config(&data_dir)?;
