@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-pub use crate::achievement::{
-    AchievementEventKind, AchievementLogEvent, AchievementRow, RepositoryRow,
-};
+pub use crate::achievement::{AchievementLogEvent, AchievementRow, RepositoryRow};
 
 pub fn load_achievements(export_dir: &Path) -> eyre::Result<Vec<AchievementRow>> {
     let path = export_dir.join("achievements.csv");
@@ -127,7 +125,10 @@ mod tests {
         assert_eq!(events["repo-a"].len(), 2);
         assert_eq!(events["repo-b"].len(), 1);
         assert_eq!(events["repo-a"][0].user_name, "Alice");
-        assert_eq!(events["repo-a"][0].event, AchievementEventKind::Grant);
+        assert_eq!(
+            events["repo-a"][0].event,
+            crate::achievement::AchievementEventKind::Grant
+        );
         assert_eq!(events["repo-b"][0].achievement_id, "shortest");
     }
 
