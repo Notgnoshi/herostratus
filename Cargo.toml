@@ -18,7 +18,7 @@ version = "0.5.0"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/Notgnoshi/herostratus"
-rust-version = "1.89"
+rust-version = "1.94"
 description = "**Herostratus** *n.* **1.** An ancient Greek known for seeking fame through crime and destruction. **2.** Also a Git repository achievements engine."
 
 [workspace.dependencies]
