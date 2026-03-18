@@ -17,7 +17,7 @@
     {% for a in achievements %}
     <tr>
         <td>{{ a.id }}</td>
-        <td><a href="achievement/{{ a.human_id }}.html">{{ a.name }}</a></td>
+        <td><a href="{{ root }}achievement/{{ a.human_id }}.html">{{ a.name }}</a></td>
         <td>{{ a.description }}</td>
         <td>{{ a.kind }}</td>
         <td>{{ a.unique_holders }}</td>

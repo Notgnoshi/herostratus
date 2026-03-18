@@ -226,7 +226,7 @@ pub struct RenderArgs {
     ///
     /// Required when the site is hosted at a subpath (e.g., https://user.github.io/herostratus/).
     /// All href and src attributes are prefixed with this value.
-    #[clap(short, long, default_value = "./")]
+    #[clap(short, long, default_value = "/")]
     pub base_url: String,
 
     /// Site title shown in headers and title tags

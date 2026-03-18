@@ -4,12 +4,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}{{ site_title }}{% endblock %}</title>
-    <base href="{{ base_url }}">
 </head>
 <body>
     <nav>
-        <a href=".">Home</a> |
-        <a href="achievements.html">Achievements</a>
+        <a href="{{ root }}">Home</a> |
+        <a href="{{ root }}achievements.html">Achievements</a>
     </nav>
     <hr>
     {% block content %}{% endblock %}

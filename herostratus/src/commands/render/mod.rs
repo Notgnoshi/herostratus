@@ -8,6 +8,11 @@ use eyre::WrapErr;
 
 use crate::cli::RenderArgs;
 
+/// Relative path prefix from root-level pages back to the site root.
+const ROOT_PAGE: &str = "./";
+/// Relative path prefix from pages one directory deep back to the site root.
+const NESTED_PAGE: &str = "../";
+
 pub fn render(args: &RenderArgs) -> eyre::Result<()> {
     tracing::info!(
         export_dir = %args.export_dir.display(),
@@ -53,7 +58,7 @@ pub fn render(args: &RenderArgs) -> eyre::Result<()> {
         "index.html",
         minijinja::context! {
             site_title => &args.site_title,
-            base_url => &args.base_url,
+            root => ROOT_PAGE,
             repositories => &site.repositories,
             recent_activity => &site.recent_activity,
         },
@@ -66,7 +71,7 @@ pub fn render(args: &RenderArgs) -> eyre::Result<()> {
         "achievements.html",
         minijinja::context! {
             site_title => &args.site_title,
-            base_url => &args.base_url,
+            root => ROOT_PAGE,
             achievements => &site.achievements,
         },
         &args.output_dir.join("achievements.html"),
@@ -79,7 +84,7 @@ pub fn render(args: &RenderArgs) -> eyre::Result<()> {
             "achievement_detail.html",
             minijinja::context! {
                 site_title => &args.site_title,
-                base_url => &args.base_url,
+                root => NESTED_PAGE,
                 achievement => achievement,
             },
             &args
