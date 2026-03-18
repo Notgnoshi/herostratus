@@ -6,13 +6,13 @@ use crate::achievement::meta::AchievementKind;
 use crate::rules::RulePlugin;
 
 /// A row in the achievement catalog CSV.
-#[derive(serde::Serialize)]
-struct AchievementRow {
-    id: usize,
-    human_id: &'static str,
-    name: &'static str,
-    description: &'static str,
-    kind: String,
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct AchievementRow {
+    pub id: usize,
+    pub human_id: String,
+    pub name: String,
+    pub description: String,
+    pub kind: String,
 }
 
 fn kind_label(kind: &AchievementKind) -> String {
@@ -42,9 +42,9 @@ pub fn write_achievements_csv(data_dir: &Path, rules: &[Box<dyn RulePlugin>]) ->
             let meta = rule.meta();
             AchievementRow {
                 id: meta.id,
-                human_id: meta.human_id,
-                name: meta.name,
-                description: meta.description,
+                human_id: meta.human_id.to_string(),
+                name: meta.name.to_string(),
+                description: meta.description.to_string(),
                 kind: kind_label(&meta.kind),
             }
         })
@@ -53,9 +53,9 @@ pub fn write_achievements_csv(data_dir: &Path, rules: &[Box<dyn RulePlugin>]) ->
     for meta in super::meta_achievements::meta_achievement_metas() {
         rows.push(AchievementRow {
             id: meta.id,
-            human_id: meta.human_id,
-            name: meta.name,
-            description: meta.description,
+            human_id: meta.human_id.to_string(),
+            name: meta.name.to_string(),
+            description: meta.description.to_string(),
             kind: kind_label(&meta.kind),
         });
     }
@@ -76,15 +76,15 @@ pub fn write_achievements_csv(data_dir: &Path, rules: &[Box<dyn RulePlugin>]) ->
 }
 
 /// A row in the repositories CSV.
-#[derive(serde::Serialize, serde::Deserialize)]
-struct RepositoryRow {
-    name: String,
-    url: String,
-    commit_url_prefix: String,
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct RepositoryRow {
+    pub name: String,
+    pub url: String,
+    pub commit_url_prefix: String,
     #[serde(rename = "ref")]
-    reference: String,
-    commits_checked: u64,
-    last_checked: String,
+    pub reference: String,
+    pub commits_checked: u64,
+    pub last_checked: String,
 }
 
 /// Upsert a repository row in `{data_dir}/export/repositories.csv`.

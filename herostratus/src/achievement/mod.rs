@@ -8,7 +8,10 @@ mod meta_achievements;
 mod pipeline;
 mod pipeline_checkpoint;
 
-pub use export::upsert_repository_csv;
+pub use achievement_log::{
+    AchievementEvent as AchievementLogEvent, EventKind as AchievementEventKind,
+};
+pub use export::{AchievementRow, RepositoryRow, upsert_repository_csv};
 pub use grant::Grant;
 pub use meta::{AchievementKind, Meta};
 pub use meta_achievements::meta_achievement_metas;
