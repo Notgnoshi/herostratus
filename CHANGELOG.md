@@ -24,6 +24,10 @@ static site suitable for hosting on GitHub Pages.
 
 ## Removed
 
+Removed `ssh_public_key` and `ssh_passphrase` config.toml fields and corresponding CLI flags. These
+were inherited from the old libgit2 implementation and are not needed with gix, which delegates SSH
+to the system `ssh` binary.
+
 ## Fixed
 
 # Herostratus - 0.5.0 - (2026-03-12)
