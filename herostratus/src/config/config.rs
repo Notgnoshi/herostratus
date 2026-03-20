@@ -98,23 +98,20 @@ pub struct RepositoryConfig {
     /// If the username cannot be parsed from a clone URL, it will default to 'git'.
     pub remote_username: Option<String>,
 
-    /// The path to the appropriate SSH private key to use for SSH authentication.
+    /// The path to an SSH private key to use for SSH authentication.
     ///
-    /// If not set for an SSH clone URL, Herostratus will attempt to use your SSH agent.
+    /// If set, Herostratus will configure `core.sshCommand` to use this key with
+    /// `ssh -i <key> -o IdentitiesOnly=yes`. The key must not be passphrase-protected.
+    ///
+    /// If not set for an SSH clone URL, Herostratus will delegate to the system SSH, which will
+    /// use your SSH agent or default keys. You can also override this with the `GIT_SSH_COMMAND`
+    /// environment variable.
     pub ssh_private_key: Option<PathBuf>,
-
-    /// The path to the appropriate SSH public key to use for SSH authentication.
-    ///
-    /// Often, if a private key is specified, you do not need to specify the public key, as it can
-    /// be inferred.
-    pub ssh_public_key: Option<PathBuf>,
-
-    /// The SSH key passphrase, if required.
-    pub ssh_passphrase: Option<String>,
 
     /// The password to use to authenticate HTTPS clone URLs.
     ///
-    /// If using HTTPS, it's very likely that you will also need to set `remote_username`.
+    /// For GitHub, this is typically a Personal Access Token (PAT). If using HTTPS, it's very
+    /// likely that you will also need to set `remote_username`.
     ///
     /// If not set for an HTTPS clone URL, Herostratus will attempt to use your configured Git
     /// `credential.helper`.

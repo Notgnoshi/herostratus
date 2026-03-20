@@ -22,7 +22,7 @@ pub fn fetch_one(name: &str, config: &RepositoryConfig) -> eyre::Result<FetchSta
         ..Default::default()
     };
     let mut skip_fetch = false;
-    let repo = match find_local_repository(&config.path) {
+    let mut repo = match find_local_repository(&config.path) {
         Ok(repo) => repo,
         // Handle the case where 'add --skip-clone' was used
         Err(e) => {
@@ -38,7 +38,7 @@ pub fn fetch_one(name: &str, config: &RepositoryConfig) -> eyre::Result<FetchSta
     };
 
     if !skip_fetch {
-        let fetched = pull_branch(config, &repo)?;
+        let fetched = pull_branch(config, &mut repo)?;
         stat.num_commits_fetched = Some(fetched);
     }
     stat.elapsed = repo_start.elapsed();

@@ -79,7 +79,18 @@ jobs:
               uses: taiki-e/install-action@v2
               with:
                 tool: cargo-nextest,cargo-llvm-cov
+            - name: Setup SSH key for private repo tests
+              env:
+                HEROSTRATUS_PRIVATE_TEST_SSH_PRIVATE_KEY: ${{ secrets.HEROSTRATUS_PRIVATE_TEST_SSH_PRIVATE_KEY }}
+              run: |
+                mkdir -p ~/.ssh
+                echo "$HEROSTRATUS_PRIVATE_TEST_SSH_PRIVATE_KEY" > ~/.ssh/herostratus_test
+                chmod 600 ~/.ssh/herostratus_test
+                ssh-keyscan github.com >> ~/.ssh/known_hosts
+                echo "HEROSTRATUS_PRIVATE_TEST_SSH_PRIVATE_KEY_PATH=$HOME/.ssh/herostratus_test" >> $GITHUB_ENV
             - name: Test
+              env:
+                HEROSTRATUS_PRIVATE_TEST_PAT: ${{ secrets.HEROSTRATUS_PRIVATE_TEST_PAT }}
               run: |
                   git fetch --tags
                   git log --color=always --graph --oneline -n 20

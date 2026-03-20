@@ -131,28 +131,23 @@ pub struct AddArgs {
     #[clap(long)]
     pub remote_username: Option<String>,
 
-    /// The path to an appropriate SSH private key
+    /// The path to an SSH private key
     ///
-    /// Often, if a private key is given, the public key need not be specified if it can be
-    /// inferred. If a private key is not specified for an SSH URL, Herostratus will attempt to use
-    /// your SSH agent.
+    /// If set, the system SSH will be configured to use this key with `IdentitiesOnly=yes`. The
+    /// key must not be passphrase-protected.
+    ///
+    /// If not specified for an SSH URL, Herostratus will delegate to the system SSH, which will use
+    /// your SSH agent or default keys. You can also set the GIT_SSH_COMMAND environment variable.
     #[clap(long)]
     pub ssh_private_key: Option<PathBuf>,
 
-    /// The path to an appropriate SSH public key
-    #[clap(long)]
-    pub ssh_public_key: Option<PathBuf>,
-
-    /// The SSH key passphrase, if required
-    #[clap(long)]
-    pub ssh_passphrase: Option<String>,
-
     /// The password to use for HTTPS clone URLs
     ///
-    /// It's very likely that you will also need to set `remote_username`.
+    /// For GitHub, this is typically a Personal Access Token (PAT). It's very likely that you will
+    /// also need to set `remote_username`.
     ///
-    /// If the password is not set for an HTTPS clone URL, Herostratus will attempt to use your
-    /// configured Git `credential.helper`.
+    /// If not set for an HTTPS clone URL, Herostratus will attempt to use your configured Git
+    /// `credential.helper`.
     #[clap(long)]
     pub https_password: Option<String>,
 

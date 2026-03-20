@@ -14,15 +14,23 @@ focus on the user impact** rather than the actual changes made.
 
 ## Added
 
-Static site generation! The `check-one` and `check-all` subcommands generate data files in
-`{data_dir}/export`. The `render` subcommands reads these data files, and turns it into an HTML
-static site suitable for hosting on GitHub Pages.
+* Static site generation! The `check-one` and `check-all` subcommands generate data files in
+  `{data_dir}/export`. The `render` subcommands reads these data files, and turns it into an HTML
+  static site suitable for hosting on GitHub Pages.
+
+* Private repository authentication. Herostratus can now clone and fetch private repositories using
+  SSH keys or HTTPS passwords/PATs configured via config.toml or CLI flags. See
+  `docs/user/authentication.md` for details.
 
 ## Changed
 
 ## Deprecated
 
 ## Removed
+
+Removed `ssh_public_key` and `ssh_passphrase` config.toml fields and corresponding CLI flags. These
+were inherited from the old libgit2 implementation and are not needed with gix, which delegates SSH
+to the system `ssh` binary.
 
 ## Fixed
 
