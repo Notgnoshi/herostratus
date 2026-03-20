@@ -221,6 +221,46 @@ fn count_commits_between(
     Ok(num_fetched_commits)
 }
 
+/// Apply HTTPS credentials from the config to a connection, if configured.
+///
+/// If [https_password](crate::config::RepositoryConfig::https_password) is set, the connection will
+/// use it (along with [remote_username](crate::config::RepositoryConfig::remote_username)) instead
+/// of the default credential helper cascade.
+fn apply_https_credentials<'a, 'repo, T>(
+    config: &crate::config::RepositoryConfig,
+    connection: gix::remote::Connection<'a, 'repo, T>,
+) -> eyre::Result<gix::remote::Connection<'a, 'repo, T>>
+where
+    T: gix::protocol::transport::client::blocking_io::Transport,
+{
+    let Some(password) = &config.https_password else {
+        return Ok(connection);
+    };
+    let username = config.remote_username.as_deref().ok_or_else(|| {
+        eyre::eyre!(
+            "https_password is set but remote_username is not; \
+             both are required for HTTPS authentication"
+        )
+    })?;
+    let username = username.to_string();
+    let password = password.clone();
+    tracing::debug!("Using configured HTTPS credentials (username={username:?})");
+    #[allow(clippy::result_large_err)] // Err type is defined by gix, not us
+    Ok(connection.with_credentials(move |action| match action {
+        gix::credentials::helper::Action::Get(ctx) => {
+            Ok(Some(gix::credentials::protocol::Outcome {
+                identity: gix::sec::identity::Account {
+                    username: username.clone(),
+                    password: password.clone(),
+                    oauth_refresh_token: None,
+                },
+                next: gix::credentials::helper::NextAction::from(ctx),
+            }))
+        }
+        _ => Ok(None),
+    }))
+}
+
 /// Given a bare repository, pull the given branch from the remote.
 ///
 /// If the branch is not specified, pull the remote's default branch (HEAD).
@@ -254,8 +294,8 @@ pub fn pull_branch(
     // we're pulling it.
     let before = repo.rev_parse_single(ref_name).ok();
 
-    // TODO: HTTPS/SSH auth
     let connection = remote.connect(gix::remote::Direction::Fetch)?;
+    let connection = apply_https_credentials(config, connection)?;
     let options = gix::remote::ref_map::Options::default();
     // TODO: Handle fetch progress nicely?
     let prepare = connection.prepare_fetch(gix::progress::Discard, options)?;
@@ -359,6 +399,44 @@ pub fn clone_repository(
         remote.replace_refspecs(&refspecs, gix::remote::Direction::Fetch)?;
         Ok(remote)
     });
+
+    // Configure HTTPS credentials if provided.
+    if let Some(password) = &config.https_password {
+        let username = config
+            .remote_username
+            .as_deref()
+            .ok_or_else(|| {
+                eyre::eyre!(
+                    "https_password is set but remote_username is not; \
+                     both are required for HTTPS authentication"
+                )
+            })?
+            .to_string();
+        let password = password.clone();
+        tracing::debug!("Cloning with configured HTTPS credentials (username={username:?})");
+        #[allow(clippy::result_large_err)]
+        {
+            prepare = prepare.configure_connection(move |conn| {
+                let username = username.clone();
+                let password = password.clone();
+                conn.set_credentials(move |action| match action {
+                    gix::credentials::helper::Action::Get(ctx) => {
+                        Ok(Some(gix::credentials::protocol::Outcome {
+                            identity: gix::sec::identity::Account {
+                                username: username.clone(),
+                                password: password.clone(),
+                                oauth_refresh_token: None,
+                            },
+                            next: gix::credentials::helper::NextAction::from(ctx),
+                        }))
+                    }
+                    _ => Ok(None),
+                });
+                Ok(())
+            });
+        }
+    }
+
     let interrupt = std::sync::atomic::AtomicBool::new(false);
     let (repo, _outcome) = prepare.fetch_only(gix::progress::Discard, &interrupt)?;
     let elapsed = start.elapsed();
