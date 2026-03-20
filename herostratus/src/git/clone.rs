@@ -221,6 +221,11 @@ fn count_commits_between(
     Ok(num_fetched_commits)
 }
 
+/// Build a `core.sshCommand` value that uses the given private key.
+fn ssh_command_for_key(key_path: &Path) -> String {
+    format!("ssh -i {} -o IdentitiesOnly=yes", key_path.display())
+}
+
 /// Apply HTTPS credentials from the config to a connection, if configured.
 ///
 /// If [https_password](crate::config::RepositoryConfig::https_password) is set, the connection will
@@ -274,9 +279,22 @@ where
 #[tracing::instrument(level = "debug", skip_all, fields(url = %config.url))]
 pub fn pull_branch(
     config: &crate::config::RepositoryConfig,
-    repo: &gix::Repository,
+    repo: &mut gix::Repository,
 ) -> eyre::Result<u64> {
     debug_assert!(repo.is_bare());
+
+    // Configure SSH key if provided, before connecting.
+    if let Some(key_path) = &config.ssh_private_key {
+        let ssh_cmd = ssh_command_for_key(key_path);
+        tracing::debug!("Using configured SSH key: {key_path:?}");
+        let mut snapshot = repo.config_snapshot_mut();
+        snapshot.set_value(
+            &gix::config::tree::Core::SSH_COMMAND,
+            BStr::new(ssh_cmd.as_bytes()),
+        )?;
+        let _ = snapshot.commit()?;
+    }
+
     // TODO: Handle non-origin remotes (#71)
     let remote = repo.find_remote("origin")?;
     // Can't be a Vec<String>; has to be a Vec<&str> ...
@@ -352,14 +370,14 @@ pub fn clone_repository(
             // Proceed to clone as normal
         } else {
             // Check the existing checkout's remote URL; if it matches, do a pull instead of a clone
-            let existing_repo = gix::discover(&config.path)?;
+            let mut existing_repo = gix::discover(&config.path)?;
             let remote = existing_repo.find_remote("origin")?;
             let existing_url = remote
                 .url(gix::remote::Direction::Fetch)
                 .ok_or(eyre::eyre!("Failed to find remote.origin.url"))?;
             if existing_url.to_string() == config.url {
                 tracing::info!("... URLs match; using existing checkout and pulling");
-                pull_branch(config, &existing_repo)?;
+                pull_branch(config, &mut existing_repo)?;
                 return Ok(existing_repo);
             }
             eyre::bail!(
@@ -399,6 +417,13 @@ pub fn clone_repository(
         remote.replace_refspecs(&refspecs, gix::remote::Direction::Fetch)?;
         Ok(remote)
     });
+
+    // Configure SSH key if provided.
+    if let Some(key_path) = &config.ssh_private_key {
+        let ssh_cmd = ssh_command_for_key(key_path);
+        tracing::debug!("Cloning with configured SSH key: {key_path:?}");
+        prepare = prepare.with_in_memory_config_overrides([format!("core.sshCommand={ssh_cmd}")]);
+    }
 
     // Configure HTTPS credentials if provided.
     if let Some(password) = &config.https_password {
@@ -484,12 +509,14 @@ mod tests {
 
     #[test]
     fn test_pull_default_branch_from_empty() {
-        let (upstream, downstream) = fixtures::repository::upstream_downstream_empty().unwrap();
+        let (upstream, mut downstream) = fixtures::repository::upstream_downstream_empty().unwrap();
         let commit1 = upstream.commit("commit1").create().unwrap();
         let commit2 = upstream.commit("commit2").create().unwrap();
 
-        let remote = downstream.repo.find_remote("origin").unwrap();
-        let url = remote
+        let url = downstream
+            .repo
+            .find_remote("origin")
+            .unwrap()
             .url(gix::remote::Direction::Fetch)
             .unwrap()
             .to_string();
@@ -501,48 +528,47 @@ mod tests {
 
         // Try to find the upstream commit in the downstream repository. Can't find it, because the
         // remote hasn't been fetched from yet.
-        let result = downstream.repo.find_commit(commit1);
-        assert!(result.is_err());
-        let result = downstream.repo.find_commit(commit2);
-        assert!(result.is_err());
+        assert!(downstream.repo.find_commit(commit1).is_err());
+        assert!(downstream.repo.find_commit(commit2).is_err());
 
-        let fetched_commits = pull_branch(&config, &downstream.repo).unwrap();
+        let fetched_commits = pull_branch(&config, &mut downstream.repo).unwrap();
         assert_eq!(fetched_commits, 2);
 
         // Now that we pulled, we can find the commits
-        let result = downstream.repo.find_commit(commit1);
-        assert!(result.is_ok());
-        let result = downstream.repo.find_commit(commit2);
-        assert!(result.is_ok());
+        assert!(downstream.repo.find_commit(commit1).is_ok());
+        assert!(downstream.repo.find_commit(commit2).is_ok());
 
-        let downstream_head = downstream.repo.head().unwrap();
-        let upstream_head = upstream.repo.head().unwrap();
-        assert_eq!(downstream_head.name(), upstream_head.name());
-        assert_eq!(downstream_head.id().unwrap(), commit2);
+        assert_eq!(
+            downstream.repo.head().unwrap().name(),
+            upstream.repo.head().unwrap().name()
+        );
+        assert_eq!(downstream.repo.head().unwrap().id().unwrap(), commit2);
 
         let commit3 = upstream.commit("commit3").create().unwrap();
-        let fetched_commits = pull_branch(&config, &downstream.repo).unwrap();
+        let fetched_commits = pull_branch(&config, &mut downstream.repo).unwrap();
         assert_eq!(fetched_commits, 1);
 
-        let result = downstream.repo.find_commit(commit3);
-        assert!(result.is_ok());
+        assert!(downstream.repo.find_commit(commit3).is_ok());
 
-        let downstream_head = downstream.repo.head().unwrap();
-        let upstream_head = upstream.repo.head().unwrap();
-        assert_eq!(downstream_head.name(), upstream_head.name());
-        assert_eq!(downstream_head.id().unwrap(), commit3);
+        assert_eq!(
+            downstream.repo.head().unwrap().name(),
+            upstream.repo.head().unwrap().name()
+        );
+        assert_eq!(downstream.repo.head().unwrap().id().unwrap(), commit3);
     }
 
     #[test]
     fn test_pull_custom_default_branch_name() {
-        let (upstream, downstream) = fixtures::repository::upstream_downstream_empty().unwrap();
+        let (upstream, mut downstream) = fixtures::repository::upstream_downstream_empty().unwrap();
         upstream.set_branch("trunk").unwrap();
 
         let commit1 = upstream.commit("commit1").create().unwrap();
         let commit2 = upstream.commit("commit2").create().unwrap();
 
-        let remote = downstream.repo.find_remote("origin").unwrap();
-        let url = remote
+        let url = downstream
+            .repo
+            .find_remote("origin")
+            .unwrap()
             .url(gix::remote::Direction::Fetch)
             .unwrap()
             .to_string();
@@ -552,42 +578,43 @@ mod tests {
             ..Default::default()
         };
 
-        let fetched_commits = pull_branch(&config, &downstream.repo).unwrap();
+        let fetched_commits = pull_branch(&config, &mut downstream.repo).unwrap();
         assert_eq!(fetched_commits, 2);
 
-        let result = downstream.repo.find_commit(commit1);
-        assert!(result.is_ok());
-        let result = downstream.repo.find_commit(commit2);
-        assert!(result.is_ok());
+        assert!(downstream.repo.find_commit(commit1).is_ok());
+        assert!(downstream.repo.find_commit(commit2).is_ok());
 
-        let downstream_head = downstream.repo.head().unwrap();
-        let upstream_head = upstream.repo.head().unwrap();
-        assert_eq!(downstream_head.name(), upstream_head.name());
-        assert_eq!(downstream_head.id().unwrap(), commit2);
+        assert_eq!(
+            downstream.repo.head().unwrap().name(),
+            upstream.repo.head().unwrap().name()
+        );
+        assert_eq!(downstream.repo.head().unwrap().id().unwrap(), commit2);
 
         let commit3 = upstream.commit("commit3").create().unwrap();
-        let fetched_commits = pull_branch(&config, &downstream.repo).unwrap();
+        let fetched_commits = pull_branch(&config, &mut downstream.repo).unwrap();
         assert_eq!(fetched_commits, 1);
 
-        let result = downstream.repo.find_commit(commit3);
-        assert!(result.is_ok());
+        assert!(downstream.repo.find_commit(commit3).is_ok());
 
-        let downstream_head = downstream.repo.head().unwrap();
-        let upstream_head = upstream.repo.head().unwrap();
-        assert_eq!(downstream_head.name(), upstream_head.name());
-        assert_eq!(downstream_head.id().unwrap(), commit3);
+        assert_eq!(
+            downstream.repo.head().unwrap().name(),
+            upstream.repo.head().unwrap().name()
+        );
+        assert_eq!(downstream.repo.head().unwrap().id().unwrap(), commit3);
     }
 
     #[test]
     fn test_pull_specific_branch() {
-        let (upstream, downstream) = fixtures::repository::upstream_downstream_empty().unwrap();
+        let (upstream, mut downstream) = fixtures::repository::upstream_downstream_empty().unwrap();
         upstream.set_branch("dev").unwrap();
 
         let commit1 = upstream.commit("commit1").create().unwrap();
         let commit2 = upstream.commit("commit2").create().unwrap();
 
-        let remote = downstream.repo.find_remote("origin").unwrap();
-        let url = remote
+        let url = downstream
+            .repo
+            .find_remote("origin")
+            .unwrap()
             .url(gix::remote::Direction::Fetch)
             .unwrap()
             .to_string();
@@ -597,40 +624,41 @@ mod tests {
             ..Default::default()
         };
 
-        let fetched_commits = pull_branch(&config, &downstream.repo).unwrap();
+        let fetched_commits = pull_branch(&config, &mut downstream.repo).unwrap();
         assert_eq!(fetched_commits, 2);
 
-        let result = downstream.repo.find_commit(commit1);
-        assert!(result.is_ok());
-        let result = downstream.repo.find_commit(commit2);
-        assert!(result.is_ok());
+        assert!(downstream.repo.find_commit(commit1).is_ok());
+        assert!(downstream.repo.find_commit(commit2).is_ok());
 
-        let downstream_head = downstream.repo.head().unwrap();
-        let upstream_head = upstream.repo.head().unwrap();
-        assert_eq!(downstream_head.name(), upstream_head.name());
-        assert_eq!(downstream_head.id().unwrap(), commit2);
+        assert_eq!(
+            downstream.repo.head().unwrap().name(),
+            upstream.repo.head().unwrap().name()
+        );
+        assert_eq!(downstream.repo.head().unwrap().id().unwrap(), commit2);
 
         let commit3 = upstream.commit("commit3").create().unwrap();
-        let fetched_commits = pull_branch(&config, &downstream.repo).unwrap();
+        let fetched_commits = pull_branch(&config, &mut downstream.repo).unwrap();
         assert_eq!(fetched_commits, 1);
 
-        let result = downstream.repo.find_commit(commit3);
-        assert!(result.is_ok());
+        assert!(downstream.repo.find_commit(commit3).is_ok());
 
-        let downstream_head = downstream.repo.head().unwrap();
-        let upstream_head = upstream.repo.head().unwrap();
-        assert_eq!(downstream_head.name(), upstream_head.name());
-        assert_eq!(downstream_head.id().unwrap(), commit3);
+        assert_eq!(
+            downstream.repo.head().unwrap().name(),
+            upstream.repo.head().unwrap().name()
+        );
+        assert_eq!(downstream.repo.head().unwrap().id().unwrap(), commit3);
     }
 
     #[test]
     fn test_pulling_creates_a_local_branch() {
-        let (upstream, downstream) = fixtures::repository::upstream_downstream().unwrap();
+        let (upstream, mut downstream) = fixtures::repository::upstream_downstream().unwrap();
         upstream.set_branch("branch1").unwrap();
         upstream.commit("commit on branch1").create().unwrap();
 
-        let remote = downstream.repo.find_remote("origin").unwrap();
-        let url = remote
+        let url = downstream
+            .repo
+            .find_remote("origin")
+            .unwrap()
             .url(gix::remote::Direction::Fetch)
             .unwrap()
             .to_string();
@@ -640,16 +668,13 @@ mod tests {
             ..Default::default()
         };
 
-        let result = pull_branch(&config, &downstream.repo);
-        assert!(result.is_ok());
-
-        let result = downstream.repo.find_reference("branch1");
-        assert!(result.is_ok());
+        assert!(pull_branch(&config, &mut downstream.repo).is_ok());
+        assert!(downstream.repo.find_reference("branch1").is_ok());
     }
 
     #[test]
     fn test_fast_fetch_single_reference() {
-        let (upstream, downstream) = fixtures::repository::upstream_downstream().unwrap();
+        let (upstream, mut downstream) = fixtures::repository::upstream_downstream().unwrap();
         upstream.set_branch("branch1").unwrap();
         upstream.set_branch("branch2").unwrap();
         let commit2 = upstream.commit("commit on branch2").create().unwrap();
@@ -657,13 +682,13 @@ mod tests {
         upstream.set_branch("branch1").unwrap();
         upstream.commit("commit on branch1").create().unwrap();
 
-        let result = upstream.repo.find_reference("branch1");
-        assert!(result.is_ok());
-        let result = upstream.repo.find_reference("branch2");
-        assert!(result.is_ok());
+        assert!(upstream.repo.find_reference("branch1").is_ok());
+        assert!(upstream.repo.find_reference("branch2").is_ok());
 
-        let remote = downstream.repo.find_remote("origin").unwrap();
-        let url = remote
+        let url = downstream
+            .repo
+            .find_remote("origin")
+            .unwrap()
             .url(gix::remote::Direction::Fetch)
             .unwrap()
             .to_string();
@@ -673,20 +698,16 @@ mod tests {
             ..Default::default()
         };
 
-        let result = pull_branch(&config, &downstream.repo);
-        assert!(result.is_ok());
+        assert!(pull_branch(&config, &mut downstream.repo).is_ok());
 
         // We find the branch1 that was fetched
-        let result = downstream.repo.find_reference("branch1");
-        assert!(result.is_ok());
+        assert!(downstream.repo.find_reference("branch1").is_ok());
 
         // But branch2 wasn't fetched
-        let result = downstream.repo.find_reference("branch2");
-        assert!(result.is_err());
+        assert!(downstream.repo.find_reference("branch2").is_err());
 
         // And the commit on branch2 wasn't fetched
-        let result = downstream.repo.find_commit(commit2);
-        assert!(result.is_err());
+        assert!(downstream.repo.find_commit(commit2).is_err());
     }
 
     #[test]
