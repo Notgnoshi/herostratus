@@ -42,7 +42,7 @@
         <td><a href="{{ root }}achievement/{{ entry.achievement_human_id }}.html">{{ entry.achievement_name }}</a></td>
         <td><a href="{{ root }}user/{{ entry.user_slug }}.html">{{ entry.user_name }}</a></td>
         {% if repo.commit_url_prefix and entry.commit != "0000000000000000000000000000000000000000" %}
-        <td><a href="{{ repo.commit_url_prefix }}{{ entry.commit }}">{{ entry.commit[:12] }}</a></td>
+        <td><a target="_blank" href="{{ repo.commit_url_prefix }}{{ entry.commit }}">{{ entry.commit[:12] }}</a></td>
         {% else %}
         <td>{{ entry.commit[:12] }}</td>
         {% endif %}

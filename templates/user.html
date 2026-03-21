@@ -20,7 +20,7 @@
         <td><a href="{{ root }}achievement/{{ a.achievement_human_id }}.html">{{ a.achievement_name }}</a></td>
         <td>{{ a.description }}</td>
         {% if group.commit_url_prefix and a.commit != "0000000000000000000000000000000000000000" %}
-        <td><a href="{{ group.commit_url_prefix }}{{ a.commit }}">{{ a.commit[:12] }}</a></td>
+        <td><a target="_blank" href="{{ group.commit_url_prefix }}{{ a.commit }}">{{ a.commit[:11] }}</a></td>
         {% else %}
         <td>{{ a.commit[:12] }}</td>
         {% endif %}
@@ -47,7 +47,7 @@
         <td><a href="{{ root }}achievement/{{ entry.achievement_human_id }}.html">{{ entry.achievement_name }}</a></td>
         <td><a href="{{ root }}repo/{{ entry.repo_name }}.html">{{ entry.repo_name }}</a></td>
         {% if entry.commit_url_prefix and entry.commit != "0000000000000000000000000000000000000000" %}
-        <td><a href="{{ entry.commit_url_prefix }}{{ entry.commit }}">{{ entry.commit[:12] }}</a></td>
+        <td><a target="_blank" href="{{ entry.commit_url_prefix }}{{ entry.commit }}">{{ entry.commit[:12] }}</a></td>
         {% else %}
         <td>{{ entry.commit[:12] }}</td>
         {% endif %}
