@@ -1,3 +1,5 @@
+use chrono::{DateTime, Utc};
+
 /// What a rule returns to indicate "grant this achievement to this person."
 ///
 /// Contains only what the engine needs to record the grant. The achievement identity comes from the
@@ -12,6 +14,11 @@ pub struct Grant {
     pub commit: gix::ObjectId,
     pub user_name: String,
     pub user_email: String,
+    /// The timestamp of the event that triggered this grant.
+    ///
+    /// For per-commit achievements, this is the committer timestamp. For achievements that span
+    /// multiple commits (e.g. "most profane author"), this is rule-defined.
+    pub timestamp: DateTime<Utc>,
     /// When present, overrides [Meta.name](super::Meta::name) for this achievement instance.
     pub name_override: Option<String>,
     /// When present, overrides [Meta.description](super::Meta::description) for this achievement

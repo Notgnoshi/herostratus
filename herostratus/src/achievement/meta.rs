@@ -28,6 +28,7 @@ impl Meta {
             commit: ctx.oid,
             user_name: ctx.author_name.clone(),
             user_email: ctx.author_email.clone(),
+            timestamp: ctx.commit_timestamp,
             name_override: None,
             description_override: None,
         }

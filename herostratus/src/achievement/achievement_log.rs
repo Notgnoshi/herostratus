@@ -28,7 +28,7 @@ pub struct AchievementEvent {
 impl AchievementEvent {
     fn from_meta_and_grant(meta: &Meta, grant: Grant) -> Self {
         Self {
-            timestamp: Utc::now(),
+            timestamp: grant.timestamp,
             event: EventKind::Grant,
             achievement_id: meta.human_id.to_string(),
             commit: grant.commit,
@@ -122,8 +122,15 @@ impl AchievementLog {
 
     /// Append a revocation event for the given achievement and user.
     ///
-    /// Copies the commit/user fields from the grant being revoked and sets the timestamp to now.
-    fn record_revocation(&mut self, achievement_id: &str, user_email: &str) {
+    /// Copies the commit/user fields from the grant being revoked. The `timestamp` is the
+    /// timestamp of the new grant that is superseding the old one, so the revocation appears at
+    /// the correct point in the timeline.
+    fn record_revocation(
+        &mut self,
+        achievement_id: &str,
+        user_email: &str,
+        timestamp: DateTime<Utc>,
+    ) {
         // Find the grant being revoked to copy its fields
         let grant = self
             .events
@@ -137,7 +144,7 @@ impl AchievementLog {
             .expect("record_revocation called without a matching grant");
 
         let revoke = AchievementEvent {
-            timestamp: Utc::now(),
+            timestamp,
             event: EventKind::Revoke,
             achievement_id: achievement_id.to_string(),
             commit: grant.commit,
@@ -244,7 +251,7 @@ impl AchievementLog {
                     }
                     // Different user -- revoke the previous holder, grant to new
                     let prev_email = holder.user_email.clone();
-                    self.record_revocation(meta.human_id, &prev_email);
+                    self.record_revocation(meta.human_id, &prev_email, grant.timestamp);
                     let revoke_event = self.events.last().cloned().unwrap();
 
                     let grant_event = AchievementEvent::from_meta_and_grant(meta, grant);
@@ -313,6 +320,7 @@ mod tests {
             commit: oid,
             user_name: name.to_string(),
             user_email: email.to_string(),
+            timestamp: chrono::DateTime::UNIX_EPOCH,
             name_override: None,
             description_override: None,
         }
@@ -415,7 +423,7 @@ mod tests {
         log.record_grant(test_event("fixup", "alice@example.com", EventKind::Grant));
         assert!(log.is_granted_to("fixup", "alice@example.com"));
 
-        log.record_revocation("fixup", "alice@example.com");
+        log.record_revocation("fixup", "alice@example.com", Utc::now());
         assert!(!log.is_granted_to("fixup", "alice@example.com"));
     }
 
@@ -432,7 +440,7 @@ mod tests {
         assert_eq!(holder.user_email, "alice@example.com");
 
         // Revoke alice
-        log.record_revocation("fixup", "alice@example.com");
+        log.record_revocation("fixup", "alice@example.com", Utc::now());
         assert!(log.current_holder("fixup").is_none());
 
         // Grant to bob
@@ -450,7 +458,7 @@ mod tests {
         log.record_grant(test_event("a", "carol@example.com", EventKind::Grant));
 
         // Revoke alice's "a"
-        log.record_revocation("a", "alice@example.com");
+        log.record_revocation("a", "alice@example.com", Utc::now());
 
         let active: Vec<_> = log.active_grants().collect();
         assert_eq!(active.len(), 2);

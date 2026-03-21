@@ -76,6 +76,7 @@ impl Rule for MostProfound {
             commit: gix::ObjectId::null(gix::hash::Kind::Sha1),
             user_name: name.clone(),
             user_email: email.clone(),
+            timestamp: chrono::DateTime::UNIX_EPOCH,
             name_override: None,
             description_override: None,
         }))
