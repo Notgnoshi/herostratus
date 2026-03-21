@@ -1,9 +1,28 @@
 use std::collections::HashMap;
 
+use chrono::{DateTime, Utc};
+
 use super::users::User;
 use crate::achievement::{
     AchievementEventKind, AchievementLogEvent, AchievementRow, RepositoryRow,
 };
+
+/// Serialize a `DateTime<Utc>` truncated to whole seconds.
+///
+/// Chrono's default serialization preserves sub-second precision, which produces inconsistent
+/// output depending on the source (e.g. `Utc::now()` has nanoseconds, git timestamps do not).
+/// This module normalizes all timestamps to second precision.
+mod timestamp_serde {
+    use chrono::{DateTime, Utc};
+    use serde::Serializer;
+
+    pub fn serialize<S>(dt: &DateTime<Utc>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&dt.format("%Y-%m-%dT%H:%M:%SZ").to_string())
+    }
+}
 
 /// All aggregated data needed to render the site.
 pub struct SiteData {
@@ -35,7 +54,8 @@ pub struct HolderEntry {
     pub repo_name: String,
     pub commit: String,
     pub commit_url_prefix: String,
-    pub timestamp: String,
+    #[serde(serialize_with = "timestamp_serde::serialize")]
+    pub timestamp: DateTime<Utc>,
 }
 
 /// Per-repository aggregated data.
@@ -46,7 +66,8 @@ pub struct RepoContext {
     pub commit_url_prefix: String,
     pub reference: String,
     pub commits_checked: u64,
-    pub last_checked: String,
+    #[serde(serialize_with = "timestamp_serde::serialize")]
+    pub last_checked: chrono::DateTime<Utc>,
     pub events: Vec<ActivityEntry>,
     pub achievement_summary: Vec<AchievementSummaryEntry>,
     pub total_achievements: usize,
@@ -81,7 +102,8 @@ pub struct UserAchievementEntry {
     pub achievement_human_id: String,
     pub description: String,
     pub commit: String,
-    pub timestamp: String,
+    #[serde(serialize_with = "timestamp_serde::serialize")]
+    pub timestamp: DateTime<Utc>,
 }
 
 /// An entry in an achievement summary table.
@@ -95,7 +117,8 @@ pub struct AchievementSummaryEntry {
 /// A single event for display in timelines and recent activity.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ActivityEntry {
-    pub timestamp: String,
+    #[serde(serialize_with = "timestamp_serde::serialize")]
+    pub timestamp: DateTime<Utc>,
     pub event: String,
     pub achievement_name: String,
     pub achievement_human_id: String,
@@ -130,7 +153,7 @@ pub fn aggregate(
             let user = user_by_email.get(event.user_email.as_str());
             let achievement = achievement_by_id.get(event.achievement_id.as_str());
             all_activity.push(ActivityEntry {
-                timestamp: event.timestamp.to_rfc3339(),
+                timestamp: event.timestamp,
                 event: match event.event {
                     AchievementEventKind::Grant => "grant".to_string(),
                     AchievementEventKind::Revoke => "revoke".to_string(),
@@ -261,7 +284,7 @@ fn build_achievement_contexts(
                             .get(g.repo_name)
                             .unwrap_or(&"")
                             .to_string(),
-                        timestamp: g.event.timestamp.to_rfc3339(),
+                        timestamp: g.event.timestamp,
                     }
                 })
                 .collect();
@@ -352,7 +375,7 @@ fn build_repo_contexts(
                 commit_url_prefix: repo.commit_url_prefix.clone(),
                 reference: repo.reference.clone(),
                 commits_checked: repo.commits_checked,
-                last_checked: repo.last_checked.clone(),
+                last_checked: repo.last_checked,
                 total_achievements: repo_active.len(),
                 unique_achievers: unique_achievers.len(),
                 events: repo_events,
@@ -394,7 +417,7 @@ fn build_user_contexts(
                             .map(|a| a.description.clone())
                             .unwrap_or_default(),
                         commit: grant.event.commit.to_string(),
-                        timestamp: grant.event.timestamp.to_rfc3339(),
+                        timestamp: grant.event.timestamp,
                     });
             }
             let mut achievements_by_repo: Vec<UserRepoAchievements> = by_repo
@@ -481,7 +504,8 @@ mod tests {
             commit_url_prefix: String::new(),
             reference: "main".to_string(),
             commits_checked: 10,
-            last_checked: "2026-01-01T00:00:00Z".to_string(),
+            last_checked: chrono::TimeZone::with_ymd_and_hms(&chrono::Utc, 2026, 1, 1, 0, 0, 0)
+                .unwrap(),
         }
     }
 
