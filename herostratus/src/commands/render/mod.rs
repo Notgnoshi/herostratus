@@ -77,6 +77,18 @@ pub fn render(args: &RenderArgs) -> eyre::Result<()> {
         &args.output_dir.join("achievements.html"),
     )?;
 
+    // Render users.html
+    render_page(
+        &env,
+        "users.html",
+        minijinja::context! {
+            site_title => &args.site_title,
+            root => ROOT_PAGE,
+            users => &site.users,
+        },
+        &args.output_dir.join("users.html"),
+    )?;
+
     // Render achievement detail pages
     for achievement in &site.achievements {
         render_page(

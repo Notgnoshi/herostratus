@@ -201,7 +201,7 @@ pub fn aggregate(
     );
 
     // Per-user contexts
-    let user_contexts = build_user_contexts(
+    let mut user_contexts = build_user_contexts(
         users,
         events,
         &all_activity,
@@ -209,6 +209,7 @@ pub fn aggregate(
         &achievement_by_id,
         &prefix_by_repo,
     );
+    user_contexts.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 
     SiteData {
         achievements: achievement_contexts,

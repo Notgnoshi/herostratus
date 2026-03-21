@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Users - {{ site_title }}{% endblock %}
+
+{% block content %}
+<h1>Users</h1>
+
+{% if users %}
+<table>
+    <tr>
+        <th>User</th>
+        <th>Current Achievements</th>
+        <th>Repositories</th>
+    </tr>
+    {% for user in users %}
+    <tr>
+        <td><a href="{{ root }}user/{{ user.slug }}.html">{{ user.name }}</a></td>
+        <td>{{ user.active_achievements }}</td>
+        <td>{{ user.repos_contributed_to }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% else %}
+<p>No users with achievements.</p>
+{% endif %}
+{% endblock %}
