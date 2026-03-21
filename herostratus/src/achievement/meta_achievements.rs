@@ -56,6 +56,7 @@ fn achievement_farmer(log: &AchievementLog) -> Option<RuleOutput> {
     let mut counts: HashMap<&str, usize> = HashMap::new();
     let mut names: HashMap<&str, &str> = HashMap::new();
     let mut commits: HashMap<&str, gix::ObjectId> = HashMap::new();
+    let mut timestamps: HashMap<&str, chrono::DateTime<chrono::Utc>> = HashMap::new();
     let mut total: usize = 0;
 
     for event in log.active_grants() {
@@ -67,6 +68,7 @@ fn achievement_farmer(log: &AchievementLog) -> Option<RuleOutput> {
         // Overwrite with the latest seen (events are in chronological order)
         names.insert(event.user_email.as_str(), event.user_name.as_str());
         commits.insert(event.user_email.as_str(), event.commit);
+        timestamps.insert(event.user_email.as_str(), event.timestamp);
     }
 
     if counts.len() <= 2 {
@@ -94,7 +96,7 @@ fn achievement_farmer(log: &AchievementLog) -> Option<RuleOutput> {
             commit: commits[leader_email],
             user_name: names[leader_email].to_string(),
             user_email: leader_email.to_string(),
-            timestamp: chrono::DateTime::UNIX_EPOCH,
+            timestamp: timestamps[leader_email],
             name_override: None,
             description_override: None,
         },

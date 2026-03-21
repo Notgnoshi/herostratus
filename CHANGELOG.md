@@ -24,6 +24,9 @@ focus on the user impact** rather than the actual changes made.
 
 ## Changed
 
+**BREAKING:** The H10 and H13 rules have added fields to their `Rule::Cache`. This breaks backwards
+compatibility with using cached data from previous versions of Herostratus.
+
 ## Deprecated
 
 ## Removed
