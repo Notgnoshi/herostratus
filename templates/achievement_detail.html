@@ -11,7 +11,7 @@
 {% if achievement.kind == "global-revocable" %}
 <h2>Current Holders</h2>
 {% if achievement.holders %}
-<table>
+<table class="sortable">
     <tr>
         <th>User</th>
         <th>Repository</th>
@@ -37,7 +37,7 @@
 
 <h2>History</h2>
 {% if achievement.history %}
-<table>
+<table class="sortable">
     <tr>
         <th>Time</th>
         <th>Event</th>
@@ -65,7 +65,7 @@
 {% else %}
 <h2>Holders</h2>
 {% if achievement.holders %}
-<table>
+<table class="sortable filterable">
     <tr>
         <th>User</th>
         <th>Repository</th>
