@@ -225,6 +225,7 @@ mod tests {
             oid: gix::ObjectId::null(gix::hash::Kind::Sha1),
             author_name: "Test".to_string(),
             author_email: "test@example.com".to_string(),
+            commit_timestamp: chrono::DateTime::UNIX_EPOCH,
         }
     }
 

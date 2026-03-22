@@ -7,12 +7,12 @@
 
 <h2>Repositories</h2>
 {% if repositories %}
-<table>
+<table class="sortable">
     <tr>
         <th>Name</th>
         <th>Achievements</th>
-        <th>Contributors</th>
-        <th>Last Activity</th>
+        <th>Achievers</th>
+        <th>Last Checked</th>
     </tr>
     {% for repo in repositories %}
     <tr>
@@ -29,7 +29,7 @@
 
 <h2>Recent Activity</h2>
 {% if recent_activity %}
-<table>
+<table class="sortable">
     <tr>
         <th>Time</th>
         <th>Event</th>
@@ -46,7 +46,7 @@
         <td><a href="{{ root }}user/{{ entry.user_slug }}.html">{{ entry.user_name }}</a></td>
         <td><a href="{{ root }}repo/{{ entry.repo_name }}.html">{{ entry.repo_name }}</a></td>
         {% if entry.commit_url_prefix and entry.commit != "0000000000000000000000000000000000000000" %}
-        <td><a href="{{ entry.commit_url_prefix }}{{ entry.commit }}">{{ entry.commit[:12] }}</a></td>
+        <td><a target="_blank" href="{{ entry.commit_url_prefix }}{{ entry.commit }}">{{ entry.commit[:12] }}</a></td>
         {% else %}
         <td>{{ entry.commit[:12] }}</td>
         {% endif %}

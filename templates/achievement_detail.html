@@ -11,7 +11,7 @@
 {% if achievement.kind == "global-revocable" %}
 <h2>Current Holders</h2>
 {% if achievement.holders %}
-<table>
+<table class="sortable">
     <tr>
         <th>User</th>
         <th>Repository</th>
@@ -23,7 +23,7 @@
         <td><a href="{{ root }}user/{{ holder.user_slug }}.html">{{ holder.user_name }}</a></td>
         <td><a href="{{ root }}repo/{{ holder.repo_name }}.html">{{ holder.repo_name }}</a></td>
         {% if holder.commit_url_prefix and holder.commit != "0000000000000000000000000000000000000000" %}
-        <td><a href="{{ holder.commit_url_prefix }}{{ holder.commit }}">{{ holder.commit[:12] }}</a></td>
+        <td><a target="_blank" href="{{ holder.commit_url_prefix }}{{ holder.commit }}">{{ holder.commit[:12] }}</a></td>
         {% else %}
         <td>{{ holder.commit[:12] }}</td>
         {% endif %}
@@ -37,7 +37,7 @@
 
 <h2>History</h2>
 {% if achievement.history %}
-<table>
+<table class="sortable">
     <tr>
         <th>Time</th>
         <th>Event</th>
@@ -52,7 +52,7 @@
         <td><a href="{{ root }}user/{{ entry.user_slug }}.html">{{ entry.user_name }}</a></td>
         <td><a href="{{ root }}repo/{{ entry.repo_name }}.html">{{ entry.repo_name }}</a></td>
         {% if entry.commit_url_prefix and entry.commit != "0000000000000000000000000000000000000000" %}
-        <td><a href="{{ entry.commit_url_prefix }}{{ entry.commit }}">{{ entry.commit[:12] }}</a></td>
+        <td><a target="_blank" href="{{ entry.commit_url_prefix }}{{ entry.commit }}">{{ entry.commit[:12] }}</a></td>
         {% else %}
         <td>{{ entry.commit[:12] }}</td>
         {% endif %}
@@ -65,7 +65,7 @@
 {% else %}
 <h2>Holders</h2>
 {% if achievement.holders %}
-<table>
+<table class="sortable filterable">
     <tr>
         <th>User</th>
         <th>Repository</th>
@@ -77,7 +77,7 @@
         <td><a href="{{ root }}user/{{ holder.user_slug }}.html">{{ holder.user_name }}</a></td>
         <td><a href="{{ root }}repo/{{ holder.repo_name }}.html">{{ holder.repo_name }}</a></td>
         {% if holder.commit_url_prefix and holder.commit != "0000000000000000000000000000000000000000" %}
-        <td><a href="{{ holder.commit_url_prefix }}{{ holder.commit }}">{{ holder.commit[:12] }}</a></td>
+        <td><a target="_blank" href="{{ holder.commit_url_prefix }}{{ holder.commit }}">{{ holder.commit[:12] }}</a></td>
         {% else %}
         <td>{{ holder.commit[:12] }}</td>
         {% endif %}

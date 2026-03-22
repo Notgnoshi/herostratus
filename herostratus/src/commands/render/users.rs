@@ -76,11 +76,13 @@ pub fn derive_users(all_events: &HashMap<String, Vec<AchievementLogEvent>>) -> V
 
 /// Convert a display name to a URL-safe slug.
 ///
-/// Lowercase, replace non-alphanumeric characters with hyphens, collapse consecutive hyphens,
-/// and trim leading/trailing hyphens.
+/// Unicode characters are transliterated to ASCII (e.g. "Rene" -> "rene") before
+/// lowercasing. Non-alphanumeric characters are replaced with hyphens, consecutive hyphens are
+/// collapsed, and leading/trailing hyphens are trimmed.
 fn slugify(name: &str) -> String {
-    let mut slug = String::with_capacity(name.len());
-    for c in name.chars() {
+    let ascii = deunicode::deunicode(name);
+    let mut slug = String::with_capacity(ascii.len());
+    for c in ascii.chars() {
         if c.is_ascii_alphanumeric() {
             slug.push(c.to_ascii_lowercase());
         } else {
@@ -139,6 +141,13 @@ mod tests {
     #[test]
     fn slugify_special_characters() {
         assert_eq!(slugify("O'Brien-Jones"), "o-brien-jones");
+    }
+
+    #[test]
+    fn slugify_unicode_transliteration() {
+        assert_eq!(slugify("René Müller"), "rene-muller");
+        assert_eq!(slugify("Øyvind"), "oyvind");
+        assert_eq!(slugify("Paweł Nować"), "pawel-nowac");
     }
 
     #[test]

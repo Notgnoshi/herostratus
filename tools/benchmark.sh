@@ -63,6 +63,8 @@ run_benchmarks_wrapper() {
         >"$stdout" \
         2> >(tee "$stderr" >&2)
 
+    herostratus --data-dir "$data_dir" --color render --export-dir "$data_dir/export" --output-dir "$data_dir/public" --templates "$REPO/templates"
+
     sed -ne '/## Summary/,$p' "$stdout"
 }
 

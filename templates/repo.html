@@ -5,11 +5,11 @@
 {% block content %}
 <h1>{{ repo.name }}</h1>
 <p><a href="{{ repo.url }}">{{ repo.url }}</a></p>
-<p>Branch: {{ repo.reference }} | Commits checked: {{ repo.commits_checked }} | Achievements: {{ repo.total_achievements }} | Contributors: {{ repo.unique_achievers }}</p>
+<p>Branch: {{ repo.reference }} | Commits checked: {{ repo.commits_checked }} | Achievements: {{ repo.total_achievements }} | Achievers: {{ repo.unique_achievers }}</p>
 
 <h2>Achievement Summary</h2>
 {% if repo.achievement_summary %}
-<table>
+<table class="sortable">
     <tr>
         <th>Achievement</th>
         <th>Grants</th>
@@ -27,7 +27,7 @@
 
 <h2>Timeline</h2>
 {% if repo.events %}
-<table>
+<table class="sortable filterable">
     <tr>
         <th>Time</th>
         <th>Event</th>
@@ -42,7 +42,7 @@
         <td><a href="{{ root }}achievement/{{ entry.achievement_human_id }}.html">{{ entry.achievement_name }}</a></td>
         <td><a href="{{ root }}user/{{ entry.user_slug }}.html">{{ entry.user_name }}</a></td>
         {% if repo.commit_url_prefix and entry.commit != "0000000000000000000000000000000000000000" %}
-        <td><a href="{{ repo.commit_url_prefix }}{{ entry.commit }}">{{ entry.commit[:12] }}</a></td>
+        <td><a target="_blank" href="{{ repo.commit_url_prefix }}{{ entry.commit }}">{{ entry.commit[:12] }}</a></td>
         {% else %}
         <td>{{ entry.commit[:12] }}</td>
         {% endif %}

@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::mem::Discriminant;
 
+use chrono::{DateTime, Utc};
+
 use crate::achievement::{AchievementKind, Grant, Meta};
 use crate::observer::{CommitContext, Observation};
 use crate::rules::rule::Rule;
@@ -21,7 +23,8 @@ const META: Meta = Meta {
 #[derive(Default)]
 pub struct MostProfound {
     counts: HashMap<String, usize>,
-    leader: Option<(String, String)>,
+    /// (name, email, timestamp of the commit that made them the leader)
+    leader: Option<(String, String, DateTime<Utc>)>,
 }
 
 inventory::submit!(RuleFactory::default::<MostProfound>());
@@ -29,9 +32,9 @@ inventory::submit!(RuleFactory::default::<MostProfound>());
 #[derive(Default, Clone, serde::Deserialize, serde::Serialize)]
 pub struct MostProfoundCache {
     counts: HashMap<String, usize>,
-    /// The current leader, so their name survives cache round-trips even if they don't appear in
-    /// the next run.
-    leader: Option<(String, String)>,
+    /// The current leader, so their name and timestamp survive cache round-trips even if they
+    /// don't appear in the next run.
+    leader: Option<(String, String, DateTime<Utc>)>,
 }
 
 impl Rule for MostProfound {
@@ -58,24 +61,29 @@ impl Rule for MostProfound {
         let leader_count = self
             .leader
             .as_ref()
-            .and_then(|(_, email)| self.counts.get(email).copied())
+            .and_then(|(_, email, _)| self.counts.get(email).copied())
             .unwrap_or(0);
 
         if count > leader_count {
-            self.leader = Some((ctx.author_name.clone(), ctx.author_email.clone()));
+            self.leader = Some((
+                ctx.author_name.clone(),
+                ctx.author_email.clone(),
+                ctx.commit_timestamp,
+            ));
         }
 
         Ok(None)
     }
 
     fn finalize(&mut self) -> eyre::Result<Option<Grant>> {
-        let Some((ref name, ref email)) = self.leader else {
+        let Some((ref name, ref email, timestamp)) = self.leader else {
             return Ok(None);
         };
         Ok(Some(Grant {
             commit: gix::ObjectId::null(gix::hash::Kind::Sha1),
             user_name: name.clone(),
             user_email: email.clone(),
+            timestamp,
             name_override: None,
             description_override: None,
         }))
@@ -155,7 +163,11 @@ mod tests {
         assert_eq!(cache.counts.get("alice@example.com"), Some(&3));
         assert_eq!(
             cache.leader,
-            Some(("Alice".to_string(), "alice@example.com".to_string()))
+            Some((
+                "Alice".to_string(),
+                "alice@example.com".to_string(),
+                DateTime::UNIX_EPOCH,
+            ))
         );
 
         let mut rule2 = MostProfound::default();

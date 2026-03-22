@@ -1,5 +1,7 @@
 use std::mem::Discriminant;
 
+use chrono::{DateTime, Utc};
+
 use crate::achievement::{AchievementKind, Grant, Meta};
 use crate::config::RulesConfig;
 use crate::observer::{CommitContext, Observation};
@@ -36,6 +38,7 @@ struct Token {
     source_oid: String,
     user_name: String,
     user_email: String,
+    timestamp: DateTime<Utc>,
     /// Index into `visited_oids`. Commits at indices `0..future_oid_cutoff` are descendants
     /// (future commits) of this token's source commit. The source commit itself is at
     /// `visited_oids[future_oid_cutoff]`, excluded from the search.
@@ -48,6 +51,7 @@ struct CachedToken {
     source_oid: String,
     user_name: String,
     user_email: String,
+    timestamp: DateTime<Utc>,
 }
 
 #[derive(Default, Clone, serde::Deserialize, serde::Serialize)]
@@ -123,6 +127,7 @@ impl Rule for FortuneTeller {
                 source_oid: ctx.oid.to_string(),
                 user_name: ctx.author_name.clone(),
                 user_email: ctx.author_email.clone(),
+                timestamp: ctx.commit_timestamp,
                 future_oid_cutoff: self.visited_oids.len() - 1,
             });
         }
@@ -145,6 +150,7 @@ impl Rule for FortuneTeller {
                             .unwrap_or_else(|_| gix::ObjectId::null(gix::hash::Kind::Sha1)),
                         user_name: token.user_name.clone(),
                         user_email: token.user_email.clone(),
+                        timestamp: token.timestamp,
                         name_override: None,
                         description_override: None,
                     }));
@@ -162,6 +168,7 @@ impl Rule for FortuneTeller {
                 source_oid: ct.source_oid,
                 user_name: ct.user_name,
                 user_email: ct.user_email,
+                timestamp: ct.timestamp,
                 future_oid_cutoff: usize::MAX,
             });
         }
@@ -184,6 +191,7 @@ impl Rule for FortuneTeller {
                 source_oid: t.source_oid.clone(),
                 user_name: t.user_name.clone(),
                 user_email: t.user_email.clone(),
+                timestamp: t.timestamp,
             })
             .collect::<Vec<_>>();
 
@@ -346,6 +354,7 @@ mod tests {
                 source_oid: format!("{:0<40}", "2222222222"),
                 user_name: "Alice".to_string(),
                 user_email: "alice@example.com".to_string(),
+                timestamp: DateTime::UNIX_EPOCH,
             }],
         };
         rule.init_cache(cache);

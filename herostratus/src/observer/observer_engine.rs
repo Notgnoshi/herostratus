@@ -109,10 +109,15 @@ impl<'repo> ObserverEngine<'repo> {
         self.num_commits_processed += 1;
 
         let author = self.mailmap.resolve_author(&commit)?;
+        let committer = commit.committer()?;
+        let committer_time = committer.time()?;
+        let commit_timestamp =
+            chrono::DateTime::from_timestamp(committer_time.seconds, 0).unwrap_or_default();
         let ctx = CommitContext {
             oid,
             author_name: author.name.to_string(),
             author_email: author.email.to_string(),
+            commit_timestamp,
         };
 
         let mut data = vec![ObserverData::CommitStart(ctx)];
@@ -326,6 +331,8 @@ mod tests {
             // matches the default author used by the repository::Builder fixture
             author_name: "Herostratus".to_string(),
             author_email: "Herostratus@example.com".to_string(),
+            // matches DEFAULT_TIME (1711656630) used by the repository::Builder fixture
+            commit_timestamp: chrono::DateTime::from_timestamp(1711656630, 0).unwrap(),
         }
     }
 
@@ -503,6 +510,7 @@ mod tests {
             oid,
             author_name: "Canonical Name".to_string(),
             author_email: "canonical@example.com".to_string(),
+            commit_timestamp: chrono::DateTime::from_timestamp(1711656630, 0).unwrap(),
         };
         assert_eq!(
             data,

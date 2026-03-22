@@ -84,7 +84,7 @@ pub struct RepositoryRow {
     #[serde(rename = "ref")]
     pub reference: String,
     pub commits_checked: u64,
-    pub last_checked: String,
+    pub last_checked: chrono::DateTime<Utc>,
 }
 
 /// Upsert a repository row in `{data_dir}/export/repositories.csv`.
@@ -119,7 +119,7 @@ pub fn upsert_repository_csv(
         commit_url_prefix: commit_url_prefix.unwrap_or("").to_string(),
         reference: reference.to_string(),
         commits_checked,
-        last_checked: Utc::now().to_rfc3339(),
+        last_checked: Utc::now(),
     };
 
     if let Some(existing) = rows.iter_mut().find(|r| r.name == name) {
