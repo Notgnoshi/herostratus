@@ -123,6 +123,13 @@ pub struct RepositoryConfig {
     pub mailmap_file: Option<PathBuf>,
 }
 
+/// Environment variable names for credential overrides.
+///
+/// These override the corresponding fields in [`RepositoryConfig`] when set, so that secrets
+/// don't need to be stored in the config file (which may be checked into version control).
+pub const HTTPS_PASSWORD_ENV: &str = "HEROSTRATUS_HTTPS_PASSWORD";
+pub const REMOTE_USERNAME_ENV: &str = "HEROSTRATUS_REMOTE_USERNAME";
+
 impl RepositoryConfig {
     /// Returns the commit URL prefix, either the explicitly configured value or one inferred from
     /// the clone URL.
@@ -133,6 +140,28 @@ impl RepositoryConfig {
             return self.commit_url_prefix.clone();
         }
         super::infer_commit_url_prefix(&self.url)
+    }
+
+    /// Return a copy of this config with environment variable overrides applied.
+    ///
+    /// Precedence: environment variable > config file value.
+    ///
+    /// Supported environment variables:
+    /// - [`HEROSTRATUS_HTTPS_PASSWORD`](HTTPS_PASSWORD_ENV): overrides `https_password`
+    /// - [`HEROSTRATUS_REMOTE_USERNAME`](REMOTE_USERNAME_ENV): overrides `remote_username`
+    pub fn with_env_overrides(&self) -> Self {
+        let mut config = self.clone();
+        if let Ok(password) = std::env::var(HTTPS_PASSWORD_ENV)
+            && !password.is_empty()
+        {
+            config.https_password = Some(password);
+        }
+        if let Ok(username) = std::env::var(REMOTE_USERNAME_ENV)
+            && !username.is_empty()
+        {
+            config.remote_username = Some(username);
+        }
+        config
     }
 }
 
