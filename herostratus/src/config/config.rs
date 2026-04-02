@@ -154,11 +154,13 @@ impl RepositoryConfig {
         if let Ok(password) = std::env::var(HTTPS_PASSWORD_ENV)
             && !password.is_empty()
         {
+            tracing::info!("Overriding HTTPS password from {HTTPS_PASSWORD_ENV}");
             config.https_password = Some(password);
         }
         if let Ok(username) = std::env::var(REMOTE_USERNAME_ENV)
             && !username.is_empty()
         {
+            tracing::info!("Overriding HTTPS password from {REMOTE_USERNAME_ENV}={username:?}");
             config.remote_username = Some(username);
         }
         config
