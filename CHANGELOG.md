@@ -22,6 +22,9 @@ focus on the user impact** rather than the actual changes made.
   SSH keys or HTTPS passwords/PATs configured via config.toml or CLI flags. See
   `docs/user/authentication.md` for details.
 
+  The HTTPS password and username can be provided either through the config.toml file, or by the
+  `HEROSTRATUS_HTTPS_PASSWORD` and `HEROSTRATUS_REMOTE_USERNAME` environment variables.
+
 ## Changed
 
 **BREAKING:** The H10 and H13 rules have added fields to their `Rule::Cache`. This breaks backwards

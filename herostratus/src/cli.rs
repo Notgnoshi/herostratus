@@ -128,7 +128,9 @@ pub struct AddArgs {
     /// The SSH or HTTPS remote username
     ///
     /// If not set, it will default to 'git'.
-    #[clap(long)]
+    ///
+    /// Can also be set via the HEROSTRATUS_REMOTE_USERNAME environment variable.
+    #[clap(long, env = "HEROSTRATUS_REMOTE_USERNAME")]
     pub remote_username: Option<String>,
 
     /// The path to an SSH private key
@@ -148,7 +150,9 @@ pub struct AddArgs {
     ///
     /// If not set for an HTTPS clone URL, Herostratus will attempt to use your configured Git
     /// `credential.helper`.
-    #[clap(long)]
+    ///
+    /// Can also be set via the HEROSTRATUS_HTTPS_PASSWORD environment variable.
+    #[clap(long, env = "HEROSTRATUS_HTTPS_PASSWORD")]
     pub https_password: Option<String>,
 
     /// URL prefix for linking to commits on the Git forge's web UI

@@ -14,8 +14,13 @@ pub struct FetchStat {
 }
 
 /// Fetch (or clone) a single configured repository
+///
+/// Environment variables `HEROSTRATUS_HTTPS_PASSWORD` and `HEROSTRATUS_REMOTE_USERNAME` override
+/// the corresponding config file values, so that secrets don't need to be stored in the config
+/// file.
 pub fn fetch_one(name: &str, config: &RepositoryConfig) -> eyre::Result<FetchStat> {
     let _span = tracing::debug_span!("fetch", name = name).entered();
+    let config = config.with_env_overrides();
     let repo_start = Instant::now();
     let mut stat = FetchStat {
         name: name.to_string(),
@@ -33,12 +38,12 @@ pub fn fetch_one(name: &str, config: &RepositoryConfig) -> eyre::Result<FetchSta
             let force = false;
             skip_fetch = true;
             // TODO: Count number of commits cloned?
-            clone_repository(config, force)?
+            clone_repository(&config, force)?
         }
     };
 
     if !skip_fetch {
-        let fetched = pull_branch(config, &mut repo)?;
+        let fetched = pull_branch(&config, &mut repo)?;
         stat.num_commits_fetched = Some(fetched);
     }
     stat.elapsed = repo_start.elapsed();
