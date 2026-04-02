@@ -68,7 +68,9 @@ fn check_impl(
         events.push(e);
     })?;
 
-    if let Some(data_dir) = data_dir {
+    if let Some(data_dir) = data_dir
+        && stats.num_commits_processed > 0
+    {
         let repo_config = config.and_then(|c| c.repositories.get(name));
         let url = repo_config.map(|rc| rc.url.as_str()).unwrap_or("");
         let commit_url_prefix = repo_config.and_then(|rc| rc.resolve_commit_url_prefix());
