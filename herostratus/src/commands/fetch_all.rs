@@ -38,7 +38,7 @@ pub fn fetch_one(name: &str, config: &RepositoryConfig) -> eyre::Result<FetchSta
             let force = false;
             skip_fetch = true;
             // TODO: Count number of commits cloned?
-            clone_repository(&config, force)?
+            clone_repository(&config, force, None)?
         }
     };
 

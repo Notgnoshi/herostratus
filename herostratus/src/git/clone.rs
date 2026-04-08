@@ -342,6 +342,7 @@ pub fn pull_branch(
 pub fn clone_repository(
     config: &crate::config::RepositoryConfig,
     force: bool,
+    shallow: Option<usize>,
 ) -> eyre::Result<gix::Repository> {
     let start = std::time::Instant::now();
     tracing::info!(
@@ -400,6 +401,16 @@ pub fn clone_repository(
         create_opts,
         open_opts,
     )?;
+
+    let prepare = if let Some(depth) = shallow {
+        let depth = std::num::NonZeroU32::new(depth as u32)
+            .ok_or_else(|| eyre::eyre!("shallow depth must be > 0"))?;
+        tracing::info!("Shallow clone with depth={depth}");
+        prepare.with_shallow(gix::remote::fetch::Shallow::DepthAtRemote(depth))
+    } else {
+        prepare
+    };
+
     let branch = config.reference.clone();
 
     // Configure the remote with the right refspecs for fetching just the configure branch and the
@@ -727,7 +738,7 @@ mod tests {
             ..Default::default()
         };
         let force = false;
-        let downstream = clone_repository(&config, force).unwrap();
+        let downstream = clone_repository(&config, force, None).unwrap();
 
         let result = downstream.find_commit(commit1);
         assert!(result.is_ok());
@@ -755,7 +766,7 @@ mod tests {
             ..Default::default()
         };
         let force = false;
-        let downstream = clone_repository(&config, force).unwrap();
+        let downstream = clone_repository(&config, force, None).unwrap();
 
         let result = downstream.find_commit(commit1);
         assert!(result.is_ok());
@@ -776,7 +787,7 @@ mod tests {
             ..Default::default()
         };
         let force = false;
-        let _downstream = clone_repository(&config, force).unwrap();
+        let _downstream = clone_repository(&config, force, None).unwrap();
     }
 
     #[test]
@@ -792,7 +803,7 @@ mod tests {
             ..Default::default()
         };
         let force = false;
-        let _downstream = clone_repository(&config, force).unwrap();
+        let _downstream = clone_repository(&config, force, None).unwrap();
     }
 
     #[test]
@@ -809,7 +820,7 @@ mod tests {
             ..Default::default()
         };
         let force = false;
-        let _downstream = clone_repository(&config, force).unwrap();
+        let _downstream = clone_repository(&config, force, None).unwrap();
     }
 
     #[test]
@@ -830,7 +841,7 @@ mod tests {
             ..Default::default()
         };
         let force = false;
-        let result = clone_repository(&config, force);
+        let result = clone_repository(&config, force, None);
         assert!(result.is_err());
 
         // Create a sentinel file to test whether the directory was deleted, or the clone was just
@@ -840,7 +851,7 @@ mod tests {
         assert!(sentinel.exists());
 
         let force = true;
-        let result = clone_repository(&config, force);
+        let result = clone_repository(&config, force, None);
         assert!(result.is_ok());
         assert!(!sentinel.exists());
     }
@@ -862,7 +873,7 @@ mod tests {
         };
 
         let force = false;
-        let _downstream = clone_repository(&config, force).unwrap();
+        let _downstream = clone_repository(&config, force, None).unwrap();
         // Create a sentinel file to test whether the directory was deleted
         let sentinel = downstream_dir.join("sentinel.txt");
         std::fs::File::create(&sentinel).unwrap();
@@ -872,10 +883,42 @@ mod tests {
         // instead of failing.
         let new_commit = upstream.commit("new commit").create().unwrap();
 
-        let downstream = clone_repository(&config, force).unwrap();
+        let downstream = clone_repository(&config, force, None).unwrap();
         let result = downstream.find_commit(new_commit);
         assert!(result.is_ok());
         // The repo wasn't cleared out and re-cloned; the sentinel file still exists
         assert!(sentinel.exists());
+    }
+
+    #[test]
+    fn test_shallow_clone() {
+        let upstream = repository::Builder::new()
+            .commit("commit1")
+            .commit("commit2")
+            .commit("commit3")
+            .commit("commit4")
+            .commit("commit5")
+            .build()
+            .unwrap();
+        let tempdir = tempfile::tempdir().unwrap();
+        let downstream_dir = tempdir.path().join("downstream");
+
+        let config = crate::config::RepositoryConfig {
+            reference: None,
+            url: format!("file://{}", upstream.tempdir.path().display()),
+            path: downstream_dir.clone(),
+            ..Default::default()
+        };
+        let shallow = Some(2);
+        let force = false;
+        let downstream = clone_repository(&config, force, shallow).unwrap();
+
+        // Only 2 commits should be reachable
+        let head = crate::git::rev::parse("HEAD", &downstream).unwrap();
+        let commits: Vec<_> = crate::git::rev::walk(head, &downstream)
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+        assert_eq!(commits.len(), 2);
     }
 }
