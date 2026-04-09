@@ -206,6 +206,66 @@ mod test {
     }
 
     #[test]
+    fn test_deepening_walk_preserves_commit_order() {
+        // Verify that DeepeningRevWalk yields commits in the same order as a full rev_walk
+        // on the complete history.
+        let upstream = repository::Builder::new()
+            .commit("commit1")
+            .time(1000)
+            .commit("commit2")
+            .time(2000)
+            .commit("commit3")
+            .time(3000)
+            .commit("commit4")
+            .time(4000)
+            .commit("commit5")
+            .time(5000)
+            .commit("commit6")
+            .time(6000)
+            .build()
+            .unwrap();
+
+        // Full clone to get the expected ordering
+        let tempdir_full = tempfile::tempdir().unwrap();
+        let full_config = RepositoryConfig {
+            reference: None,
+            url: format!("file://{}", upstream.tempdir.path().display()),
+            path: tempdir_full.path().join("full"),
+            ..Default::default()
+        };
+        let full_repo = crate::git::clone::clone_repository(&full_config, false, None).unwrap();
+        let head = crate::git::rev::parse("HEAD", &full_repo).unwrap();
+        let expected: Vec<_> = crate::git::rev::walk(head, &full_repo)
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+
+        // Shallow clone + DeepeningRevWalk
+        let tempdir_shallow = tempfile::tempdir().unwrap();
+        let shallow_config = RepositoryConfig {
+            reference: None,
+            url: format!("file://{}", upstream.tempdir.path().display()),
+            path: tempdir_shallow.path().join("shallow"),
+            ..Default::default()
+        };
+        let mut shallow_repo =
+            crate::git::clone::clone_repository(&shallow_config, false, Some(2)).unwrap();
+        let head = crate::git::rev::parse("HEAD", &shallow_repo).unwrap();
+        let walk = DeepeningRevWalk::new(head, &mut shallow_repo, shallow_config, 2).unwrap();
+        let actual: Vec<_> = walk.collect::<Result<_, _>>().unwrap();
+
+        assert_eq!(
+            expected.len(),
+            actual.len(),
+            "Should yield the same number of commits"
+        );
+        assert_eq!(
+            expected, actual,
+            "Commit ordering should match full rev_walk"
+        );
+    }
+
+    #[test]
     fn test_deepening_walk_stops_when_consumer_stops() {
         // Same setup but take(3) -- should not fetch all history
         let upstream = repository::Builder::new()

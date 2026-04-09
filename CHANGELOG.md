@@ -27,8 +27,12 @@ focus on the user impact** rather than the actual changes made.
 
 ## Changed
 
-**BREAKING:** The H10 and H13 rules have added fields to their `Rule::Cache`. This breaks backwards
-compatibility with using cached data from previous versions of Herostratus.
+* **BREAKING:** The H10 and H13 rules have added fields to their `Rule::Cache`. This breaks
+  backwards compatibility with using cached data from previous versions of Herostratus.
+
+* Herostratus will now perform shallow clones by default, and fetch more commits if it needs to.
+  This is intended to speed up processing in CI environments where the checkpoint is checked in, but
+  the repositories must be cloned on every run.
 
 ## Deprecated
 

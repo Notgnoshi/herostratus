@@ -19,14 +19,16 @@ pub struct GrantStats {
     pub elapsed: Duration,
 }
 
+#[allow(clippy::too_many_arguments)]
 #[tracing::instrument(target = "perf", skip(repo, on_event))]
 pub fn grant(
     config: Option<&Config>,
     reference: &str,
-    repo: &gix::Repository,
+    repo: &mut gix::Repository,
     depth: Option<usize>,
     data_dir: Option<&Path>,
     name: &str,
+    repo_config: Option<&crate::config::RepositoryConfig>,
     on_event: impl FnMut(AchievementEvent),
 ) -> eyre::Result<GrantStats> {
     let default_rc = crate::config::RulesConfig::default();
@@ -42,47 +44,74 @@ pub fn grant(
     let mailmap = MailmapResolver::new(snapshot, global_mailmap, repo_mailmap)?;
 
     run_grant(
-        reference, repo, depth, data_dir, name, rules, mailmap, on_event,
+        reference,
+        repo,
+        depth,
+        data_dir,
+        name,
+        rules,
+        mailmap,
+        repo_config,
+        on_event,
     )
 }
 
 #[allow(clippy::too_many_arguments)]
 fn run_grant(
     reference: &str,
-    repo: &gix::Repository,
+    repo: &mut gix::Repository,
     depth: Option<usize>,
     data_dir: Option<&Path>,
     name: &str,
     rules: Vec<Box<dyn RulePlugin>>,
     mailmap: MailmapResolver,
+    repo_config: Option<&crate::config::RepositoryConfig>,
     on_event: impl FnMut(AchievementEvent),
 ) -> eyre::Result<GrantStats> {
     let rev = crate::git::rev::parse(reference, repo)
         .wrap_err(format!("Failed to rev-parse: {reference:?}"))?;
-    let oids =
-        crate::git::rev::walk(rev, repo).wrap_err(format!("Failed to rev-walk rev: {rev:?}"))?;
-
-    // TODO: There should be better error handling than this
-    let oids = oids.filter_map(|o| match o {
-        Ok(o) => Some(o),
-        Err(e) => {
-            tracing::error!("Skipping OID: {e:?}");
-            None
-        }
-    });
 
     if let Some(data_dir) = data_dir {
         super::export::write_achievements_csv(data_dir, &rules)?;
     }
 
+    // Build the pipeline first (briefly borrows &repo, but ObserverEngine clones into owned
+    // storage, so the borrow does not persist after construction).
     let pipeline = Pipeline::new(repo, rules, mailmap, data_dir, name)?;
 
-    if let Some(depth) = depth {
-        let stats = pipeline.run(oids.take(depth), on_event)?;
-        Ok(map_stats(stats))
+    // Choose the iteration strategy based on whether we have a repo config and the repo is
+    // shallow. DeepeningRevWalk transparently fetches more history as needed; for non-shallow
+    // repos (or stateless mode without a config) we use the plain rev::walk.
+    if let Some(rc) = repo_config
+        && repo.is_shallow()
+    {
+        let batch_size = crate::git::clone::DEFAULT_SHALLOW_DEPTH;
+        let oids = crate::git::deepen::DeepeningRevWalk::new(rev, repo, rc.clone(), batch_size)?;
+        if let Some(depth) = depth {
+            let stats = pipeline.run(oids.take(depth), on_event)?;
+            Ok(map_stats(stats))
+        } else {
+            let stats = pipeline.run(oids, on_event)?;
+            Ok(map_stats(stats))
+        }
     } else {
-        let stats = pipeline.run(oids, on_event)?;
-        Ok(map_stats(stats))
+        let oids = crate::git::rev::walk(rev, repo)
+            .wrap_err(format!("Failed to rev-walk rev: {rev:?}"))?;
+        // Wrap Ok values and skip errors (existing behavior for stateless mode)
+        let oids = oids.filter_map(|o| match o {
+            Ok(o) => Some(Ok(o)),
+            Err(e) => {
+                tracing::error!("Skipping OID: {e:?}");
+                None
+            }
+        });
+        if let Some(depth) = depth {
+            let stats = pipeline.run(oids.take(depth), on_event)?;
+            Ok(map_stats(stats))
+        } else {
+            let stats = pipeline.run(oids, on_event)?;
+            Ok(map_stats(stats))
+        }
     }
 }
 
@@ -95,8 +124,8 @@ fn map_stats(stats: PipelineStats) -> GrantStats {
 }
 
 /// Drives the [ObserverEngine] and [RuleEngine] together, streaming [Achievement]s via a callback.
-struct Pipeline<'repo> {
-    observer_engine: ObserverEngine<'repo>,
+struct Pipeline {
+    observer_engine: ObserverEngine,
     rule_engine: RuleEngine,
     achievement_log: AchievementLog,
     checkpoint: PipelineCheckpoint,
@@ -116,7 +145,7 @@ struct PipelineStats {
     elapsed: Duration,
 }
 
-impl<'repo> Pipeline<'repo> {
+impl Pipeline {
     /// Build a pipeline, wiring observers to rules via their observation dependencies.
     ///
     /// Only instantiates observers whose `emits()` discriminant is consumed by at least one rule.
@@ -124,7 +153,7 @@ impl<'repo> Pipeline<'repo> {
     /// When `data_dir` is provided, rule caches are loaded before processing and saved afterward.
     /// Pass `None` for stateless operation (no persistence).
     pub fn new(
-        repo: &'repo gix::Repository,
+        repo: &gix::Repository,
         rules: Vec<Box<dyn RulePlugin>>,
         mailmap: MailmapResolver,
         data_dir: Option<&Path>,
@@ -169,7 +198,7 @@ impl<'repo> Pipeline<'repo> {
     #[tracing::instrument(target = "perf", skip_all)]
     pub fn run(
         mut self,
-        oids: impl IntoIterator<Item = gix::ObjectId>,
+        oids: impl IntoIterator<Item = eyre::Result<gix::ObjectId>>,
         mut on_event: impl FnMut(AchievementEvent),
     ) -> eyre::Result<PipelineStats> {
         let start = Instant::now();
@@ -185,6 +214,7 @@ impl<'repo> Pipeline<'repo> {
         }
 
         for oid in oids {
+            let oid = oid?;
             let result = self.on_commit(oid, &mut on_event)?;
             num_achievements += result.num_achievements;
             if result.early_exit {
@@ -400,7 +430,9 @@ mod tests {
             Pipeline::new(&temp_repo.repo, Vec::new(), default_mailmap(), None, "").unwrap();
 
         let mut events = Vec::new();
-        let stats = pipeline.run(oids, |e| events.push(e)).unwrap();
+        let stats = pipeline
+            .run(oids.into_iter().map(Ok), |e| events.push(e))
+            .unwrap();
 
         assert!(events.is_empty());
         assert_eq!(stats.num_commits_processed, 2);
@@ -421,7 +453,7 @@ mod tests {
 
         let mut events = Vec::new();
         let stats = pipeline
-            .run(std::iter::once(oid), |e| events.push(e))
+            .run(std::iter::once(Ok(oid)), |e| events.push(e))
             .unwrap();
 
         // H001 (fixup) should fire on the per-commit path
@@ -458,7 +490,7 @@ mod tests {
 
         let mut events = Vec::new();
         pipeline
-            .run(std::iter::once(oid), |e| events.push(e))
+            .run(std::iter::once(Ok(oid)), |e| events.push(e))
             .unwrap();
 
         let h002_granted = grants(&events).iter().any(|a| a.descriptor_id == 2);
@@ -487,7 +519,7 @@ mod tests {
 
         let mut events2 = Vec::new();
         pipeline2
-            .run(std::iter::once(oid2), |e| events2.push(e))
+            .run(std::iter::once(Ok(oid2)), |e| events2.push(e))
             .unwrap();
 
         let h002_granted_again = grants(&events2).iter().any(|a| a.descriptor_id == 2);
@@ -520,7 +552,7 @@ mod tests {
 
         let mut events = Vec::new();
         pipeline
-            .run(std::iter::once(oid), |e| events.push(e))
+            .run(std::iter::once(Ok(oid)), |e| events.push(e))
             .unwrap();
 
         let h001_count = grants(&events)
@@ -548,7 +580,7 @@ mod tests {
 
         let mut events2 = Vec::new();
         pipeline2
-            .run(std::iter::once(oid2), |e| events2.push(e))
+            .run(std::iter::once(Ok(oid2)), |e| events2.push(e))
             .unwrap();
 
         let h001_count2 = grants(&events2)
@@ -599,7 +631,9 @@ mod tests {
         let pipeline = Pipeline::new(&temp_repo.repo, rules, default_mailmap(), None, "").unwrap();
 
         let mut events = Vec::new();
-        let stats = pipeline.run(oids, |e| events.push(e)).unwrap();
+        let stats = pipeline
+            .run(oids.into_iter().map(Ok), |e| events.push(e))
+            .unwrap();
         let achievements = grants(&events);
 
         // H7 (Global{revocable:false}): Bob is the actual first swearer (oldest commit)
@@ -677,7 +711,9 @@ mod tests {
         .unwrap();
 
         let mut events1 = Vec::new();
-        pipeline1.run(oids1, |e| events1.push(e)).unwrap();
+        pipeline1
+            .run(oids1.into_iter().map(Ok), |e| events1.push(e))
+            .unwrap();
         let achievements1 = grants(&events1);
 
         assert!(
@@ -739,7 +775,9 @@ mod tests {
         .unwrap();
 
         let mut events2 = Vec::new();
-        pipeline2.run(oids2, |e| events2.push(e)).unwrap();
+        pipeline2
+            .run(oids2.into_iter().map(Ok), |e| events2.push(e))
+            .unwrap();
         let achievements2 = grants(&events2);
 
         // H7 (Global{revocable:false}): NOT granted to Bob -- Alice holds permanently
@@ -811,7 +849,9 @@ mod tests {
         let pipeline = Pipeline::new(&temp_repo.repo, rules, default_mailmap(), None, "").unwrap();
 
         let mut events = Vec::new();
-        let stats = pipeline.run(oids, |e| events.push(e)).unwrap();
+        let stats = pipeline
+            .run(oids.into_iter().map(Ok), |e| events.push(e))
+            .unwrap();
         let achievements = grants(&events);
 
         let ids: Vec<_> = achievements.iter().map(|a| a.descriptor_id).collect();
@@ -840,7 +880,9 @@ mod tests {
         let rules = builtin_rules(&RulesConfig::default());
         let pipeline = Pipeline::new(repo, rules, default_mailmap(), data_dir, repo_name).unwrap();
         let mut events = Vec::new();
-        let stats = pipeline.run(oids, |e| events.push(e)).unwrap();
+        let stats = pipeline
+            .run(oids.into_iter().map(Ok), |e| events.push(e))
+            .unwrap();
         (stats, events)
     }
 
@@ -904,7 +946,9 @@ mod tests {
             .collect();
         let pipeline = Pipeline::new(repo, rules, default_mailmap(), data_dir, repo_name).unwrap();
         let mut events = Vec::new();
-        let stats = pipeline.run(oids, |e| events.push(e)).unwrap();
+        let stats = pipeline
+            .run(oids.into_iter().map(Ok), |e| events.push(e))
+            .unwrap();
         (stats, events)
     }
 
