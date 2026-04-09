@@ -18,7 +18,11 @@ pub struct FetchStat {
 /// Environment variables `HEROSTRATUS_HTTPS_PASSWORD` and `HEROSTRATUS_REMOTE_USERNAME` override
 /// the corresponding config file values, so that secrets don't need to be stored in the config
 /// file.
-pub fn fetch_one(name: &str, config: &RepositoryConfig) -> eyre::Result<FetchStat> {
+pub fn fetch_one(
+    name: &str,
+    config: &RepositoryConfig,
+    data_dir: &Path,
+) -> eyre::Result<FetchStat> {
     let _span = tracing::debug_span!("fetch", name = name).entered();
     let config = config.with_env_overrides();
     let repo_start = Instant::now();
@@ -38,7 +42,15 @@ pub fn fetch_one(name: &str, config: &RepositoryConfig) -> eyre::Result<FetchSta
             let force = false;
             skip_fetch = true;
             // TODO: Count number of commits cloned?
-            clone_repository(&config, force, None)?
+            let checkpoint_path = data_dir.join("cache").join(name).join("checkpoint.json");
+            let shallow = if checkpoint_path.exists() {
+                let depth = crate::git::clone::DEFAULT_SHALLOW_DEPTH;
+                tracing::info!("Checkpoint exists; shallow clone with depth={depth}");
+                Some(depth)
+            } else {
+                None
+            };
+            clone_repository(&config, force, shallow)?
         }
     };
 
@@ -53,13 +65,13 @@ pub fn fetch_one(name: &str, config: &RepositoryConfig) -> eyre::Result<FetchSta
 pub fn fetch_all(
     _args: &FetchAllArgs,
     config: &Config,
-    _data_dir: &Path,
+    data_dir: &Path,
 ) -> eyre::Result<Vec<FetchStat>> {
     tracing::info!("Fetching repositories ...");
     let mut stats = Vec::new();
     let start = Instant::now();
     for (name, repo_config) in config.repositories.iter() {
-        stats.push(fetch_one(name, repo_config)?);
+        stats.push(fetch_one(name, repo_config, data_dir)?);
     }
     tracing::info!(
         "... fetched {} repositories after {:.2?}",

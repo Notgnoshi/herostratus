@@ -226,7 +226,7 @@ pub fn check_one(
 
     let mut fetch_stats = Vec::new();
     if !args.no_fetch {
-        fetch_stats.push(fetch_one(name, repo_config)?);
+        fetch_stats.push(fetch_one(name, repo_config, data_dir)?);
     }
 
     let reference = repo_config

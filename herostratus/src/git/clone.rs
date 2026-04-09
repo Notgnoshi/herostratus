@@ -4,6 +4,11 @@ use eyre::WrapErr;
 
 use crate::bstr::{BStr, BString};
 
+/// Default number of commits to fetch when performing a shallow clone.
+///
+/// Also used as the batch size when deepening a shallow repository.
+pub const DEFAULT_SHALLOW_DEPTH: usize = 50;
+
 pub fn find_local_repository<P: AsRef<Path> + std::fmt::Debug>(
     path: P,
 ) -> eyre::Result<gix::Repository> {
