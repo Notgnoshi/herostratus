@@ -333,6 +333,79 @@ pub fn pull_branch(
     Ok(num_fetched_commits)
 }
 
+/// Deepen a shallow repository by fetching `depth` more commits from the remote.
+///
+/// Returns `true` if new commits were fetched, `false` if no new history was available.
+/// The caller should use [shallow_commits](gix::Repository::shallow_commits) before and after
+/// to determine the old boundary OIDs for walking newly available commits.
+#[tracing::instrument(level = "debug", skip_all, fields(url = %config.url, depth))]
+pub fn deepen(
+    config: &crate::config::RepositoryConfig,
+    repo: &mut gix::Repository,
+    depth: usize,
+) -> eyre::Result<bool> {
+    debug_assert!(repo.is_bare());
+
+    let boundary_before: Vec<gix::ObjectId> = repo
+        .shallow_commits()?
+        .map(|commits| commits.iter().copied().collect())
+        .unwrap_or_default();
+
+    // Configure SSH key if provided, before connecting.
+    if let Some(key_path) = &config.ssh_private_key {
+        let ssh_cmd = ssh_command_for_key(key_path);
+        tracing::debug!("Using configured SSH key: {key_path:?}");
+        let mut snapshot = repo.config_snapshot_mut();
+        snapshot.set_value(
+            &gix::config::tree::Core::SSH_COMMAND,
+            BStr::new(ssh_cmd.as_bytes()),
+        )?;
+        let _ = snapshot.commit()?;
+    }
+
+    let ref_name = config.reference.as_deref().unwrap_or("HEAD");
+    let remote = repo.find_remote("origin")?;
+    let mut refspecs = vec!["+HEAD:refs/remotes/origin/HEAD"];
+    let branch_refspec;
+    if let Some(branch) = &config.reference {
+        branch_refspec = format!("+refs/heads/{branch}:refs/heads/{branch}");
+        refspecs.push(&branch_refspec);
+    }
+    let remote = remote.with_refspecs(&refspecs, gix::remote::Direction::Fetch)?;
+    tracing::info!(
+        "Deepening {ref_name:?} by {depth} commits from {:?}",
+        config.url
+    );
+    tracing::debug!("refspecs: {refspecs:?}");
+
+    let connection = remote.connect(gix::remote::Direction::Fetch)?;
+    let connection = apply_https_credentials(config, connection)?;
+    let options = gix::remote::ref_map::Options::default();
+    let prepare = connection.prepare_fetch(gix::progress::Discard, options)?;
+    let prepare = prepare.with_shallow(gix::remote::fetch::Shallow::Deepen(depth as u32));
+    let interrupt = std::sync::atomic::AtomicBool::new(false);
+    let outcome = prepare.receive(gix::progress::Discard, &interrupt)?;
+
+    update_local_repo(repo, ref_name, &outcome.ref_map)?;
+
+    let boundary_after: Vec<gix::ObjectId> = repo
+        .shallow_commits()?
+        .map(|commits| commits.iter().copied().collect())
+        .unwrap_or_default();
+
+    let fetched = boundary_before != boundary_after;
+    if fetched {
+        tracing::info!(
+            "Deepened: boundary changed from {} to {} commits",
+            boundary_before.len(),
+            boundary_after.len()
+        );
+    } else {
+        tracing::info!("No new commits fetched (boundary unchanged)");
+    }
+    Ok(fetched)
+}
+
 /// Clone the given repository
 ///
 /// If the repository already exists on-disk, then if
@@ -925,5 +998,159 @@ mod tests {
             .filter_map(|r| r.ok())
             .collect();
         assert_eq!(commits.len(), 2);
+    }
+
+    #[test]
+    fn test_deepen_returns_false_when_no_more_history() {
+        let upstream = repository::Builder::new()
+            .commit("commit1")
+            .commit("commit2")
+            .build()
+            .unwrap();
+        let tempdir = tempfile::tempdir().unwrap();
+        let downstream_dir = tempdir.path().join("downstream");
+
+        let config = crate::config::RepositoryConfig {
+            reference: None,
+            url: format!("file://{}", upstream.tempdir.path().display()),
+            path: downstream_dir.clone(),
+            ..Default::default()
+        };
+        let force = false;
+        let mut downstream = clone_repository(&config, force, Some(3)).unwrap();
+
+        // Already have all commits; deepening should return false
+        let deepened = deepen(&config, &mut downstream, 4).unwrap();
+        assert!(!deepened);
+    }
+
+    /// Helper to create a merge commit with multiple parents
+    fn create_merge_commit(
+        repo: &gix::Repository,
+        subject: &str,
+        parents: Vec<gix::ObjectId>,
+        time: gix::date::SecondsSinceUnixEpoch,
+    ) -> eyre::Result<gix::ObjectId> {
+        // Use the first parent's tree
+        let tree_id = repo.find_commit(parents[0])?.tree_id()?;
+        let sig = gix::actor::Signature {
+            name: "Herostratus".into(),
+            email: "Herostratus@example.com".into(),
+            time: gix::date::Time::new(time, 0),
+        };
+        let mut buf_a = gix::date::parse::TimeBuf::default();
+        let authored = sig.to_ref(&mut buf_a);
+        let mut buf_c = gix::date::parse::TimeBuf::default();
+        let committed = sig.to_ref(&mut buf_c);
+
+        let parent_ids: Vec<gix::Id<'_>> = parents
+            .iter()
+            .map(|oid| repo.find_commit(*oid).map(|c| c.id()))
+            .collect::<Result<_, _>>()?;
+
+        let commit_id =
+            repo.commit_as(committed, authored, "HEAD", subject, tree_id, parent_ids)?;
+        Ok(commit_id.detach())
+    }
+
+    #[test]
+    fn test_deepen_with_merge_commits() {
+        // Create a repo with non-linear history:
+        //
+        //   A(1000) - B(2000) - E(5000, merge B+D)
+        //              \       /
+        //   C(3000) --- D(4000)
+        //
+        // C is on a feature branch rooted at B.
+        let upstream = repository::Builder::new()
+            .commit("A")
+            .time(1000)
+            .commit("B")
+            .time(2000)
+            .build()
+            .unwrap();
+
+        // Create feature branch from B
+        let b_oid = upstream.repo.head_commit().unwrap().id().detach();
+        upstream.set_branch("feature").unwrap();
+        upstream.commit("C").time(3000).create().unwrap();
+        let d_oid = upstream.commit("D").time(4000).create().unwrap().detach();
+
+        // Switch back to main and create merge commit
+        upstream.set_branch("main").unwrap();
+        let _merge_oid =
+            create_merge_commit(&upstream.repo, "E (merge)", vec![b_oid, d_oid], 5000).unwrap();
+
+        // Verify upstream has 5 reachable commits
+        let head = crate::git::rev::parse("HEAD", &upstream.repo).unwrap();
+        let upstream_commits: Vec<_> = crate::git::rev::walk(head, &upstream.repo)
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+        assert_eq!(
+            upstream_commits.len(),
+            5,
+            "Upstream should have 5 commits: A, B, C, D, E"
+        );
+
+        // Shallow clone with depth=2
+        let tempdir = tempfile::tempdir().unwrap();
+        let downstream_dir = tempdir.path().join("downstream");
+        let config = crate::config::RepositoryConfig {
+            reference: None,
+            url: format!("file://{}", upstream.tempdir.path().display()),
+            path: downstream_dir.clone(),
+            ..Default::default()
+        };
+        let mut downstream = clone_repository(&config, false, Some(2)).unwrap();
+
+        assert!(downstream.is_shallow());
+
+        let head = crate::git::rev::parse("HEAD", &downstream).unwrap();
+        let initial_commits: Vec<_> = crate::git::rev::walk(head, &downstream)
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+
+        // Read boundary before deepening -- these are the OIDs whose parents are missing
+        let boundary_before = downstream.shallow_commits().unwrap().unwrap();
+        let boundary_oids: Vec<gix::ObjectId> = boundary_before.iter().copied().collect();
+        // With a merge at HEAD and depth=2, there should be 2 boundary commits
+        // (one per parent chain through the merge)
+        assert_eq!(boundary_oids.len(), 2);
+
+        // Deepen by 2
+        let deepened = deepen(&config, &mut downstream, 2).unwrap();
+        assert!(deepened);
+
+        // Walk from the old boundary OIDs to pick up newly available commits
+        let walk = downstream.rev_walk(boundary_oids.clone());
+        let walk = walk.sorting(gix::revision::walk::Sorting::ByCommitTime(
+            gix::traverse::commit::simple::CommitTimeOrder::NewestFirst,
+        ));
+        let new_commits: Vec<_> = walk
+            .all()
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .map(|info| info.id)
+            .filter(|oid| !boundary_oids.contains(oid))
+            .collect();
+
+        // Total reachable should be the full history
+        let total: Vec<_> = crate::git::rev::walk(head, &downstream)
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+
+        // Initial + new from boundary walk should equal total
+        let combined = initial_commits.len() + new_commits.len();
+        assert_eq!(
+            combined,
+            total.len(),
+            "Initial ({}) + new from boundary walk ({}) should equal total ({})",
+            initial_commits.len(),
+            new_commits.len(),
+            total.len()
+        );
     }
 }
