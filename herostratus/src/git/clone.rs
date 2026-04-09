@@ -1024,35 +1024,6 @@ mod tests {
         assert!(!deepened);
     }
 
-    /// Helper to create a merge commit with multiple parents
-    fn create_merge_commit(
-        repo: &gix::Repository,
-        subject: &str,
-        parents: Vec<gix::ObjectId>,
-        time: gix::date::SecondsSinceUnixEpoch,
-    ) -> eyre::Result<gix::ObjectId> {
-        // Use the first parent's tree
-        let tree_id = repo.find_commit(parents[0])?.tree_id()?;
-        let sig = gix::actor::Signature {
-            name: "Herostratus".into(),
-            email: "Herostratus@example.com".into(),
-            time: gix::date::Time::new(time, 0),
-        };
-        let mut buf_a = gix::date::parse::TimeBuf::default();
-        let authored = sig.to_ref(&mut buf_a);
-        let mut buf_c = gix::date::parse::TimeBuf::default();
-        let committed = sig.to_ref(&mut buf_c);
-
-        let parent_ids: Vec<gix::Id<'_>> = parents
-            .iter()
-            .map(|oid| repo.find_commit(*oid).map(|c| c.id()))
-            .collect::<Result<_, _>>()?;
-
-        let commit_id =
-            repo.commit_as(committed, authored, "HEAD", subject, tree_id, parent_ids)?;
-        Ok(commit_id.detach())
-    }
-
     #[test]
     fn test_deepen_with_merge_commits() {
         // Create a repo with non-linear history:
@@ -1067,19 +1038,20 @@ mod tests {
             .time(1000)
             .commit("B")
             .time(2000)
+            .branch("feature")
+            .commit("C")
+            .time(3000)
+            .commit("D")
+            .time(4000)
             .build()
             .unwrap();
 
-        // Create feature branch from B
-        let b_oid = upstream.repo.head_commit().unwrap().id().detach();
-        upstream.set_branch("feature").unwrap();
-        upstream.commit("C").time(3000).create().unwrap();
-        let d_oid = upstream.commit("D").time(4000).create().unwrap().detach();
-
-        // Switch back to main and create merge commit
         upstream.set_branch("main").unwrap();
-        let _merge_oid =
-            create_merge_commit(&upstream.repo, "E (merge)", vec![b_oid, d_oid], 5000).unwrap();
+        upstream
+            .merge("feature", "E (merge)")
+            .time(5000)
+            .create()
+            .unwrap();
 
         // Verify upstream has 5 reachable commits
         let head = crate::git::rev::parse("HEAD", &upstream.repo).unwrap();

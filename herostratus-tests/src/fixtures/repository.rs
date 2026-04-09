@@ -30,6 +30,26 @@ impl TempRepository {
         }
     }
 
+    /// Start building a merge commit that merges the given branch into the current branch
+    ///
+    /// Creates a commit with two parents: HEAD and the tip of `branch_name`.
+    pub fn merge(&self, branch_name: &str, subject: &str) -> PendingCommit<'_> {
+        let branch_ref = format!("refs/heads/{branch_name}");
+        let target = self
+            .repo
+            .find_reference(&branch_ref)
+            .unwrap_or_else(|_| panic!("branch {branch_name:?} not found"))
+            .id()
+            .detach();
+        PendingCommit {
+            repo: &self.repo,
+            spec: CommitSpec {
+                extra_parents: vec![target],
+                ..CommitSpec::new(subject)
+            },
+        }
+    }
+
     /// Switch HEAD to the specified branch, creating it at the current HEAD if necessary
     pub fn set_branch(&self, branch_name: &str) -> eyre::Result<()> {
         set_default_branch(&self.repo, branch_name)
@@ -77,6 +97,7 @@ struct CommitSpec {
     committer_email: Option<String>,
     seconds: Option<gix::date::SecondsSinceUnixEpoch>,
     files: Vec<(String, Vec<u8>)>,
+    extra_parents: Vec<gix::ObjectId>,
 }
 
 impl CommitSpec {
@@ -90,6 +111,7 @@ impl CommitSpec {
             committer_email: None,
             seconds: None,
             files: Vec::new(),
+            extra_parents: Vec::new(),
         }
     }
 
@@ -146,12 +168,13 @@ impl CommitSpec {
         let mut buf_c = gix::date::parse::TimeBuf::default();
         let committed = committer_sig.to_ref(&mut buf_c);
 
-        let parent = repo.head_commit().ok();
-        let parents = if let Some(ref parent) = parent {
-            vec![parent.id()]
-        } else {
-            Vec::new()
-        };
+        let mut parents: Vec<gix::Id<'_>> = Vec::new();
+        if let Ok(head) = repo.head_commit() {
+            parents.push(head.id());
+        }
+        for oid in &self.extra_parents {
+            parents.push(repo.find_commit(*oid)?.id());
+        }
         let message = self.message();
         let commit_id = repo.commit_as(committed, authored, "HEAD", &message, tree_id, parents)?;
         Ok(commit_id)

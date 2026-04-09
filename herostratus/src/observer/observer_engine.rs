@@ -452,19 +452,9 @@ mod tests {
             .unwrap();
 
         // Create a merge commit (two parents -> diff will be skipped)
-        let main_head = temp_repo.repo.head_commit().unwrap();
-        let side_ref = temp_repo.repo.find_reference("refs/heads/side").unwrap();
-        let author = main_head.author().unwrap();
         let oid = temp_repo
-            .repo
-            .commit_as(
-                author,
-                author,
-                "HEAD",
-                "Merge side into main",
-                main_head.tree_id().unwrap(),
-                [main_head.id(), side_ref.id()],
-            )
+            .merge("side", "Merge side into main")
+            .create()
             .unwrap()
             .detach();
 
