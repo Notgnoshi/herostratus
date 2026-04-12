@@ -14,9 +14,33 @@ focus on the user impact** rather than the actual changes made.
 
 ## Added
 
+## Changed
+
+## Deprecated
+
+## Removed
+
+## Fixed
+
+# Herostratus - 1.0.0 - (2026-04-12)
+
+**This is Herostratus's first major release!** The notable new feature is generating a static site
+with the generated achievements.
+
+## Added
+
 * Static site generation! The `check-one` and `check-all` subcommands generate data files in
   `{data_dir}/export`. The `render` subcommands reads these data files, and turns it into an HTML
   static site suitable for hosting on GitHub Pages.
+
+  ```sh
+  $ herostratus check-all
+  $ herostratus render
+  $ xdg-open ./public/index.html
+  ```
+
+  you may pass --templates to specify a custom directory of Jinja2 templates. If you do this, you
+  must provide _all_ required templates, not just override any you care to customize.
 
 * Private repository authentication. Herostratus can now clone and fetch private repositories using
   SSH keys or HTTPS passwords/PATs configured via config.toml or CLI flags. See
@@ -34,15 +58,11 @@ focus on the user impact** rather than the actual changes made.
   This is intended to speed up processing in CI environments where the checkpoint is checked in, but
   the repositories must be cloned on every run.
 
-## Deprecated
-
 ## Removed
 
 Removed `ssh_public_key` and `ssh_passphrase` config.toml fields and corresponding CLI flags. These
 were inherited from the old libgit2 implementation and are not needed with gix, which delegates SSH
 to the system `ssh` binary.
-
-## Fixed
 
 # Herostratus - 0.5.0 - (2026-03-12)
 

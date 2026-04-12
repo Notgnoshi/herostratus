@@ -22,7 +22,7 @@ cargo run --release -- check . origin/test/fixup
 
 The `check` subcommand is stateless. It reads/writes no configuration, and can not fetch from the
 upstream remote. Read on for stateful configuration that enables running and re-running Herostratus
-on a group of repositories:
+on a group of repositories.
 
 > [!TIP]
 >
@@ -38,21 +38,15 @@ The following example configures Herostratus to run on its own
 # Configure Herostratus to track two branches of its own repository
 $ herostratus add git@github.com:Notgnoshi/herostratus.git test/simple
 $ herostratus add git@github.com:Notgnoshi/herostratus.git test/fixup
-# Fetch all configured branches from the remote
-$ herostratus fetch-all
 # Check all configured branches for achievements
 $ herostratus check-all
-Achievement { name: "I meant to fix that up later, I swear!", commit: 2721748d8fa0b0cc3302b41733d37e30161eabfd }
-Achievement { name: "I meant to fix that up later, I swear!", commit: a987013884fc7dafbe9eb080d7cbc8625408a85f }
-Achievement { name: "I meant to fix that up later, I swear!", commit: 60b480b554dbd5266eec0f2378f72df5170a6702 }
+# Generate a static HTML site with the granted achievements
+$ herostratus render
+$ xdg-open ./public/index.html
 ```
 
-These commands write their configuration and clone Git repositories to
-`~/.local/share/herostratus/`.
-
-> [!WARNING]
->
-> This output format will change as Herostratus becomes more usable
+These commands write their configuration and clone Git repositories to `~/.local/share/herostratus/`
+by default. See `herostratus --help` for more options.
 
 ### What achievements are there?
 
