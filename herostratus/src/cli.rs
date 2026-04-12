@@ -213,9 +213,9 @@ pub struct RenderArgs {
     /// Path to the export data directory
     ///
     /// This is the directory containing achievements.csv, repositories.csv, and the events/
-    /// subdirectory. Typically this is the export/ subdirectory of the Herostratus data directory.
+    /// subdirectory. Defaults to the export/ subdirectory of the Herostratus data directory.
     #[clap(short, long)]
-    pub export_dir: PathBuf,
+    pub export_dir: Option<PathBuf>,
 
     /// Output directory for the generated site
     #[clap(short, long, default_value = "public")]

@@ -14,8 +14,12 @@ const ROOT_PAGE: &str = "./";
 const NESTED_PAGE: &str = "../";
 
 pub fn render(args: &RenderArgs) -> eyre::Result<()> {
+    let export_dir = args
+        .export_dir
+        .as_deref()
+        .expect("export_dir should be set by caller");
     tracing::info!(
-        export_dir = %args.export_dir.display(),
+        export_dir = %export_dir.display(),
         output_dir = %args.output_dir.display(),
         base_url = %args.base_url,
         site_title = %args.site_title,
@@ -23,9 +27,9 @@ pub fn render(args: &RenderArgs) -> eyre::Result<()> {
         "Rendering static site"
     );
 
-    let achievements = data::load_achievements(&args.export_dir)?;
-    let repositories = data::load_repositories(&args.export_dir)?;
-    let events = data::load_events(&args.export_dir)?;
+    let achievements = data::load_achievements(export_dir)?;
+    let repositories = data::load_repositories(export_dir)?;
+    let events = data::load_events(export_dir)?;
     let users = users::derive_users(&events);
 
     let total_events: usize = events.values().map(|v| v.len()).sum();
