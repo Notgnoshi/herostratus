@@ -39,8 +39,8 @@ with the generated achievements.
   $ xdg-open ./public/index.html
   ```
 
-  you may pass --templates to specify a custom directory of Jinja2 templates. If you do this, you
-  must provide _all_ required templates, not just override any you care to customize.
+  you may pass --templates to specify a custom directory of Jinja2 templates. If any templates are
+  missing, the builtin templates will be used as a fallback.
 
 * Private repository authentication. Herostratus can now clone and fetch private repositories using
   SSH keys or HTTPS passwords/PATs configured via config.toml or CLI flags. See

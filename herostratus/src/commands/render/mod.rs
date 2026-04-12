@@ -51,10 +51,7 @@ pub fn render(args: &RenderArgs) -> eyre::Result<()> {
         "Aggregated site data"
     );
 
-    let env = match &args.templates {
-        Some(dir) => load_templates_from_dir(dir)?,
-        None => load_builtin_templates()?,
-    };
+    let env = load_templates(args.templates.as_deref())?;
 
     // Ensure output directories exist
     std::fs::create_dir_all(&args.output_dir)?;
@@ -161,30 +158,42 @@ mod embedded_assets {
     include!(concat!(env!("OUT_DIR"), "/embedded_assets.rs"));
 }
 
-fn load_builtin_templates() -> eyre::Result<minijinja::Environment<'static>> {
+fn load_templates(overrides_dir: Option<&Path>) -> eyre::Result<minijinja::Environment<'static>> {
     let mut env = minijinja::Environment::new();
-    for (name, source) in embedded_assets::TEMPLATES {
-        env.add_template(name, source)?;
-    }
-    tracing::debug!("Using built-in templates");
-    Ok(env)
-}
 
-fn load_templates_from_dir(templates_dir: &Path) -> eyre::Result<minijinja::Environment<'static>> {
-    let mut env = minijinja::Environment::new();
-    let dir = templates_dir.to_path_buf();
+    // Build a map of builtin templates for the loader fallback
+    let builtins: std::collections::HashMap<&str, &str> =
+        embedded_assets::TEMPLATES.iter().copied().collect();
+
+    let overrides = overrides_dir.map(|d| d.to_path_buf());
     env.set_loader(move |name| {
-        let path = dir.join(name);
-        match std::fs::read_to_string(&path) {
-            Ok(content) => Ok(Some(content)),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-            Err(e) => Err(minijinja::Error::new(
-                minijinja::ErrorKind::InvalidOperation,
-                format!("failed to read template {path:?}: {e}"),
-            )),
+        // Check the overrides directory first
+        if let Some(dir) = &overrides {
+            let path = dir.join(name);
+            match std::fs::read_to_string(&path) {
+                Ok(content) => {
+                    tracing::debug!("Loaded template override {path:?}");
+                    return Ok(Some(content));
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => {
+                    return Err(minijinja::Error::new(
+                        minijinja::ErrorKind::InvalidOperation,
+                        format!("failed to read template {path:?}: {e}"),
+                    ));
+                }
+            }
         }
+
+        // Fall back to builtins
+        Ok(builtins.get(name).map(|s| s.to_string()))
     });
-    tracing::debug!("Loaded templates from {templates_dir:?}");
+
+    if let Some(dir) = overrides_dir {
+        tracing::debug!("Loaded templates with overrides from {dir:?}");
+    } else {
+        tracing::debug!("Using built-in templates");
+    }
     Ok(env)
 }
 
