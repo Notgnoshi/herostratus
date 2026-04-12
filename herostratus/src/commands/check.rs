@@ -170,6 +170,7 @@ fn merge_stats(fetch: Vec<FetchStat>, check: Vec<CheckStat>) -> Vec<CheckAllStat
         merged.push(stat);
     }
 
+    merged.sort_by(|a, b| a.name.cmp(&b.name));
     merged
 }
 

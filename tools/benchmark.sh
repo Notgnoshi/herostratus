@@ -76,7 +76,7 @@ run_benchmarks() {
     rm -rf "$data_dir"
     mkdir -p "$data_dir"
 
-    run_benchmarks_wrapper "$data_dir" >"$results"
+    run_benchmarks_wrapper "$data_dir" | dprint fmt --stdin md >"$results"
 
     info "Benchmark results:"
     cat "$results"
@@ -136,6 +136,7 @@ main() {
 
     if [[ "$no_edit" == "false" ]]; then
         edit_readme_with_results "$REPO/data/results.md"
+        dprint fmt "$REPO/README.md"
     fi
 }
 
