@@ -23,7 +23,7 @@ pub fn render(args: &RenderArgs) -> eyre::Result<()> {
         output_dir = %args.output_dir.display(),
         base_url = %args.base_url,
         site_title = %args.site_title,
-        templates = %args.templates.display(),
+        templates = ?args.templates,
         "Rendering static site"
     );
 
@@ -51,7 +51,10 @@ pub fn render(args: &RenderArgs) -> eyre::Result<()> {
         "Aggregated site data"
     );
 
-    let env = load_templates(&args.templates)?;
+    let env = match &args.templates {
+        Some(dir) => load_templates_from_dir(dir)?,
+        None => load_builtin_templates()?,
+    };
 
     // Ensure output directories exist
     std::fs::create_dir_all(&args.output_dir)?;
@@ -137,6 +140,16 @@ pub fn render(args: &RenderArgs) -> eyre::Result<()> {
         )?;
     }
 
+    // Write static assets (CSS, JS, etc.)
+    for (name, content) in embedded_assets::STATIC_ASSETS {
+        let dest = args.output_dir.join(name);
+        if let Some(parent) = dest.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&dest, content)?;
+        tracing::debug!("Wrote static asset {dest:?}");
+    }
+
     tracing::info!(
         output_dir = %args.output_dir.display(),
         "Site rendered"
@@ -144,7 +157,20 @@ pub fn render(args: &RenderArgs) -> eyre::Result<()> {
     Ok(())
 }
 
-fn load_templates(templates_dir: &Path) -> eyre::Result<minijinja::Environment<'static>> {
+mod embedded_assets {
+    include!(concat!(env!("OUT_DIR"), "/embedded_assets.rs"));
+}
+
+fn load_builtin_templates() -> eyre::Result<minijinja::Environment<'static>> {
+    let mut env = minijinja::Environment::new();
+    for (name, source) in embedded_assets::TEMPLATES {
+        env.add_template(name, source)?;
+    }
+    tracing::debug!("Using built-in templates");
+    Ok(env)
+}
+
+fn load_templates_from_dir(templates_dir: &Path) -> eyre::Result<minijinja::Environment<'static>> {
     let mut env = minijinja::Environment::new();
     let dir = templates_dir.to_path_buf();
     env.set_loader(move |name| {
