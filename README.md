@@ -70,7 +70,7 @@ the [ARCHITECTURE.md](ARCHITECTURE.md).
 
 | Name        | # Commits | # Achievements | Time    | Time per commit |
 | ----------- | --------- | -------------- | ------- | --------------- |
-| herostratus | 361       | 2              | 46.71ms | 129.40µs        |
-| git         | 80004     | 171            | 21.97s  | 274.55µs        |
+| git         | 80620     | 177            | 34.80s  | 431.64µs        |
+| herostratus | 463       | 3              | 69.98ms | 151.14µs        |
 
 <!-- END RESULTS -->
