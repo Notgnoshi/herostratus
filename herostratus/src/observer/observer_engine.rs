@@ -44,12 +44,14 @@ use crate::git::mailmap::MailmapResolver;
 /// For diffs, changes are collected into owned
 /// [ChangeDetached](gix::object::tree::diff::ChangeDetached) form first, then each observer
 /// processes the full set of changes independently in parallel.
-pub struct ObserverEngine<'repo> {
-    repo: &'repo gix::Repository,
-    // Shared with each thread in the rayon thread pool
+pub struct ObserverEngine {
+    // Shared handle used to create thread-local Repository instances. Because ObserverEngine
+    // owns this instead of borrowing &'repo gix::Repository, Pipeline does not hold a lifetime
+    // borrow against the caller's repository, which lets DeepeningRevWalk take &mut repo
+    // concurrently.
     sync_repo: gix::ThreadSafeRepository,
     // Each thread in the thread pool caches its own thread-local Repository (created from the
-    // shared sync_repo).
+    // shared sync_repo). The main thread also gets its own entry here.
     tl_repo: thread_local::ThreadLocal<gix::Repository>,
 
     observers: Vec<Box<dyn Observer>>,
@@ -63,9 +65,9 @@ pub struct ObserverEngine<'repo> {
     num_commits_processed: u64,
 }
 
-impl<'repo> ObserverEngine<'repo> {
+impl ObserverEngine {
     pub fn new(
-        repo: &'repo gix::Repository,
+        repo: &gix::Repository,
         observers: Vec<Box<dyn Observer>>,
         mailmap: MailmapResolver,
     ) -> eyre::Result<Self> {
@@ -74,7 +76,6 @@ impl<'repo> ObserverEngine<'repo> {
             .wrap_err("Failed to create diff cache")?;
         let sync_repo = repo.clone().into_sync();
         Ok(Self {
-            repo,
             sync_repo,
             tl_repo: thread_local::ThreadLocal::new(),
             observers,
@@ -102,52 +103,60 @@ impl<'repo> ObserverEngine<'repo> {
     /// Infrastructure errors (commit not found, mailmap resolution failed) propagate as `Err`.
     #[tracing::instrument(target = "perf", name = "ObserverEngine::process_commit", skip_all)]
     pub fn process_commit(&mut self, oid: gix::ObjectId) -> eyre::Result<Vec<ObserverData>> {
-        let commit = self
-            .repo
-            .find_commit(oid)
-            .wrap_err_with(|| format!("Failed to find commit {oid}"))?;
-        self.num_commits_processed += 1;
+        // Extract commit metadata in a limited scope so the borrow chain
+        // (self.tl_repo -> repo -> commit) is released before we need &mut self for diff_commit.
+        let ctx = {
+            let tl_repo = &self.tl_repo;
+            let sync_repo = &self.sync_repo;
+            let repo = tl_repo.get_or(|| sync_repo.to_thread_local());
+            let commit = repo
+                .find_commit(oid)
+                .wrap_err_with(|| format!("Failed to find commit {oid}"))?;
 
-        let author = self.mailmap.resolve_author(&commit)?;
-        let committer = commit.committer()?;
-        let committer_time = committer.time()?;
-        let commit_timestamp =
-            chrono::DateTime::from_timestamp(committer_time.seconds, 0).unwrap_or_default();
-        let ctx = CommitContext {
-            oid,
-            author_name: author.name.to_string(),
-            author_email: author.email.to_string(),
-            commit_timestamp,
+            let author = self.mailmap.resolve_author(&commit)?;
+            let committer = commit.committer()?;
+            let committer_time = committer.time()?;
+            let commit_timestamp =
+                chrono::DateTime::from_timestamp(committer_time.seconds, 0).unwrap_or_default();
+            CommitContext {
+                oid,
+                author_name: author.name.to_string(),
+                author_email: author.email.to_string(),
+                commit_timestamp,
+            }
         };
+        self.num_commits_processed += 1;
 
         let mut data = vec![ObserverData::CommitStart(ctx)];
 
-        let guard = tracing::info_span!(target: "perf", "on_commit_message").entered();
-        let sync_repo = &self.sync_repo;
-        let tl_repo = &self.tl_repo;
-        let observations: Vec<_> = self
-            .observers
-            .par_iter_mut()
-            .filter_map(|obs| {
-                let repo = tl_repo.get_or(|| sync_repo.to_thread_local());
-                let commit = repo.find_commit(oid).ok()?;
-                match obs.on_commit(&commit, repo) {
-                    Ok(obs) => obs,
-                    Err(e) => {
-                        tracing::warn!("Observer error in on_commit: {e}");
-                        None
+        {
+            let guard = tracing::info_span!(target: "perf", "on_commit_message").entered();
+            let sync_repo = &self.sync_repo;
+            let tl_repo = &self.tl_repo;
+            let observations: Vec<_> = self
+                .observers
+                .par_iter_mut()
+                .filter_map(|obs| {
+                    let repo = tl_repo.get_or(|| sync_repo.to_thread_local());
+                    let commit = repo.find_commit(oid).ok()?;
+                    match obs.on_commit(&commit, repo) {
+                        Ok(obs) => obs,
+                        Err(e) => {
+                            tracing::warn!("Observer error in on_commit: {e}");
+                            None
+                        }
                     }
-                }
-            })
-            .collect();
-        drop(guard);
-        for obs in observations {
-            data.push(ObserverData::Observation(obs));
+                })
+                .collect();
+            drop(guard);
+            for obs in observations {
+                data.push(ObserverData::Observation(obs));
+            }
         }
 
         let any_diff_observer_enabled = self.observers.iter().any(|o| o.is_interested_in_diff());
         if any_diff_observer_enabled {
-            let diff_observations = self.diff_commit(&commit)?;
+            let diff_observations = self.diff_commit(oid)?;
             for obs in diff_observations {
                 data.push(ObserverData::Observation(obs));
             }
@@ -199,7 +208,7 @@ impl<'repo> ObserverEngine<'repo> {
     /// Changes are collected into owned [ChangeDetached](gix::object::tree::diff::ChangeDetached)
     /// form, then each observer processes the full set independently in parallel.
     #[tracing::instrument(target = "perf", skip_all)]
-    fn diff_commit(&mut self, commit: &gix::Commit) -> eyre::Result<Vec<Observation>> {
+    fn diff_commit(&mut self, oid: gix::ObjectId) -> eyre::Result<Vec<Observation>> {
         for observer in &mut self.observers {
             if observer.is_interested_in_diff()
                 && let Err(e) = observer.on_diff_start()
@@ -208,26 +217,59 @@ impl<'repo> ObserverEngine<'repo> {
             }
         }
 
-        // Skip diff computation for merge commits (>1 parent)
-        let mut parents = commit.parent_ids();
-        let parent = parents.next();
-        if parents.next().is_some() {
+        // Determine parent structure in a limited scope so the borrow chain
+        // (self.tl_repo -> repo -> commit) is released before we call collect_diff_end.
+        enum DiffKind {
+            Merge,
+            Normal { parent: Option<gix::ObjectId> },
+        }
+        let diff_kind = {
+            let tl_repo = &self.tl_repo;
+            let sync_repo = &self.sync_repo;
+            let repo = tl_repo.get_or(|| sync_repo.to_thread_local());
+            let commit = repo
+                .find_commit(oid)
+                .wrap_err_with(|| format!("Failed to find commit {oid} for diff"))?;
+            let mut parents = commit.parent_ids();
+            let parent = parents.next();
+            if parents.next().is_some() {
+                DiffKind::Merge
+            } else {
+                DiffKind::Normal {
+                    parent: parent.map(|p| p.detach()),
+                }
+            }
+        };
+
+        if matches!(diff_kind, DiffKind::Merge) {
             return self.collect_diff_end();
         }
+        let parent_oid = match diff_kind {
+            DiffKind::Normal { parent } => parent,
+            DiffKind::Merge => unreachable!(),
+        };
 
+        // Collect diff changes. We borrow self.tl_repo and self.diff_cache as separate fields
+        // so the borrow checker can verify they don't conflict.
+        let tl_repo = &self.tl_repo;
+        let sync_repo = &self.sync_repo;
+        let repo = tl_repo.get_or(|| sync_repo.to_thread_local());
+        let commit = repo
+            .find_commit(oid)
+            .wrap_err_with(|| format!("Failed to find commit {oid} for diff"))?;
         let commit_tree = commit
             .tree()
-            .wrap_err_with(|| format!("Failed to get tree for commit {}", commit.id()))?;
-        let parent_tree = match parent {
-            Some(pid) => match self.repo.find_commit(pid) {
+            .wrap_err_with(|| format!("Failed to get tree for commit {oid}"))?;
+        let parent_tree = match parent_oid {
+            Some(pid) => match repo.find_commit(pid) {
                 Ok(parent) => parent
                     .tree()
                     .wrap_err_with(|| format!("Failed to get tree for parent commit {pid}"))?,
                 // Shallow clone -- parent commit is missing, so diff against empty tree.
-                Err(_) => self.repo.empty_tree(),
+                Err(_) => repo.empty_tree(),
             },
             // Root commit -- no parent, so diff against empty tree.
-            None => self.repo.empty_tree(),
+            None => repo.empty_tree(),
         };
 
         let mut changes_iter = parent_tree
@@ -253,7 +295,7 @@ impl<'repo> ObserverEngine<'repo> {
                 gix::diff::tree_with_rewrites::Error::Diff(gix::diff::tree::Error::Cancelled),
             )) => {}
             Err(e) => {
-                return Err(e).wrap_err_with(|| format!("Failed to diff commit {}", commit.id()));
+                return Err(e).wrap_err_with(|| format!("Failed to diff commit {oid}"));
             }
         }
         drop(guard);
@@ -452,19 +494,9 @@ mod tests {
             .unwrap();
 
         // Create a merge commit (two parents -> diff will be skipped)
-        let main_head = temp_repo.repo.head_commit().unwrap();
-        let side_ref = temp_repo.repo.find_reference("refs/heads/side").unwrap();
-        let author = main_head.author().unwrap();
         let oid = temp_repo
-            .repo
-            .commit_as(
-                author,
-                author,
-                "HEAD",
-                "Merge side into main",
-                main_head.tree_id().unwrap(),
-                [main_head.id(), side_ref.id()],
-            )
+            .merge("side", "Merge side into main")
+            .create()
             .unwrap()
             .detach();
 

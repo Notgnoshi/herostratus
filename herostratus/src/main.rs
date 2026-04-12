@@ -71,7 +71,12 @@ fn main() -> eyre::Result<()> {
                 stats.print_summary();
             }
         }
-        Some(herostratus::cli::Command::Render(rargs)) => {
+        Some(herostratus::cli::Command::Render(mut rargs)) => {
+            if rargs.export_dir.is_none() && data_dir.exists() {
+                rargs.export_dir = Some(data_dir.join("export"));
+            } else if rargs.export_dir.is_none() {
+                panic!("render subcommand requires --export-dir");
+            }
             herostratus::commands::render(&rargs)?;
         }
         // The other subcommands are stateful, and require reading the application configuration

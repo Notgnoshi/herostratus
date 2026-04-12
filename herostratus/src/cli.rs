@@ -213,9 +213,9 @@ pub struct RenderArgs {
     /// Path to the export data directory
     ///
     /// This is the directory containing achievements.csv, repositories.csv, and the events/
-    /// subdirectory. Typically this is the export/ subdirectory of the Herostratus data directory.
+    /// subdirectory. Defaults to the export/ subdirectory of the Herostratus data directory.
     #[clap(short, long)]
-    pub export_dir: PathBuf,
+    pub export_dir: Option<PathBuf>,
 
     /// Output directory for the generated site
     #[clap(short, long, default_value = "public")]
@@ -234,10 +234,11 @@ pub struct RenderArgs {
 
     /// Path to directory containing Jinja2 templates
     ///
-    /// Expected templates: base.html, index.html, achievements.html, achievement_detail.html,
-    /// repo.html, user.html.
+    /// When omitted, built-in templates are used. When provided, templates are loaded from this
+    /// directory instead. Expected templates: base.html, index.html, achievements.html,
+    /// achievement_detail.html, repo.html, user.html, users.html.
     #[clap(short, long)]
-    pub templates: PathBuf,
+    pub templates: Option<PathBuf>,
 }
 
 impl From<&CheckAllArgs> for FetchAllArgs {

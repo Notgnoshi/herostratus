@@ -49,7 +49,15 @@ pub fn check(args: &CheckArgs, config: Option<&Config>) -> eyre::Result<CheckSta
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or("".into());
 
-    check_impl(config, &name, &args.path, &args.reference, args.depth, None)
+    check_impl(
+        config,
+        &name,
+        &args.path,
+        &args.reference,
+        args.depth,
+        None,
+        None,
+    )
 }
 
 fn check_impl(
@@ -59,14 +67,24 @@ fn check_impl(
     reference: &str,
     depth: Option<usize>,
     data_dir: Option<&Path>,
+    repo_config: Option<&crate::config::RepositoryConfig>,
 ) -> eyre::Result<CheckStat> {
     tracing::info!("Checking repository {path:?}, reference {reference:?} for achievements ...");
-    let repo = find_local_repository(path)?;
+    let mut repo = find_local_repository(path)?;
     let mut events = Vec::new();
-    let stats = grant(config, reference, &repo, depth, data_dir, name, |e| {
-        process_event(&e);
-        events.push(e);
-    })?;
+    let stats = grant(
+        config,
+        reference,
+        &mut repo,
+        depth,
+        data_dir,
+        name,
+        repo_config,
+        |e| {
+            process_event(&e);
+            events.push(e);
+        },
+    )?;
 
     if let Some(data_dir) = data_dir
         && stats.num_commits_processed > 0
@@ -152,6 +170,7 @@ fn merge_stats(fetch: Vec<FetchStat>, check: Vec<CheckStat>) -> Vec<CheckAllStat
         merged.push(stat);
     }
 
+    merged.sort_by(|a, b| a.name.cmp(&b.name));
     merged
 }
 
@@ -180,6 +199,7 @@ pub fn check_all(
             &reference,
             args.depth,
             Some(data_dir),
+            Some(repo_config),
         )?;
         check_stats.push(check_stat);
     }
@@ -226,7 +246,7 @@ pub fn check_one(
 
     let mut fetch_stats = Vec::new();
     if !args.no_fetch {
-        fetch_stats.push(fetch_one(name, repo_config)?);
+        fetch_stats.push(fetch_one(name, repo_config, data_dir)?);
     }
 
     let reference = repo_config
@@ -240,6 +260,7 @@ pub fn check_one(
         &reference,
         args.depth,
         Some(data_dir),
+        Some(repo_config),
     )?;
 
     Ok(merge_stats(fetch_stats, vec![check_stat]))

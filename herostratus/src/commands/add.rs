@@ -42,7 +42,7 @@ pub fn add(args: &AddArgs, config: &mut Config, data_dir: &Path) -> eyre::Result
     let repo_config = args_to_config(args, data_dir)?;
 
     if !args.skip_clone {
-        let _repo = clone_repository(&repo_config, args.force)?;
+        let _repo = clone_repository(&repo_config, args.force, None)?;
     }
 
     config.repositories.insert(name, repo_config);
