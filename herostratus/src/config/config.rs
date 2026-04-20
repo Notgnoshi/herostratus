@@ -56,6 +56,38 @@ impl Config {
             .enable(rule);
         self
     }
+
+    /// Return a copy of this config with environment variable overrides applied to every
+    /// [RepositoryConfig].
+    ///
+    /// Supported environment variables:
+    /// - [`HEROSTRATUS_HTTPS_PASSWORD`](HTTPS_PASSWORD_ENV): overrides `https_password`
+    /// - [`HEROSTRATUS_REMOTE_USERNAME`](REMOTE_USERNAME_ENV): overrides `remote_username`
+    pub fn with_env_overrides(&self) -> Self {
+        let password = std::env::var(HTTPS_PASSWORD_ENV)
+            .ok()
+            .filter(|s| !s.is_empty());
+        let username = std::env::var(REMOTE_USERNAME_ENV)
+            .ok()
+            .filter(|s| !s.is_empty());
+        if password.is_some() {
+            tracing::info!("Overriding HTTPS password from {HTTPS_PASSWORD_ENV}");
+        }
+        if let Some(u) = &username {
+            tracing::info!("Overriding remote username from {REMOTE_USERNAME_ENV}={u:?}");
+        }
+
+        let mut config = self.clone();
+        for repo in config.repositories.values_mut() {
+            if let Some(p) = &password {
+                repo.https_password = Some(p.clone());
+            }
+            if let Some(u) = &username {
+                repo.remote_username = Some(u.clone());
+            }
+        }
+        config
+    }
 }
 
 impl RulesConfig {
@@ -140,30 +172,6 @@ impl RepositoryConfig {
             return self.commit_url_prefix.clone();
         }
         super::infer_commit_url_prefix(&self.url)
-    }
-
-    /// Return a copy of this config with environment variable overrides applied.
-    ///
-    /// Precedence: environment variable > config file value.
-    ///
-    /// Supported environment variables:
-    /// - [`HEROSTRATUS_HTTPS_PASSWORD`](HTTPS_PASSWORD_ENV): overrides `https_password`
-    /// - [`HEROSTRATUS_REMOTE_USERNAME`](REMOTE_USERNAME_ENV): overrides `remote_username`
-    pub fn with_env_overrides(&self) -> Self {
-        let mut config = self.clone();
-        if let Ok(password) = std::env::var(HTTPS_PASSWORD_ENV)
-            && !password.is_empty()
-        {
-            tracing::info!("Overriding HTTPS password from {HTTPS_PASSWORD_ENV}");
-            config.https_password = Some(password);
-        }
-        if let Ok(username) = std::env::var(REMOTE_USERNAME_ENV)
-            && !username.is_empty()
-        {
-            tracing::info!("Overriding HTTPS password from {REMOTE_USERNAME_ENV}={username:?}");
-            config.remote_username = Some(username);
-        }
-        config
     }
 }
 

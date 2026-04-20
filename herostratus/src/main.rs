@@ -82,27 +82,31 @@ fn main() -> eyre::Result<()> {
         // The other subcommands are stateful, and require reading the application configuration
         Some(command) => {
             let mut config = herostratus::config::read_config(&data_dir)?;
+            // Runtime view with env var overrides applied, for read-only commands that talk to
+            // remotes. `config` itself stays as-read-from-disk so secrets from env vars are not
+            // written back by `write_config` below.
+            let runtime_config = config.with_env_overrides();
             match command {
                 herostratus::cli::Command::Add(args) => {
                     herostratus::commands::add(&args, &mut config, &data_dir)
                         .wrap_err(format!("Failed to add repository with url: {:?}", args.url))?;
                 }
                 herostratus::cli::Command::CheckOne(args) => {
-                    let stats = herostratus::commands::check_one(&args, &config, &data_dir)
+                    let stats = herostratus::commands::check_one(&args, &runtime_config, &data_dir)
                         .wrap_err(format!("Failed to check repository {:?}", args.repository))?;
                     if args.summary {
                         herostratus::commands::print_check_all_summary(&stats);
                     }
                 }
                 herostratus::cli::Command::CheckAll(args) => {
-                    let stats = herostratus::commands::check_all(&args, &config, &data_dir)
+                    let stats = herostratus::commands::check_all(&args, &runtime_config, &data_dir)
                         .wrap_err("Failed to check all repositories")?;
                     if args.summary {
                         herostratus::commands::print_check_all_summary(&stats);
                     }
                 }
                 herostratus::cli::Command::FetchAll(args) => {
-                    herostratus::commands::fetch_all(&args, &config, &data_dir)
+                    herostratus::commands::fetch_all(&args, &runtime_config, &data_dir)
                         .wrap_err("Failed to fetch all repositories")?;
                 }
                 _ => unreachable!(),

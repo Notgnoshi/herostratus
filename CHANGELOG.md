@@ -22,6 +22,11 @@ focus on the user impact** rather than the actual changes made.
 
 ## Fixed
 
+# Herostratus - 1.0.1 - (2026-04-20)
+
+A quick bugfix release to fix the `HEROSTRATUS_HTTPS_PASSWORD` environment variable not being used
+for deepening shallow clones.
+
 # Herostratus - 1.0.0 - (2026-04-12)
 
 **This is Herostratus's first major release!** The notable new feature is generating a static site
