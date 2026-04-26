@@ -20,6 +20,8 @@ focus on the user impact** rather than the actual changes made.
 ## Changed
 
 * Profanity detection is smarter now.
+* Rules H7, H8, H9, and H10 (the profanity related rules) have had their `Rule::VERSION` bumped to
+  2, which triggers them to re-run on the full history.
 
 ## Deprecated
 

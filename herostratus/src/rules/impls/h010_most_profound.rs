@@ -39,6 +39,7 @@ pub struct MostProfoundCache {
 
 impl Rule for MostProfound {
     type Cache = MostProfoundCache;
+    const VERSION: u32 = 2;
 
     fn meta(&self) -> &Meta {
         &META

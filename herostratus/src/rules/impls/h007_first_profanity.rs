@@ -37,6 +37,7 @@ pub struct FirstProfanityCache {
 
 impl Rule for FirstProfanity {
     type Cache = FirstProfanityCache;
+    const VERSION: u32 = 2;
 
     fn meta(&self) -> &Meta {
         &META

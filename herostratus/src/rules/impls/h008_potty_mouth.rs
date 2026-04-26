@@ -24,6 +24,7 @@ inventory::submit!(RuleFactory::default::<PottyMouth>());
 
 impl Rule for PottyMouth {
     type Cache = ();
+    const VERSION: u32 = 2;
 
     fn meta(&self) -> &Meta {
         &META
