@@ -232,7 +232,7 @@ impl Pipeline {
         num_achievements += self.emit(meta_outputs, &mut on_event);
 
         self.checkpoint
-            .save_checkpoint(self.rule_engine.active_rules())?;
+            .save_checkpoint(self.rule_engine.active_rules_with_versions())?;
 
         if let Some(data_dir) = &self.data_dir {
             let repo_name = &self.repo_name;
@@ -270,7 +270,10 @@ impl Pipeline {
         match self.checkpoint.on_commit(oid) {
             Continuation::Process => {}
             Continuation::ReachedCheckpoint => {
-                match self.checkpoint.resolve(&self.rule_engine.active_rules()) {
+                match self
+                    .checkpoint
+                    .resolve(&self.rule_engine.active_rules_with_versions())
+                {
                     CheckpointAction::EarlyExit => {
                         return Ok(CommitResult {
                             num_achievements: 0,

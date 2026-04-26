@@ -56,28 +56,37 @@ impl PipelineCheckpoint {
 
     /// Decide what to do after reaching the checkpoint commit.
     ///
-    /// Compares the rule IDs that were active when the checkpoint was saved against
-    /// `current_enabled_ids` to determine whether all rules have already been processed
-    /// (early exit) or whether new rules need a full pass (retire old rules, continue).
-    pub fn resolve(&self, current_enabled_ids: &[usize]) -> CheckpointAction {
-        // Figure out which rule IDs to retire (those that were already processed)
-        let rule_ids: Vec<usize> = self
-            .checkpoint
-            .data
-            .rules
+    /// Compares the `(rule_id, version)` pairs that were active when the checkpoint was saved
+    /// against `current_enabled` to determine whether all rules have already been processed at
+    /// their current versions (early exit) or whether some rules need a full pass (retire those
+    /// that are unchanged, continue).
+    pub fn resolve(&self, current_enabled: &[(usize, u32)]) -> CheckpointAction {
+        // Unchanged = present in checkpoint at matching version
+        let rule_ids: Vec<usize> = current_enabled
             .iter()
-            .filter(|id| current_enabled_ids.contains(id))
-            .copied()
+            .filter(|(id, ver)| {
+                self.checkpoint
+                    .data
+                    .rules
+                    .iter()
+                    .any(|(cid, cver)| cid == id && cver == ver)
+            })
+            .map(|(id, _)| *id)
             .collect();
 
-        // After retiring, will there be any enabled rules left?
-        let has_remaining = current_enabled_ids
-            .iter()
-            .any(|id| !self.checkpoint.data.rules.contains(id));
+        // Anything in current_enabled that is NOT unchanged needs a full pass
+        let has_remaining = current_enabled.iter().any(|(id, ver)| {
+            !self
+                .checkpoint
+                .data
+                .rules
+                .iter()
+                .any(|(cid, cver)| cid == id && cver == ver)
+        });
 
         if !has_remaining {
             tracing::info!(
-                "No new rules added since last run; finalizing achievements and exiting early ..."
+                "No rule changes since last run; finalizing achievements and exiting early ..."
             );
             CheckpointAction::EarlyExit
         } else {
@@ -85,10 +94,10 @@ impl PipelineCheckpoint {
         }
     }
 
-    /// Save the checkpoint with the given enabled rule IDs.
+    /// Save the checkpoint with the given enabled `(rule_id, version)` pairs.
     #[tracing::instrument(target = "perf", skip_all)]
-    pub fn save_checkpoint(&mut self, enabled_rule_ids: Vec<usize>) -> eyre::Result<()> {
-        self.checkpoint.data.rules = enabled_rule_ids;
+    pub fn save_checkpoint(&mut self, enabled_rules: Vec<(usize, u32)>) -> eyre::Result<()> {
+        self.checkpoint.data.rules = enabled_rules;
         self.checkpoint.data.commit = self.first_commit;
         self.checkpoint.save()
     }
@@ -103,7 +112,7 @@ mod tests {
         gix::ObjectId::from_bytes_or_panic(&[byte; 20])
     }
 
-    fn checkpoint_with(commit: gix::ObjectId, rules: Vec<usize>) -> CheckpointCache {
+    fn checkpoint_with(commit: gix::ObjectId, rules: Vec<(usize, u32)>) -> CheckpointCache {
         let mut cache = CheckpointCache::in_memory();
         cache.data = Checkpoint {
             commit: Some(commit),
@@ -126,7 +135,7 @@ mod tests {
     #[test]
     fn commits_before_checkpoint_process() {
         let checkpoint_oid = make_oid(99);
-        let cache = checkpoint_with(checkpoint_oid, vec![1, 2]);
+        let cache = checkpoint_with(checkpoint_oid, vec![(1, 1), (2, 1)]);
         let mut checkpoint = PipelineCheckpoint::new(cache);
 
         // Different OID from checkpoint -- should process
@@ -137,7 +146,7 @@ mod tests {
     #[test]
     fn hit_checkpoint_no_new_rules_early_exit() {
         let checkpoint_oid = make_oid(42);
-        let cache = checkpoint_with(checkpoint_oid, vec![1, 2]);
+        let cache = checkpoint_with(checkpoint_oid, vec![(1, 1), (2, 1)]);
         let mut checkpoint = PipelineCheckpoint::new(cache);
 
         // Hit the checkpoint with the same rules that were already processed
@@ -146,7 +155,7 @@ mod tests {
             Continuation::ReachedCheckpoint
         ));
         assert!(matches!(
-            checkpoint.resolve(&[1, 2]),
+            checkpoint.resolve(&[(1, 1), (2, 1)]),
             CheckpointAction::EarlyExit
         ));
     }
@@ -154,7 +163,7 @@ mod tests {
     #[test]
     fn hit_checkpoint_new_rules_retire_and_continue() {
         let checkpoint_oid = make_oid(42);
-        let cache = checkpoint_with(checkpoint_oid, vec![1, 2]);
+        let cache = checkpoint_with(checkpoint_oid, vec![(1, 1), (2, 1)]);
         let mut checkpoint = PipelineCheckpoint::new(cache);
 
         // Hit the checkpoint with rule 3 being new
@@ -162,7 +171,7 @@ mod tests {
             checkpoint.on_commit(checkpoint_oid),
             Continuation::ReachedCheckpoint
         ));
-        match checkpoint.resolve(&[1, 2, 3]) {
+        match checkpoint.resolve(&[(1, 1), (2, 1), (3, 1)]) {
             CheckpointAction::Retire { rule_ids } => {
                 assert_eq!(rule_ids, vec![1, 2]);
             }
@@ -177,11 +186,11 @@ mod tests {
 
         let oid = make_oid(1);
         checkpoint.on_commit(oid);
-        checkpoint.save_checkpoint(vec![1, 2]).unwrap();
+        checkpoint.save_checkpoint(vec![(1, 1), (2, 1)]).unwrap();
 
         // Verify by creating a new PipelineCheckpoint from the same cache data
         // (in-memory, so we check internal state indirectly via on_commit)
         assert_eq!(checkpoint.checkpoint.data.commit, Some(oid));
-        assert_eq!(checkpoint.checkpoint.data.rules, vec![1, 2]);
+        assert_eq!(checkpoint.checkpoint.data.rules, vec![(1, 1), (2, 1)]);
     }
 }
