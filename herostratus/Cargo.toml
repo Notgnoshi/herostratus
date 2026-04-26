@@ -36,6 +36,7 @@ gix.workspace = true
 inventory.workspace = true
 minijinja.workspace = true
 rayon.workspace = true
+rustrict.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true

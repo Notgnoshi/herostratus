@@ -1,13 +1,29 @@
 use std::mem::Discriminant;
 
+use rustrict::{Censor, Type};
+
 use crate::observer::observation::Observation;
 use crate::observer::observer::Observer;
 use crate::observer::observer_factory::ObserverFactory;
 
-// TODO: This is somewhat naive. It could be improved
-const PROFANITY: &[&str] = &[
-    "shit", "fuck", "fucking", "damn", "ass", "hell", "bitch", "bastard", "piss",
-];
+/// Words that rustrict classifies as PROFANE or OFFENSIVE but that we do not want to
+/// count as profanity in commit messages. Compared case-insensitively.
+const ALLOWED_WORDS: &[&str] = &["slave"];
+
+/// Returns true when `word` is classified as profanity by rustrict and is not in our
+/// allowlist.
+///
+/// If this filter ever needs richer customization than a small const list, enable
+/// rustrict's "customize" feature and register words at startup.
+fn is_profane(word: &str) -> bool {
+    let analysis = Censor::from_str(word).analyze();
+    if !analysis.is((Type::PROFANE | Type::OFFENSIVE) & Type::MILD_OR_HIGHER) {
+        return false;
+    }
+    !ALLOWED_WORDS
+        .iter()
+        .any(|safe| word.eq_ignore_ascii_case(safe))
+}
 
 /// Returns every profane word found in `text`, lowercased, in the order they appear.
 ///
@@ -15,7 +31,7 @@ const PROFANITY: &[&str] = &[
 fn find_profane_words<S: AsRef<str>>(text: S) -> Vec<String> {
     text.as_ref()
         .split(|c: char| !c.is_alphanumeric())
-        .filter(|w| PROFANITY.iter().any(|p| w.eq_ignore_ascii_case(p)))
+        .filter(|w| !w.is_empty() && is_profane(w))
         .map(|w| w.to_ascii_lowercase())
         .collect()
 }
@@ -110,5 +126,59 @@ mod tests {
             .unwrap();
         let observations = observe_all(&repo, ProfanityObserver);
         assert_eq!(observations, [profanity(&["fucking", "shit"])]);
+    }
+
+    const DEV_TERMS: &[&str] = &[
+        "kill",
+        "abort",
+        "dummy",
+        "hack",
+        "crack",
+        "exec",
+        "dump",
+        "zombie",
+        "daemon",
+        "orphan",
+        "blacklist",
+        "whitelist",
+        "master",
+        "slave",
+        "assertion",
+        "assert",
+        "assassin",
+        "hello",
+        "adam",
+        "classic",
+        "kill_proc",
+        "abort_signal",
+        "dump_state",
+        "exec_path",
+        "stupid",
+        "idiot",
+        "moron",
+        "dumb",
+    ];
+
+    #[test]
+    fn dev_terms_not_flagged_as_profanity() {
+        for term in DEV_TERMS {
+            let found = find_profane_words(term);
+            assert!(
+                found.is_empty(),
+                "dev term {term:?} was unexpectedly flagged as profanity: {found:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn detects_leet_speak() {
+        let found = find_profane_words("this sh1t is broken");
+        assert!(!found.is_empty(), "rustrict should catch sh1t: {found:?}");
+
+        let found = find_profane_words("fuuuck");
+        assert!(
+            !found.is_empty(),
+            "rustrict should catch repeated-character obfuscation: {found:?}"
+        );
     }
 }

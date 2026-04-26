@@ -16,6 +16,8 @@ focus on the user impact** rather than the actual changes made.
 
 ## Changed
 
+* Profanity detection is smarter now.
+
 ## Deprecated
 
 ## Removed
