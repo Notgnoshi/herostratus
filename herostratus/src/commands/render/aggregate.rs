@@ -175,7 +175,7 @@ pub fn aggregate(
             });
         }
     }
-    all_activity.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    all_activity.sort_by_key(|a| std::cmp::Reverse(a.timestamp));
 
     let recent_activity: Vec<ActivityEntry> = all_activity.iter().take(20).cloned().collect();
 
@@ -209,7 +209,7 @@ pub fn aggregate(
         &achievement_by_id,
         &prefix_by_repo,
     );
-    user_contexts.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    user_contexts.sort_by_key(|c| c.name.to_lowercase());
 
     SiteData {
         achievements: achievement_contexts,
@@ -361,7 +361,7 @@ fn build_repo_contexts(
                     }
                 })
                 .collect();
-            achievement_summary.sort_by(|a, b| b.grant_count.cmp(&a.grant_count));
+            achievement_summary.sort_by_key(|a| std::cmp::Reverse(a.grant_count));
 
             let mut unique_achievers: Vec<&str> = repo_active
                 .iter()
