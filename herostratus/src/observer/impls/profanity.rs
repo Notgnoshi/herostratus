@@ -1,7 +1,5 @@
 use std::mem::Discriminant;
 
-use gix::bstr::ByteSlice;
-
 use crate::observer::observation::Observation;
 use crate::observer::observer::Observer;
 use crate::observer::observer_factory::ObserverFactory;
@@ -11,18 +9,18 @@ const PROFANITY: &[&str] = &[
     "shit", "fuck", "fucking", "damn", "ass", "hell", "bitch", "bastard", "piss",
 ];
 
-/// Returns the first profane word found in `text`, lowercased.
+/// Returns every profane word found in `text`, lowercased, in the order they appear.
 ///
-/// Splits on non-alphanumeric boundaries and checks each word against the profanity list
-/// (case-insensitive).
-fn find_profane_word<S: AsRef<str>>(text: S) -> Option<String> {
+/// May contain duplicates.
+fn find_profane_words<S: AsRef<str>>(text: S) -> Vec<String> {
     text.as_ref()
         .split(|c: char| !c.is_alphanumeric())
-        .find(|w| PROFANITY.iter().any(|p| w.eq_ignore_ascii_case(p)))
+        .filter(|w| PROFANITY.iter().any(|p| w.eq_ignore_ascii_case(p)))
         .map(|w| w.to_ascii_lowercase())
+        .collect()
 }
 
-/// Emits [Observation::Profanity] when the commit message contains a profanity keyword.
+/// Emits [Observation::Profanity] when the commit message contains profanity
 #[derive(Default)]
 pub struct ProfanityObserver;
 
@@ -44,19 +42,10 @@ impl Observer for ProfanityObserver {
         commit: &gix::Commit,
         _repo: &gix::Repository,
     ) -> eyre::Result<Option<Observation>> {
-        let msg = commit.message()?;
-        // Check both subject and body for profanity
-        let mut found = find_profane_word(msg.title.to_str_lossy());
-        if found.is_none()
-            && let Some(body) = msg.body
-        {
-            found = find_profane_word(body.to_str_lossy());
-        }
-        // TODO: This only returns the first result found, because we can't emit multiple
-        // observations for a single commit. If we want to count multiple profanities, we'd either
-        // need to support emitting multiple observations per commit or encode multiple words in a
-        // single observation.
-        Ok(found.map(|word| Observation::Profanity { word }))
+        let raw = commit.message_raw()?;
+        let text = String::from_utf8_lossy(raw.as_ref());
+        let words = find_profane_words(text.as_ref());
+        Ok((!words.is_empty()).then_some(Observation::Profanity { words }))
     }
 }
 
@@ -67,9 +56,9 @@ mod tests {
     use super::*;
     use crate::observer::impls::test_helpers::observe_all;
 
-    fn profanity(word: &str) -> Observation {
+    fn profanity(words: &[&str]) -> Observation {
         Observation::Profanity {
-            word: word.to_string(),
+            words: words.iter().map(|w| w.to_string()).collect(),
         }
     }
 
@@ -80,7 +69,7 @@ mod tests {
             .build()
             .unwrap();
         let observations = observe_all(&repo, ProfanityObserver);
-        assert_eq!(observations, [profanity("damn")]);
+        assert_eq!(observations, [profanity(&["damn"])]);
     }
 
     #[test]
@@ -90,7 +79,7 @@ mod tests {
             .build()
             .unwrap();
         let observations = observe_all(&repo, ProfanityObserver);
-        assert_eq!(observations, [profanity("shit")]);
+        assert_eq!(observations, [profanity(&["shit"])]);
     }
 
     #[test]
@@ -114,12 +103,12 @@ mod tests {
     }
 
     #[test]
-    fn detects_profanity_in_body() {
+    fn detects_all_profanities_in_message() {
         let repo = repository::Builder::new()
             .commit("Fix tests\n\nThis fucking shit was broken")
             .build()
             .unwrap();
         let observations = observe_all(&repo, ProfanityObserver);
-        assert_eq!(observations, [profanity("fucking")]); // only yields first occurrence
+        assert_eq!(observations, [profanity(&["fucking", "shit"])]);
     }
 }

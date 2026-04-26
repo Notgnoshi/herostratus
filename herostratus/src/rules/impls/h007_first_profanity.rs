@@ -84,7 +84,7 @@ mod tests {
 
     fn profanity() -> Observation {
         Observation::Profanity {
-            word: "damn".to_string(),
+            words: vec!["damn".to_string()],
         }
     }
 

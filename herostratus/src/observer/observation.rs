@@ -22,8 +22,14 @@ pub enum Observation {
     /// Every file change in the commit is a whitespace-only modification.
     WhitespaceOnly,
 
-    /// The commit message contains profanity. Carries the matched word (lowercased).
-    Profanity { word: String },
+    /// The commit message contains profanity. Carries every matched word (lowercased) in
+    /// the order they appear. May contain duplicates when the same word is repeated.
+    ///
+    /// Future extension: if a rule needs severity or category information, this variant
+    /// can be changed to carry `Vec<ProfanityMatch>` where `ProfanityMatch` exposes
+    /// rustrict's Type bitflag and severity. Today no rule needs that, so we keep the
+    /// simpler shape.
+    Profanity { words: Vec<String> },
 
     /// The commit message contains a prefix of its own commit hash.
     QuinePrefix { matched_length: usize },
@@ -48,9 +54,7 @@ impl Observation {
     pub const EMPTY_COMMIT: Discriminant<Self> = discriminant(&Observation::EmptyCommit);
     pub const WHITESPACE_ONLY: Discriminant<Self> = discriminant(&Observation::WhitespaceOnly);
     pub const PROFANITY: Discriminant<Self> = {
-        let obs = Observation::Profanity {
-            word: String::new(),
-        };
+        let obs = Observation::Profanity { words: Vec::new() };
         let d = discriminant(&obs);
         // we aren't allowed to call Drop in a const context, so leak the observation ...
         std::mem::forget(obs);

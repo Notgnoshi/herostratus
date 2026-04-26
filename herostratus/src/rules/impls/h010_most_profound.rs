@@ -49,12 +49,12 @@ impl Rule for MostProfound {
     }
 
     fn process(&mut self, ctx: &CommitContext, obs: &Observation) -> eyre::Result<Option<Grant>> {
-        if !matches!(obs, Observation::Profanity { .. }) {
+        let Observation::Profanity { words } = obs else {
             return Ok(None);
-        }
+        };
 
         let count = self.counts.entry(ctx.author_email.clone()).or_insert(0);
-        *count += 1;
+        *count += words.len();
         let count = *count;
 
         // Track the current leader so we can construct a Grant in finalize
@@ -109,7 +109,7 @@ mod tests {
 
     fn profanity() -> Observation {
         Observation::Profanity {
-            word: "damn".to_string(),
+            words: vec!["damn".to_string()],
         }
     }
 
