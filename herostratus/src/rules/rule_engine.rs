@@ -127,6 +127,12 @@ impl RuleEngine {
             .collect()
     }
 
+    /// Iterate over the underlying rule plugins. Used by the pipeline to look up metadata for
+    /// rules identified by ID in checkpoint decisions.
+    pub fn iter_rules(&self) -> impl Iterator<Item = &dyn RulePlugin> {
+        self.rules.iter().map(|r| &**r)
+    }
+
     /// Return the set of observation discriminants consumed by all active rules.
     pub fn consumed(&self) -> HashSet<Discriminant<Observation>> {
         self.rules

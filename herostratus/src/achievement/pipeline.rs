@@ -13,6 +13,70 @@ use crate::git::mailmap::MailmapResolver;
 use crate::observer::{ObserverData, ObserverEngine, builtin_observers};
 use crate::rules::{RuleEngine, RuleOutput, RulePlugin};
 
+/// Delete per-rule caches and prune stale grants from the events log for rules whose version
+/// changed since the last run.
+///
+/// `invalidated` is a list of `(rule_id, human_id)` pairs for rules whose version in the current
+/// build does not match the version recorded in the checkpoint. Meta-achievement grants are also
+/// pruned, since meta results derive from the full log.
+///
+/// Emits a WARN log line per invalidated rule.
+fn apply_invalidation(
+    data_dir: &Path,
+    repo_name: &str,
+    invalidated: &[(usize, &str)],
+    log_path: Option<&Path>,
+) -> eyre::Result<()> {
+    if invalidated.is_empty() {
+        return Ok(());
+    }
+
+    for (_, human_id) in invalidated {
+        tracing::warn!(
+            "Rule {human_id} version changed; wiping cache and re-processing full history"
+        );
+
+        let cache_path = data_dir
+            .join("cache")
+            .join(repo_name)
+            .join(format!("rule_{human_id}.json"));
+        match std::fs::remove_file(&cache_path) {
+            Ok(()) => tracing::debug!("Deleted {cache_path:?}"),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e.into()),
+        }
+    }
+
+    if let Some(path) = log_path
+        && path.exists()
+    {
+        let meta_ids: Vec<String> = super::meta_achievements::meta_achievement_metas()
+            .into_iter()
+            .map(|m| m.human_id.to_string())
+            .collect();
+        let invalidated_ids: std::collections::HashSet<String> = invalidated
+            .iter()
+            .map(|(_, h)| h.to_string())
+            .chain(meta_ids)
+            .collect();
+
+        let mut log = AchievementLog::load(Some(path))?;
+        let mut pruned = 0usize;
+        log.retain(|e| {
+            if invalidated_ids.contains(&e.achievement_id) {
+                pruned += 1;
+                false
+            } else {
+                true
+            }
+        });
+        log.save()?;
+        tracing::warn!("Pruned {pruned} stale grants from {path:?}");
+    }
+
+    Ok(())
+}
+
 pub struct GrantStats {
     pub num_commits_processed: u64,
     pub num_achievements_generated: u64,
@@ -173,7 +237,6 @@ impl Pipeline {
                 .join("events")
                 .join(format!("{repo_name}.csv"))
         });
-        let achievement_log = AchievementLog::load(log_path.as_deref())?;
 
         let checkpoint = if let Some(dir) = data_dir {
             CheckpointCache::from_data_dir(dir, repo_name)?
@@ -181,6 +244,19 @@ impl Pipeline {
             CheckpointCache::in_memory()
         };
         let checkpoint = PipelineCheckpoint::new(checkpoint);
+
+        if let Some(dir) = data_dir {
+            let current = rule_engine.active_rules_with_versions();
+            let invalidated_ids = checkpoint.classify_invalidated(&current);
+            let invalidated: Vec<(usize, &str)> = rule_engine
+                .iter_rules()
+                .filter(|r| invalidated_ids.contains(&r.meta().id))
+                .map(|r| (r.meta().id, r.meta().human_id))
+                .collect();
+            apply_invalidation(dir, repo_name, &invalidated, log_path.as_deref())?;
+        }
+
+        let achievement_log = AchievementLog::load(log_path.as_deref())?;
 
         Ok(Self {
             observer_engine,

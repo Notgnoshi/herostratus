@@ -189,6 +189,12 @@ impl AchievementLog {
         holder
     }
 
+    /// Keep only events for which the predicate returns `true`. Used for pruning stale grants
+    /// when a rule's cache is invalidated.
+    pub fn retain(&mut self, predicate: impl FnMut(&AchievementEvent) -> bool) {
+        self.events.retain(predicate);
+    }
+
     /// All grant events that have no subsequent revocation for the same achievement+user.
     pub fn active_grants(&self) -> impl Iterator<Item = &AchievementEvent> {
         // Collect active grants by scanning all events

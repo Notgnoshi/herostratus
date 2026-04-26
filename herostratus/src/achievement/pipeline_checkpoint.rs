@@ -101,6 +101,25 @@ impl PipelineCheckpoint {
         self.checkpoint.data.commit = self.first_commit;
         self.checkpoint.save()
     }
+
+    /// Rules present in the checkpoint at a different version than the current build.
+    ///
+    /// These rules have stale caches and stale grants that must be discarded before the walk.
+    /// Rules that are new (not in the checkpoint at all) are not returned here; they are handled
+    /// by the existing "new rule" code path in [resolve](Self::resolve).
+    pub fn classify_invalidated(&self, current: &[(usize, u32)]) -> Vec<usize> {
+        current
+            .iter()
+            .filter(|(id, ver)| {
+                self.checkpoint
+                    .data
+                    .rules
+                    .iter()
+                    .any(|(cid, cver)| cid == id && cver != ver)
+            })
+            .map(|(id, _)| *id)
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -192,5 +211,28 @@ mod tests {
         // (in-memory, so we check internal state indirectly via on_commit)
         assert_eq!(checkpoint.checkpoint.data.commit, Some(oid));
         assert_eq!(checkpoint.checkpoint.data.rules, vec![(1, 1), (2, 1)]);
+    }
+
+    #[test]
+    fn classify_invalidated_returns_rules_with_mismatched_version() {
+        let checkpoint_oid = make_oid(42);
+        let cache = checkpoint_with(checkpoint_oid, vec![(1, 1), (2, 1), (3, 2)]);
+        let checkpoint = PipelineCheckpoint::new(cache);
+
+        // Rule 1 unchanged, rule 2 bumped to v2 (invalidated), rule 3 unchanged at v2,
+        // rule 4 is new (not in checkpoint -- should NOT be in invalidated).
+        let current = &[(1, 1), (2, 2), (3, 2), (4, 1)];
+        let invalidated = checkpoint.classify_invalidated(current);
+        assert_eq!(invalidated, vec![2]);
+    }
+
+    #[test]
+    fn classify_invalidated_empty_when_no_mismatches() {
+        let checkpoint_oid = make_oid(42);
+        let cache = checkpoint_with(checkpoint_oid, vec![(1, 1), (2, 1)]);
+        let checkpoint = PipelineCheckpoint::new(cache);
+
+        let invalidated = checkpoint.classify_invalidated(&[(1, 1), (2, 1), (3, 1)]);
+        assert!(invalidated.is_empty());
     }
 }

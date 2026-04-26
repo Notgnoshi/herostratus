@@ -14,6 +14,9 @@ focus on the user impact** rather than the actual changes made.
 
 ## Added
 
+* Rules are now versioned, giving me the ability to trigger rerunning rules on the full history of a
+  project when the rule (or its cache) changes.
+
 ## Changed
 
 * Profanity detection is smarter now.

@@ -136,4 +136,12 @@ mod tests {
         let json = serde_json::to_string(&cp).unwrap();
         assert_eq!(json, r#"{"commit":null,"rules":[[1,1],[2,3]]}"#);
     }
+
+    #[test]
+    fn v1_format_roundtrips_into_tupled_format() {
+        let v1 = r#"{"commit":null,"rules":[1,2,3]}"#;
+        let cp: Checkpoint = serde_json::from_str(v1).unwrap();
+        let migrated = serde_json::to_string(&cp).unwrap();
+        assert_eq!(migrated, r#"{"commit":null,"rules":[[1,1],[2,1],[3,1]]}"#);
+    }
 }
