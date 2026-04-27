@@ -24,6 +24,7 @@ inventory::submit!(RuleFactory::default::<PottyMouth>());
 
 impl Rule for PottyMouth {
     type Cache = ();
+    const VERSION: u32 = 2;
 
     fn meta(&self) -> &Meta {
         &META
@@ -48,7 +49,7 @@ mod tests {
 
     fn profanity() -> Observation {
         Observation::Profanity {
-            word: "shit".to_string(),
+            words: vec!["shit".to_string()],
         }
     }
 

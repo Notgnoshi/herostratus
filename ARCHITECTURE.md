@@ -136,3 +136,8 @@ branches in the project.
   * You may need to add a new configuration struct to `Config`, and plumb it into the `RuleFactory`
     (see `H002Config` for an example)
 * Add the new rule to the `RULES.md` and `CHANGELOG.md`
+
+When a rule changes incompatibly between releases (cache shape, evaluation criteria, or `Meta`),
+bump `Rule::VERSION`. This triggers selective cache and event invalidation for that rule on the next
+run, without disturbing other rules' state. See
+[docs/design/14-rule-cache-invalidation.md](docs/design/14-rule-cache-invalidation.md).

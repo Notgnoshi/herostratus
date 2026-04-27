@@ -37,6 +37,16 @@ use crate::observer::{CommitContext, Observation};
 pub trait Rule {
     type Cache: Default + serde::Serialize + for<'de> serde::Deserialize<'de> + 'static;
 
+    /// Version of this rule's cached state, events, and grant criteria.
+    ///
+    /// Bump this when any of the following changes in a backwards-incompatible way:
+    /// - The shape of [Self::Cache] (add, remove, or rename fields).
+    /// - The commit-level criteria evaluated in [Self::process].
+    /// - The [Meta] returned by [Self::meta] (name, description, or kind).
+    ///
+    /// Do not bump for refactors that leave behavior observably identical.
+    const VERSION: u32 = 1;
+
     /// Static metadata about the achievement this rule grants.
     ///
     /// One rule = one achievement, enforced structurally by the singular return type.

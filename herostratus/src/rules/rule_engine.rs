@@ -119,6 +119,20 @@ impl RuleEngine {
         self.rules.iter().map(|r| r.meta().id).collect()
     }
 
+    /// Return `(id, version)` pairs for all rules currently in the engine.
+    pub fn active_rules_with_versions(&self) -> Vec<(usize, u32)> {
+        self.rules
+            .iter()
+            .map(|r| (r.meta().id, r.version()))
+            .collect()
+    }
+
+    /// Iterate over the underlying rule plugins. Used by the pipeline to look up metadata for
+    /// rules identified by ID in checkpoint decisions.
+    pub fn iter_rules(&self) -> impl Iterator<Item = &dyn RulePlugin> {
+        self.rules.iter().map(|r| &**r)
+    }
+
     /// Return the set of observation discriminants consumed by all active rules.
     pub fn consumed(&self) -> HashSet<Discriminant<Observation>> {
         self.rules
@@ -322,6 +336,16 @@ mod tests {
         ];
         let engine = RuleEngine::new(rules);
         assert_eq!(engine.active_rules(), vec![5, 15]);
+    }
+
+    #[test]
+    fn active_rules_with_versions_reports_defaults() {
+        let rules: Vec<Box<dyn RulePlugin>> = vec![
+            Box::new(GrantOnDummy::new(1)),
+            Box::new(CountingRule::new(2)),
+        ];
+        let engine = RuleEngine::new(rules);
+        assert_eq!(engine.active_rules_with_versions(), vec![(1, 1), (2, 1)]);
     }
 
     #[test]

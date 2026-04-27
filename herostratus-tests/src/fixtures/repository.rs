@@ -445,7 +445,7 @@ pub fn upstream_downstream_empty() -> eyre::Result<(TempRepository, TempReposito
     );
     let url = format!("file://{}", upstream.tempdir.path().display());
     let mut config = downstream.repo.config_snapshot_mut();
-    config.set_raw_value(&"remote.origin.url", url.as_bytes())?;
+    config.set_raw_value("remote.origin.url", url.as_bytes())?;
     config.commit()?;
     let _remote = downstream.repo.find_remote("origin")?;
     Ok((upstream, downstream))

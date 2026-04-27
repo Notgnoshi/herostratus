@@ -29,6 +29,7 @@ inventory::submit!(RuleFactory::default::<LikeASailor>());
 
 impl Rule for LikeASailor {
     type Cache = HashMap<String, usize>;
+    const VERSION: u32 = 2;
 
     fn meta(&self) -> &Meta {
         &META
@@ -39,21 +40,24 @@ impl Rule for LikeASailor {
     }
 
     fn process(&mut self, ctx: &CommitContext, obs: &Observation) -> eyre::Result<Option<Grant>> {
-        if !matches!(obs, Observation::Profanity { .. }) {
+        let Observation::Profanity { words } = obs else {
             return Ok(None);
-        }
+        };
 
         let count = self.counts.entry(ctx.author_email.clone()).or_insert(0);
-        *count += 1;
+        let before = *count;
+        *count += words.len();
+        let after = *count;
 
-        if THRESHOLDS.contains(count) {
-            Ok(Some(
-                META.grant(ctx)
-                    .with_name(format!("{} ({})", META.name, count)),
-            ))
-        } else {
-            Ok(None)
-        }
+        // A single commit can cross more than one threshold when it contains many profanities
+        // (e.g., 4 -> 9 crosses 5). Grant at the highest threshold crossed so we emit at most
+        // one grant per commit, and so the dynamic name reflects the milestone actually reached.
+        let crossed = THRESHOLDS
+            .iter()
+            .rev()
+            .find(|&&t| before < t && after >= t)
+            .copied();
+        Ok(crossed.map(|t| META.grant(ctx).with_name(format!("{} ({})", META.name, t))))
     }
 
     fn init_cache(&mut self, cache: Self::Cache) {
@@ -72,7 +76,7 @@ mod tests {
 
     fn profanity() -> Observation {
         Observation::Profanity {
-            word: "damn".to_string(),
+            words: vec!["damn".to_string()],
         }
     }
 
@@ -167,6 +171,57 @@ mod tests {
         assert!(
             grant.is_some(),
             "expected grant at threshold 5 after cache load"
+        );
+    }
+
+    #[test]
+    fn counts_multiple_profanities_in_one_commit() {
+        let mut rule = LikeASailor::default();
+        let ctx = CommitContext::test("Alice");
+
+        // One commit carrying 5 profane words should cross threshold 5.
+        let obs = Observation::Profanity {
+            words: vec![
+                "shit".into(),
+                "fuck".into(),
+                "damn".into(),
+                "hell".into(),
+                "ass".into(),
+            ],
+        };
+        let grant = rule.process(&ctx, &obs).unwrap();
+        assert!(
+            grant.is_some(),
+            "expected grant at threshold 5 from a single commit"
+        );
+        assert_eq!(
+            grant.unwrap().name_override.as_deref(),
+            Some("Swears Like a Sailor (5)")
+        );
+    }
+
+    #[test]
+    fn skipping_threshold_grants_highest_crossed() {
+        let mut rule = LikeASailor::default();
+        let ctx = CommitContext::test("Alice");
+
+        // Bring Alice to 4 with single-word commits.
+        for _ in 0..4 {
+            let obs = Observation::Profanity {
+                words: vec!["damn".into()],
+            };
+            rule.process(&ctx, &obs).unwrap();
+        }
+
+        // A single commit with 7 words brings the count from 4 to 11, crossing both 5 and 10.
+        let obs = Observation::Profanity {
+            words: (0..7).map(|_| "damn".to_string()).collect(),
+        };
+        let grant = rule.process(&ctx, &obs).unwrap().unwrap();
+        assert_eq!(
+            grant.name_override.as_deref(),
+            Some("Swears Like a Sailor (10)"),
+            "should grant the highest threshold crossed, not the lowest"
         );
     }
 }

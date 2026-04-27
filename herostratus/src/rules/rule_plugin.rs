@@ -13,6 +13,8 @@ use crate::rules::rule::Rule;
 pub trait RulePlugin {
     /// Determine if this rule cares about caching.
     fn has_cache(&self) -> bool;
+    /// Current version of this rule. See [Rule::VERSION].
+    fn version(&self) -> u32;
     /// Initialize the cache for this rule.
     fn init_cache(&mut self, cache: serde_json::Value) -> eyre::Result<()>;
     /// Finalize the cache for this rule.
@@ -36,6 +38,9 @@ impl<R: Rule> RulePlugin for R {
     // The Rule::Cache type is type erased using serde_json::Value
     fn has_cache(&self) -> bool {
         std::any::TypeId::of::<R::Cache>() != std::any::TypeId::of::<()>()
+    }
+    fn version(&self) -> u32 {
+        R::VERSION
     }
     fn init_cache(&mut self, cache: serde_json::Value) -> eyre::Result<()> {
         let concrete = match cache {
