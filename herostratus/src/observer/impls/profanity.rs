@@ -10,14 +10,42 @@ use crate::observer::observer_factory::ObserverFactory;
 /// count as profanity in commit messages. Compared case-insensitively.
 const ALLOWED_WORDS: &[&str] = &["slave"];
 
-/// Returns true when `word` is classified as profanity by rustrict and is not in our
-/// allowlist.
+/// Returns true when `word` plausibly resembles a natural-language word using the ratio of letters
+/// to digits as a heuristic.
 ///
-/// If this filter ever needs richer customization than a small const list, enable
-/// rustrict's "customize" feature and register words at startup.
+/// This lets us keep rustrict's leet-speak detection, while avoiding false positives on git
+/// hashes, timestamps, benchmark results, etc.
+fn looks_like_word(word: &str) -> bool {
+    let (letters, digits) = word.chars().fold((0usize, 0usize), |(l, d), c| {
+        if c.is_alphabetic() {
+            (l + 1, d)
+        } else if c.is_ascii_digit() {
+            (l, d + 1)
+        } else {
+            (l, d)
+        }
+    });
+    letters > digits
+}
+
+/// Returns true when `word` is classified as profanity by rustrict and the match spans the entire
+/// token.
+///
+/// rustrict will match a profane substring inside a longer token (e.g. `Scunthorpe` matches
+/// `cunt`, `Dickinson` matches `dick`). We require the censor to replace every character in the
+/// token, which rejects substring matches.
 fn is_profane(word: &str) -> bool {
-    let analysis = Censor::from_str(word).analyze();
+    let mut censor = Censor::from_str(word);
+    censor.with_censor_first_character_threshold(Type::ANY);
+    let (censored, analysis) = censor.censor_and_analyze();
     if !analysis.is((Type::PROFANE | Type::OFFENSIVE) & Type::MILD_OR_HIGHER) {
+        return false;
+    }
+    // censor_and_analyze appends a trailing space before censoring stops.
+    let trimmed = censored.trim();
+    let token_level_match =
+        trimmed.chars().count() == word.chars().count() && trimmed.chars().all(|c| c == '*');
+    if !token_level_match {
         return false;
     }
     !ALLOWED_WORDS
@@ -31,7 +59,7 @@ fn is_profane(word: &str) -> bool {
 fn find_profane_words<S: AsRef<str>>(text: S) -> Vec<String> {
     text.as_ref()
         .split(|c: char| !c.is_alphanumeric())
-        .filter(|w| !w.is_empty() && is_profane(w))
+        .filter(|w| !w.is_empty() && looks_like_word(w) && is_profane(w))
         .map(|w| w.to_ascii_lowercase())
         .collect()
 }
@@ -172,13 +200,57 @@ mod tests {
 
     #[test]
     fn detects_leet_speak() {
-        let found = find_profane_words("this sh1t is broken");
-        assert!(!found.is_empty(), "rustrict should catch sh1t: {found:?}");
+        // Single-character substitutions and repeated-character obfuscation must
+        // still fire; the layered rule only rejects substring matches and
+        // numeric-heavy tokens.
+        for text in [
+            "this sh1t is broken",
+            "fuuuck",
+            "this 5hit is broken",
+            "f4g",
+            "a55hole",
+        ] {
+            let found = find_profane_words(text);
+            assert!(
+                !found.is_empty(),
+                "rustrict should catch leet variant: {text:?} -> {found:?}"
+            );
+        }
+    }
 
-        let found = find_profane_words("fuuuck");
-        assert!(
-            !found.is_empty(),
-            "rustrict should catch repeated-character obfuscation: {found:?}"
-        );
+    /// These are real false positives that we want to exclude
+    #[test]
+    fn no_false_positives_on_numeric_tokens() {
+        let cases = [
+            // fa9 => fag
+            "See https://github.com/Notgnoshi/herostratus/commit/588b41b6e983c393df17689d7659145fbce16fa9",
+            // 69514Z => spaz
+            "2024-04-06T20:32:46.069514Z DEBUG herostratus::git::clone",
+            // 48501x => ahole
+            "Estimated Cycles: (+148.501x)",
+        ];
+        for text in cases {
+            let found = find_profane_words(text);
+            assert!(
+                found.is_empty(),
+                "numeric-heavy text should not be flagged: {text:?} -> {found:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn no_false_positives_on_substring_matches() {
+        for text in [
+            "Scunthorpe is a town in England",
+            "shittake mushrooms are tasty",
+            "Dickinson hauled the load",
+            "ohmyfuckinggod", // we can't distinguish this from Scunthorpe style filtering.
+        ] {
+            let found = find_profane_words(text);
+            assert!(
+                found.is_empty(),
+                "substring-only match should not be flagged: {text:?} -> {found:?}"
+            );
+        }
     }
 }
