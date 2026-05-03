@@ -23,6 +23,10 @@ pub struct AchievementEvent {
     pub commit: gix::ObjectId,
     pub user_name: String,
     pub user_email: String,
+    #[serde(default)]
+    pub name_override: Option<String>,
+    #[serde(default)]
+    pub description_override: Option<String>,
 }
 
 impl AchievementEvent {
@@ -34,6 +38,8 @@ impl AchievementEvent {
             commit: grant.commit,
             user_name: grant.user_name,
             user_email: grant.user_email,
+            name_override: grant.name_override,
+            description_override: grant.description_override,
         }
     }
 }
@@ -150,6 +156,8 @@ impl AchievementLog {
             commit: grant.commit,
             user_name: grant.user_name.clone(),
             user_email: grant.user_email.clone(),
+            name_override: grant.name_override.clone(),
+            description_override: grant.description_override.clone(),
         };
         self.events.push(revoke);
     }
@@ -340,6 +348,8 @@ mod tests {
             commit: test_oid(0xAA),
             user_name: "Test".to_string(),
             user_email: email.to_string(),
+            name_override: None,
+            description_override: None,
         }
     }
 
@@ -372,6 +382,83 @@ mod tests {
 
         // Verify ObjectId round-tripped correctly
         assert_eq!(loaded.events[0].commit, test_oid(0xAA));
+    }
+
+    #[test]
+    fn csv_round_trip_with_overrides() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("log.csv");
+
+        let mut event = test_event("second-chance", "bob@example.com", EventKind::Grant);
+        event.name_override = Some("Third Time's the Charm".to_string());
+        event.description_override = Some("Three roots and counting".to_string());
+
+        let log = AchievementLog {
+            path: Some(path.clone()),
+            events: vec![event],
+        };
+        log.save().unwrap();
+
+        let loaded = AchievementLog::load(Some(&path)).unwrap();
+        assert_eq!(loaded.events.len(), 1);
+        assert_eq!(
+            loaded.events[0].name_override.as_deref(),
+            Some("Third Time's the Charm")
+        );
+        assert_eq!(
+            loaded.events[0].description_override.as_deref(),
+            Some("Three roots and counting")
+        );
+    }
+
+    #[test]
+    fn csv_load_legacy_format_without_override_columns() {
+        // Hand-construct a CSV in the pre-override format. The override columns are absent
+        // entirely (not present-with-empty-value). After loading, override fields should be None.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("legacy.csv");
+        std::fs::write(
+            &path,
+            "timestamp,event,achievement_id,commit,user_name,user_email\n\
+             1970-01-01T00:00:00Z,grant,fixup,aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,Alice,alice@example.com\n",
+        )
+        .unwrap();
+
+        let loaded = AchievementLog::load(Some(&path)).unwrap();
+        assert_eq!(loaded.events.len(), 1);
+        assert_eq!(loaded.events[0].achievement_id, "fixup");
+        assert_eq!(loaded.events[0].user_email, "alice@example.com");
+        assert!(loaded.events[0].name_override.is_none());
+        assert!(loaded.events[0].description_override.is_none());
+    }
+
+    #[test]
+    fn csv_legacy_format_auto_upgrades_on_save() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("legacy.csv");
+        std::fs::write(
+            &path,
+            "timestamp,event,achievement_id,commit,user_name,user_email\n\
+             1970-01-01T00:00:00Z,grant,fixup,aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,Alice,alice@example.com\n",
+        )
+        .unwrap();
+
+        let loaded = AchievementLog::load(Some(&path)).unwrap();
+        loaded.save().unwrap();
+
+        let reloaded = AchievementLog::load(Some(&path)).unwrap();
+        assert_eq!(reloaded.events.len(), 1);
+        assert_eq!(reloaded.events[0].achievement_id, "fixup");
+        assert!(reloaded.events[0].name_override.is_none());
+
+        // Verify the saved file now has the override columns in its header.
+        let contents = std::fs::read_to_string(&path).unwrap();
+        let header = contents.lines().next().unwrap();
+        assert!(header.contains("name_override"), "header was: {header}");
+        assert!(
+            header.contains("description_override"),
+            "header was: {header}"
+        );
     }
 
     #[test]
