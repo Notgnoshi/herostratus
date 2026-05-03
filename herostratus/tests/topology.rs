@@ -1,5 +1,5 @@
 use herostratus::config::Config;
-use herostratus_tests::cmd::{CommandExt, TestHarness};
+use herostratus_tests::cmd::{CommandExt, TestHarness, assert_grants};
 use herostratus_tests::fixtures::repository::Builder;
 
 /// Build a repository with three empty root commits and an octopus merge that joins them all,
@@ -19,19 +19,32 @@ fn three_empty_roots_with_octopus_merge() {
         .time(1_000)
         .build()
         .unwrap();
+    let initial = temp.repo.head_id().unwrap().detach();
 
     temp.create_orphan_branch("orphan1").unwrap();
-    temp.commit("Second root").time(2_000).create().unwrap();
+    let second_root = temp
+        .commit("Second root")
+        .time(2_000)
+        .create()
+        .unwrap()
+        .detach();
 
     temp.create_orphan_branch("orphan2").unwrap();
-    temp.commit("Third root").time(3_000).create().unwrap();
+    let third_root = temp
+        .commit("Third root")
+        .time(3_000)
+        .create()
+        .unwrap()
+        .detach();
 
     temp.set_branch("main").unwrap();
-    temp.merge("orphan1", "octopus")
+    let merge = temp
+        .merge("orphan1", "octopus")
         .with_extra_parent("orphan2")
         .time(4_000)
         .create()
-        .unwrap();
+        .unwrap()
+        .detach();
 
     let h = TestHarness::new();
     h.write_config(
@@ -53,24 +66,16 @@ fn three_empty_roots_with_octopus_merge() {
     );
 
     // H17-ex-nihilo: each of the three empty root commits grants once.
-    let ex_nihilo_count = stdout.matches("Ex Nihilo").count();
-    assert_eq!(ex_nihilo_count, 3, "expected 3 ex-nihilo grants:\n{stdout}");
+    assert_grants(&stdout, initial, "Ex Nihilo");
+    assert_grants(&stdout, second_root, "Ex Nihilo");
+    assert_grants(&stdout, third_root, "Ex Nihilo");
 
     // H18-second-chance: the chronologically oldest root ("Initial commit") is the original and
     // grants nothing. The 2nd-oldest ("Second root") gets "Second Chance"; the 3rd ("Third root")
     // gets "Third Time's the Charm".
-    assert!(
-        stdout.contains("Second Chance"),
-        "missing Second Chance grant:\n{stdout}"
-    );
-    assert!(
-        stdout.contains("Third Time's the Charm"),
-        "missing Third Time's the Charm grant:\n{stdout}"
-    );
+    assert_grants(&stdout, second_root, "Second Chance");
+    assert_grants(&stdout, third_root, "Third Time's the Charm");
 
     // H15-octopus: the merge has three parents, within the default 3..8 octopus window.
-    assert!(
-        stdout.contains("So You Have a Thing for Tentacles?"),
-        "missing octopus grant:\n{stdout}"
-    );
+    assert_grants(&stdout, merge, "So You Have a Thing for Tentacles?");
 }

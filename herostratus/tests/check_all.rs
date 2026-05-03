@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use herostratus_tests::cmd::{CommandExt, TestHarness};
+use herostratus_tests::cmd::{CommandExt, TestHarness, assert_grants};
 use herostratus_tests::fixtures::repository::Builder;
 use predicates::prelude::*;
 use predicates::str;
@@ -54,10 +54,7 @@ fn early_exit_cache() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
 
-    assert!(
-        stdout.contains(&first_commit.to_string()),
-        "First commit should grant H5"
-    );
+    assert_grants(&stdout, first_commit, "You can always add more later");
     assert!(
         stderr.contains("processing 1 commits"),
         "Run 1 should process 1 commit: {stderr}"
@@ -93,10 +90,7 @@ fn early_exit_cache() {
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     // H1 fires for the new fixup commit
-    assert!(
-        stdout.contains(&second_commit.to_string()),
-        "Second commit should grant H1: {stdout}"
-    );
+    assert_grants(&stdout, second_commit, "I'll fix that up later");
     // The old commit should not produce achievements (H5 deduped, H1 doesn't match)
     assert!(
         !stdout.contains(&first_commit.to_string()),

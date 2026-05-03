@@ -92,3 +92,26 @@ impl CommandExt for std::process::Command {
         output
     }
 }
+
+/// Assert that `stdout` contains a line mentioning both `oid` and `title`.
+///
+/// Each grant produced by `herostratus check` (and `check-all`) is rendered on its own line of
+/// stdout, so a single line that mentions both a commit hash and an achievement's display name
+/// (or human ID, or dynamic name override) is sufficient evidence that the achievement was
+/// granted to that commit.
+#[track_caller]
+pub fn assert_grants<O, T>(stdout: &str, oid: O, title: T)
+where
+    O: std::fmt::Display,
+    T: AsRef<str>,
+{
+    let oid = oid.to_string();
+    let title = title.as_ref();
+    let found = stdout
+        .lines()
+        .any(|line| line.contains(&oid) && line.contains(title));
+    assert!(
+        found,
+        "expected achievement {title:?} for commit {oid} in stdout:\n{stdout}"
+    );
+}
