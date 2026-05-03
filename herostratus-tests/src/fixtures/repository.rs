@@ -214,6 +214,22 @@ impl<'r> PendingCommit<'r> {
         self
     }
 
+    /// Add an additional parent to this commit by branch name.
+    ///
+    /// Used together with [TempRepository::merge] to construct merges with more than two
+    /// parents (octopus merges). Can be called multiple times to add many parents.
+    pub fn with_extra_parent(mut self, branch_name: &str) -> Self {
+        let branch_ref = format!("refs/heads/{branch_name}");
+        let target = self
+            .repo
+            .find_reference(&branch_ref)
+            .unwrap_or_else(|_| panic!("branch {branch_name:?} not found"))
+            .id()
+            .detach();
+        self.spec.extra_parents.push(target);
+        self
+    }
+
     /// Execute: create the commit and return its ID
     pub fn create(self) -> eyre::Result<gix::Id<'r>> {
         self.spec.execute(self.repo)
@@ -845,5 +861,33 @@ mod tests {
         let mut tag = repo.annotated_tag("v2", id2, "release").unwrap();
         let peeled = tag.peel_to_id().unwrap();
         assert_eq!(peeled, id2);
+    }
+
+    #[test]
+    fn test_merge_with_extra_parent_creates_three_parent_commit() {
+        //  *-.   octopus
+        //  |\ \
+        //  | | * on side2
+        //  | |/
+        //  | * on side1
+        //  |/
+        //  * Initial commit
+        let temp = Builder::new().commit("Initial commit").build().unwrap();
+
+        temp.set_branch("side1").unwrap();
+        temp.commit("on side1").create().unwrap();
+        temp.set_branch("side2").unwrap();
+        temp.commit("on side2").create().unwrap();
+
+        // on the main branch, merge side1 and side2 into main
+        temp.set_branch("main").unwrap();
+        temp.merge("side1", "octopus")
+            .with_extra_parent("side2")
+            .create()
+            .unwrap();
+
+        let head = temp.repo.head_id().unwrap();
+        let commit = head.object().unwrap().into_commit();
+        assert_eq!(commit.parent_ids().count(), 3);
     }
 }

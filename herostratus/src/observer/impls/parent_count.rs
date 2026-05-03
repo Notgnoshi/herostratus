@@ -57,4 +57,37 @@ mod tests {
             ]
         );
     }
+
+    #[test]
+    fn emits_three_for_octopus_merge() {
+        // Distinct timestamps so the rev-walk has a deterministic order.
+        let repo = repository::Builder::new()
+            .commit("base")
+            .time(1_000)
+            .build()
+            .unwrap();
+
+        // Two side branches diverging from main, then an octopus merge with three parents.
+        repo.set_branch("side1").unwrap();
+        repo.commit("on side1").time(2_000).create().unwrap();
+        repo.set_branch("side2").unwrap();
+        repo.commit("on side2").time(3_000).create().unwrap();
+        repo.set_branch("main").unwrap();
+        repo.merge("side1", "octopus")
+            .with_extra_parent("side2")
+            .time(4_000)
+            .create()
+            .unwrap();
+
+        let observations = observe_all(&repo, ParentCountObserver);
+        assert_eq!(
+            observations,
+            [
+                Observation::ParentCount { count: 0 }, // base (oldest)
+                Observation::ParentCount { count: 1 }, // on side1
+                Observation::ParentCount { count: 1 }, // on side2
+                Observation::ParentCount { count: 3 }, // octopus merge (main + side1 + side2)
+            ]
+        );
+    }
 }
