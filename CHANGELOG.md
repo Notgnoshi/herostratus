@@ -20,6 +20,8 @@ focus on the user impact** rather than the actual changes made.
 * New `H16-cthulhu` rule: granted to the author of a merge commit with at least
   `rules.tentacle_merge.cthulhu_threshold` parents.
 * New `H17-ex-nihilo` rule: granted to the author of an empty root commit
+* New `H18-second-chance` rule: granted to the author of any root commit beyond the first one
+  Herostratus has observed in the repository.
 * Rules are now versioned, giving me the ability to trigger rerunning rules on the full history of a
   project when the rule (or its cache) changes.
 

@@ -32,6 +32,7 @@ Each achievement has a **kind** that controls how it is granted and whether it c
 | `H15-octopus`              | Per-user, repeat  | Create an octopus merge                        | `rules.tentacle_merge.octopus_threshold = 3`<br>`rules.tentacle_merge.cthulhu_threshold = 8`          |
 | `H16-cthulhu`              | Per-user, repeat  | Create an octopus merge with very many parents | `rules.tentacle_merge.cthulhu_threshold = 8`                                                          |
 | `H17-ex-nihilo`            | Per-user, repeat  | Create an empty initial commit                 |                                                                                                       |
+| `H18-second-chance`        | Per-user, repeat  | Add an additional root commit to a repository  |                                                                                                       |
 
 ## Notable example rules
 
