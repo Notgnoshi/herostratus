@@ -13,6 +13,7 @@
 {% if achievement.holders %}
 <table class="sortable">
     <tr>
+        {% if achievement.has_variant_names %}<th>Variant</th>{% endif %}
         <th>User</th>
         <th>Repository</th>
         <th>Commit</th>
@@ -20,6 +21,7 @@
     </tr>
     {% for holder in achievement.holders %}
     <tr>
+        {% if achievement.has_variant_names %}<td>{{ holder.achievement_name }}</td>{% endif %}
         <td><a href="{{ root }}user/{{ holder.user_slug }}.html">{{ holder.user_name }}</a></td>
         <td><a href="{{ root }}repo/{{ holder.repo_name }}.html">{{ holder.repo_name }}</a></td>
         {% if holder.commit_url_prefix and holder.commit != "0000000000000000000000000000000000000000" %}
@@ -41,6 +43,7 @@
     <tr>
         <th>Time</th>
         <th>Event</th>
+        {% if achievement.has_variant_names %}<th>Variant</th>{% endif %}
         <th>User</th>
         <th>Repository</th>
         <th>Commit</th>
@@ -49,6 +52,7 @@
     <tr>
         <td>{{ entry.timestamp }}</td>
         <td>{{ entry.event }}</td>
+        {% if achievement.has_variant_names %}<td>{{ entry.achievement_name }}</td>{% endif %}
         <td><a href="{{ root }}user/{{ entry.user_slug }}.html">{{ entry.user_name }}</a></td>
         <td><a href="{{ root }}repo/{{ entry.repo_name }}.html">{{ entry.repo_name }}</a></td>
         {% if entry.commit_url_prefix and entry.commit != "0000000000000000000000000000000000000000" %}
@@ -67,6 +71,7 @@
 {% if achievement.holders %}
 <table class="sortable filterable">
     <tr>
+        {% if achievement.has_variant_names %}<th>Variant</th>{% endif %}
         <th>User</th>
         <th>Repository</th>
         <th>Commit</th>
@@ -74,6 +79,7 @@
     </tr>
     {% for holder in achievement.holders %}
     <tr>
+        {% if achievement.has_variant_names %}<td>{{ holder.achievement_name }}</td>{% endif %}
         <td><a href="{{ root }}user/{{ holder.user_slug }}.html">{{ holder.user_name }}</a></td>
         <td><a href="{{ root }}repo/{{ holder.repo_name }}.html">{{ holder.repo_name }}</a></td>
         {% if holder.commit_url_prefix and holder.commit != "0000000000000000000000000000000000000000" %}

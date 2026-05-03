@@ -44,6 +44,10 @@ pub struct AchievementContext {
     pub total_grants: usize,
     pub unique_holders: usize,
     pub history: Vec<ActivityEntry>,
+    /// True when at least one holder's `achievement_name` differs from the catalog `name` (i.e.
+    /// some grant carried a `name_override`). Lets the detail template show a "Variant" column
+    /// only when it would carry useful information.
+    pub has_variant_names: bool,
 }
 
 /// A user who holds an achievement.
@@ -314,6 +318,8 @@ fn build_achievement_contexts(
             unique_emails.dedup();
             let unique_holders = unique_emails.len();
 
+            let has_variant_names = holders.iter().any(|h| h.achievement_name != a.name);
+
             AchievementContext {
                 id: a.id,
                 human_id: a.human_id.clone(),
@@ -324,6 +330,7 @@ fn build_achievement_contexts(
                 total_grants,
                 unique_holders,
                 history,
+                has_variant_names,
             }
         })
         .collect()
@@ -616,6 +623,9 @@ mod tests {
 
         let holder = &site.achievements[0].holders[0];
         assert_eq!(holder.achievement_name, "Third Time's the Charm");
+
+        // Detail template uses this flag to decide whether to render the Variant column.
+        assert!(site.achievements[0].has_variant_names);
     }
 
     #[test]
