@@ -12,6 +12,7 @@ mod h012_quine_commit;
 mod h013_fortune_teller;
 mod h014_added_first_ci;
 mod h015_octopus;
+mod h016_cthulhu;
 mod tentacle_merge_config;
 
 pub use h002_shortest_subject::H002Config;
