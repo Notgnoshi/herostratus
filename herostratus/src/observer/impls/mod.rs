@@ -3,6 +3,7 @@ mod empty_commit;
 mod fixup;
 mod hex_tokens;
 mod non_unicode;
+mod parent_count;
 mod profanity;
 mod quine_prefix;
 mod subject_length;

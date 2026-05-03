@@ -40,6 +40,10 @@ pub enum Observation {
     /// The commit adds a CI configuration file (e.g., GitHub Actions workflow, .gitlab-ci.yml).
     CiConfig,
 
+    /// The number of parents of the current commit. Emitted for every commit, including
+    /// root commits (count == 0) and ordinary commits (count == 1).
+    ParentCount { count: usize },
+
     /// Test-only variant for use in unit tests.
     #[cfg(test)]
     Dummy,
@@ -69,6 +73,8 @@ impl Observation {
         d
     };
     pub const CI_CONFIG: Discriminant<Self> = discriminant(&Observation::CiConfig);
+    pub const PARENT_COUNT: Discriminant<Self> =
+        discriminant(&Observation::ParentCount { count: 0 });
 
     #[cfg(test)]
     pub const DUMMY: Discriminant<Self> = discriminant(&Observation::Dummy);
