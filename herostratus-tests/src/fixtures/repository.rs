@@ -55,6 +55,14 @@ impl TempRepository {
         set_default_branch(&self.repo, branch_name)
     }
 
+    /// Switch HEAD to an unborn branch (analog of `git checkout --orphan`).
+    ///
+    /// Deletes the named branch if it already exists, then points HEAD at it. The next
+    /// commit on this HEAD is a root commit (no parents).
+    pub fn create_orphan_branch(&self, branch_name: &str) -> eyre::Result<()> {
+        create_orphan_branch(&self.repo, branch_name)
+    }
+
     /// Create a branch pointing at the given target (or HEAD)
     pub fn create_branch(
         &self,
@@ -525,6 +533,36 @@ fn set_default_branch(repo: &gix::Repository, branch_name: &str) -> eyre::Result
 }
 
 #[tracing::instrument(level = "debug", skip_all, fields(path = %repo.path().display()))]
+fn create_orphan_branch(repo: &gix::Repository, branch_name: &str) -> eyre::Result<()> {
+    tracing::debug!("Switching to orphan branch {branch_name:?}");
+
+    let full_name = format!("refs/heads/{branch_name}");
+    if let Some(existing) = repo.try_find_reference(&full_name)? {
+        eyre::bail!("Branch {existing:?} already exists");
+    }
+
+    // Point HEAD at the (now nonexistent) branch -- the next commit will create it as a root.
+    let local_head = gix::refs::FullName::try_from("HEAD")?;
+    let new_target = gix::refs::FullName::try_from(full_name)?;
+
+    let change = gix::refs::transaction::Change::Update {
+        log: gix::refs::transaction::LogChange::default(),
+        expected: gix::refs::transaction::PreviousValue::Any,
+        new: gix::refs::Target::Symbolic(new_target),
+    };
+
+    let edit = gix::refs::transaction::RefEdit {
+        change,
+        name: local_head,
+        deref: false,
+    };
+
+    repo.edit_reference(edit)?;
+
+    Ok(())
+}
+
+#[tracing::instrument(level = "debug", skip_all, fields(path = %repo.path().display()))]
 fn create_lightweight_tag<'r>(
     repo: &'r gix::Repository,
     name: &str,
@@ -848,6 +886,20 @@ mod tests {
         repo.set_branch("dev").unwrap();
         let head_name = repo.repo.head_name().unwrap().unwrap();
         assert_eq!(head_name.as_bstr(), "refs/heads/dev");
+    }
+
+    #[test]
+    fn test_create_orphan_branch_yields_root_commit() {
+        let repo = Builder::new().commit("on main").build().unwrap();
+
+        repo.create_orphan_branch("orphan").unwrap();
+        let head_name = repo.repo.head_name().unwrap().unwrap();
+        assert_eq!(head_name.as_bstr(), "refs/heads/orphan");
+
+        // The next commit on the orphan branch must be a root (no parents).
+        let id = repo.commit("orphan root").create().unwrap();
+        let commit = repo.repo.find_commit(id).unwrap();
+        assert_eq!(commit.parent_ids().count(), 0);
     }
 
     #[test]
