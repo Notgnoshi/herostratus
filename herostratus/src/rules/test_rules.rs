@@ -85,12 +85,12 @@ impl Rule for CountingRule {
         Ok(None)
     }
 
-    fn finalize(&mut self) -> eyre::Result<Option<Grant>> {
+    fn finalize(&mut self) -> eyre::Result<Vec<Grant>> {
         if self.count > 0 {
             let ctx = self.last_ctx.as_ref().expect("counted but no context");
-            Ok(Some(self.meta.grant(ctx)))
+            Ok(vec![self.meta.grant(ctx)])
         } else {
-            Ok(None)
+            Ok(Vec::new())
         }
     }
 

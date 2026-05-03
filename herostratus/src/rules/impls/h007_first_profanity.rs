@@ -57,14 +57,14 @@ impl Rule for FirstProfanity {
         Ok(None)
     }
 
-    fn finalize(&mut self) -> eyre::Result<Option<Grant>> {
+    fn finalize(&mut self) -> eyre::Result<Vec<Grant>> {
         if self.settled_commit.is_some() {
-            return Ok(None);
+            return Ok(Vec::new());
         }
         if let Some(ref grant) = self.earliest {
             self.settled_commit = Some(grant.commit.to_string());
         }
-        Ok(self.earliest.take())
+        Ok(self.earliest.take().into_iter().collect())
     }
 
     fn init_cache(&mut self, cache: Self::Cache) {
@@ -100,8 +100,9 @@ mod tests {
         assert!(rule.process(&alice, &profanity()).unwrap().is_none());
         rule.process(&bob, &profanity()).unwrap();
 
-        let grant = rule.finalize().unwrap().unwrap();
-        assert_eq!(grant.user_email, "bob@example.com");
+        let grants = rule.finalize().unwrap();
+        assert_eq!(grants.len(), 1);
+        assert_eq!(grants[0].user_email, "bob@example.com");
 
         let cache = rule.fini_cache();
         assert!(cache.commit.is_some());
@@ -117,7 +118,7 @@ mod tests {
         let ctx = CommitContext::test("Alice");
         rule.process(&ctx, &profanity()).unwrap();
 
-        let grant = rule.finalize().unwrap();
-        assert!(grant.is_none(), "settled rule should not grant");
+        let grants = rule.finalize().unwrap();
+        assert!(grants.is_empty(), "settled rule should not grant");
     }
 }

@@ -99,13 +99,15 @@ impl RuleEngine {
     pub fn finalize(&mut self) -> Vec<RuleOutput> {
         for rule in &mut self.rules {
             match rule.finalize() {
-                Ok(Some(grant)) => {
-                    self.pending.push(RuleOutput {
-                        meta: rule.meta().clone(),
-                        grant,
-                    });
+                Ok(grants) => {
+                    let meta = rule.meta().clone();
+                    for grant in grants {
+                        self.pending.push(RuleOutput {
+                            meta: meta.clone(),
+                            grant,
+                        });
+                    }
                 }
-                Ok(None) => {}
                 Err(e) => {
                     tracing::warn!(rule = rule.meta().human_id, "finalize failed: {e}");
                 }
@@ -159,13 +161,15 @@ impl RuleEngine {
                 continue;
             }
             match rule.finalize() {
-                Ok(Some(grant)) => {
-                    self.pending.push(RuleOutput {
-                        meta: rule.meta().clone(),
-                        grant,
-                    });
+                Ok(grants) => {
+                    let meta = rule.meta().clone();
+                    for grant in grants {
+                        self.pending.push(RuleOutput {
+                            meta: meta.clone(),
+                            grant,
+                        });
+                    }
                 }
-                Ok(None) => {}
                 Err(e) => {
                     tracing::warn!(rule = rule.meta().human_id, "finalize failed: {e}");
                 }

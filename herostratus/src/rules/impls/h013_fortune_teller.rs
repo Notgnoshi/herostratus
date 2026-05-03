@@ -135,7 +135,7 @@ impl Rule for FortuneTeller {
         Ok(None)
     }
 
-    fn finalize(&mut self) -> eyre::Result<Option<Grant>> {
+    fn finalize(&mut self) -> eyre::Result<Vec<Grant>> {
         let visited_len = self.visited_oids.len();
 
         for token in &self.tokens {
@@ -145,7 +145,7 @@ impl Rule for FortuneTeller {
             for oid in future_oids {
                 let hex = oid.to_string();
                 if hex.starts_with(&token.token) {
-                    return Ok(Some(Grant {
+                    return Ok(vec![Grant {
                         commit: gix::ObjectId::from_hex(token.source_oid.as_bytes())
                             .unwrap_or_else(|_| gix::ObjectId::null(gix::hash::Kind::Sha1)),
                         user_name: token.user_name.clone(),
@@ -153,12 +153,12 @@ impl Rule for FortuneTeller {
                         timestamp: token.timestamp,
                         name_override: None,
                         description_override: None,
-                    }));
+                    }]);
                 }
             }
         }
 
-        Ok(None)
+        Ok(Vec::new())
     }
 
     fn init_cache(&mut self, cache: Self::Cache) {
@@ -241,11 +241,10 @@ mod tests {
         };
         rule.process(&old_ctx, &obs).unwrap();
 
-        let grant = rule.finalize().unwrap();
-        assert!(grant.is_some());
-        let grant = grant.unwrap();
-        assert_eq!(grant.user_name, "Alice");
-        assert_eq!(grant.user_email, "alice@example.com");
+        let grants = rule.finalize().unwrap();
+        assert_eq!(grants.len(), 1);
+        assert_eq!(grants[0].user_name, "Alice");
+        assert_eq!(grants[0].user_email, "alice@example.com");
     }
 
     #[test]
@@ -264,8 +263,8 @@ mod tests {
         };
         rule.process(&ctx, &obs).unwrap();
 
-        let grant = rule.finalize().unwrap();
-        assert!(grant.is_none(), "Self-match should be excluded");
+        let grants = rule.finalize().unwrap();
+        assert!(grants.is_empty(), "Self-match should be excluded");
     }
 
     #[test]
@@ -287,8 +286,8 @@ mod tests {
         };
         rule.process(&old_ctx, &obs).unwrap();
 
-        let grant = rule.finalize().unwrap();
-        assert!(grant.is_none(), "Below-threshold token should be ignored");
+        let grants = rule.finalize().unwrap();
+        assert!(grants.is_empty(), "Below-threshold token should be ignored");
     }
 
     #[test]
@@ -310,9 +309,9 @@ mod tests {
         };
         rule.process(&old_ctx, &obs).unwrap();
 
-        let grant = rule.finalize().unwrap();
+        let grants = rule.finalize().unwrap();
         assert!(
-            grant.is_none(),
+            grants.is_empty(),
             "Above-max-threshold token should be ignored"
         );
     }
@@ -335,8 +334,8 @@ mod tests {
         };
         rule.process(&old_ctx, &obs).unwrap();
 
-        let grant = rule.finalize().unwrap();
-        assert!(grant.is_none());
+        let grants = rule.finalize().unwrap();
+        assert!(grants.is_empty());
     }
 
     #[test]
@@ -363,11 +362,10 @@ mod tests {
         let future_ctx = ctx_with_oid("Future", "abcdef1234");
         rule.commit_start(&future_ctx).unwrap();
 
-        let grant = rule.finalize().unwrap();
-        assert!(grant.is_some());
-        let grant = grant.unwrap();
-        assert_eq!(grant.user_name, "Alice");
-        assert_eq!(grant.user_email, "alice@example.com");
+        let grants = rule.finalize().unwrap();
+        assert_eq!(grants.len(), 1);
+        assert_eq!(grants[0].user_name, "Alice");
+        assert_eq!(grants[0].user_email, "alice@example.com");
     }
 
     #[test]
