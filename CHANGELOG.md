@@ -30,12 +30,17 @@ focus on the user impact** rather than the actual changes made.
 * Profanity detection is smarter now.
 * Rules H7, H8, H9, and H10 (the profanity related rules) have had their `Rule::VERSION` bumped to
   2, which triggers them to re-run on the full history.
+* Rule H9 had its `Rule::VERSION` bumped to trigger re-running on the full history, so existing
+  checkouts pick up the per-grant title and description fix below.
 
 ## Deprecated
 
 ## Removed
 
 ## Fixed
+
+* Per-grant achievement title and description overrides are now properly shown in the rendered
+  static site.
 
 # Herostratus - 1.0.1 - (2026-04-20)
 

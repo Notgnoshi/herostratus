@@ -29,7 +29,7 @@ inventory::submit!(RuleFactory::default::<LikeASailor>());
 
 impl Rule for LikeASailor {
     type Cache = HashMap<String, usize>;
-    const VERSION: u32 = 2;
+    const VERSION: u32 = 3;
 
     fn meta(&self) -> &Meta {
         &META
