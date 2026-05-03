@@ -14,6 +14,9 @@ focus on the user impact** rather than the actual changes made.
 
 ## Added
 
+* New `H15-octopus` rule: granted to the author of a merge commit with three or more parents (and
+  fewer than `cthulhu_threshold`). Configurable via `rules.tentacle_merge.octopus_threshold` and
+  `rules.tentacle_merge.cthulhu_threshold`.
 * Rules are now versioned, giving me the ability to trigger rerunning rules on the full history of a
   project when the rule (or its cache) changes.
 

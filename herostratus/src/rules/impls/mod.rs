@@ -11,8 +11,11 @@ mod h010_most_profound;
 mod h012_quine_commit;
 mod h013_fortune_teller;
 mod h014_added_first_ci;
+mod h015_octopus;
+mod tentacle_merge_config;
 
 pub use h002_shortest_subject::H002Config;
 pub use h003_longest_subject::H003Config;
 pub use h012_quine_commit::H012Config;
 pub use h013_fortune_teller::H013Config;
+pub use tentacle_merge_config::TentacleMergeConfig;

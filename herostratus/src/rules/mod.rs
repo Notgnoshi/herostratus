@@ -7,6 +7,6 @@ mod rule_plugin;
 #[cfg(test)]
 mod test_rules;
 
-pub use impls::{H002Config, H003Config, H012Config, H013Config};
+pub use impls::{H002Config, H003Config, H012Config, H013Config, TentacleMergeConfig};
 pub use rule_engine::{RuleEngine, RuleOutput};
 pub use rule_plugin::{RulePlugin, builtin_rules, builtin_rules_all};
