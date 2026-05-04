@@ -1,7 +1,5 @@
 use herostratus::config::Config;
-use herostratus_tests::cmd::{CommandExt, TestHarness};
-use predicates::prelude::*;
-use predicates::str;
+use herostratus_tests::cmd::{CommandExt, TestHarness, assert_grants};
 
 /// Run the CLI on a single commit (--depth=1 with the commit as the reference) and return whether
 /// it granted an achievement for that commit.
@@ -98,9 +96,9 @@ fn h006_whitespace_only_dedup() {
     );
 
     // The newest commit in walk order is "Dedent line"
-    let assertion = str::contains("862ad9c83d8285ebb2eb738ab02e1a7569a1f44b");
-    assert!(
-        assertion.eval(&stdout),
-        "expected 'Dedent line' to be the granted commit: {stdout:?}"
+    assert_grants(
+        &stdout,
+        "862ad9c83d8285ebb2eb738ab02e1a7569a1f44b",
+        "Whitespace Warrior",
     );
 }

@@ -55,6 +55,14 @@ impl TempRepository {
         set_default_branch(&self.repo, branch_name)
     }
 
+    /// Switch HEAD to an unborn branch (analog of `git checkout --orphan`).
+    ///
+    /// Deletes the named branch if it already exists, then points HEAD at it. The next
+    /// commit on this HEAD is a root commit (no parents).
+    pub fn create_orphan_branch(&self, branch_name: &str) -> eyre::Result<()> {
+        create_orphan_branch(&self.repo, branch_name)
+    }
+
     /// Create a branch pointing at the given target (or HEAD)
     pub fn create_branch(
         &self,
@@ -211,6 +219,22 @@ impl<'r> PendingCommit<'r> {
 
     pub fn file(mut self, path: &str, content: &[u8]) -> Self {
         self.spec.files.push((path.to_owned(), content.to_vec()));
+        self
+    }
+
+    /// Add an additional parent to this commit by branch name.
+    ///
+    /// Used together with [TempRepository::merge] to construct merges with more than two
+    /// parents (octopus merges). Can be called multiple times to add many parents.
+    pub fn with_extra_parent(mut self, branch_name: &str) -> Self {
+        let branch_ref = format!("refs/heads/{branch_name}");
+        let target = self
+            .repo
+            .find_reference(&branch_ref)
+            .unwrap_or_else(|_| panic!("branch {branch_name:?} not found"))
+            .id()
+            .detach();
+        self.spec.extra_parents.push(target);
         self
     }
 
@@ -490,6 +514,36 @@ fn set_default_branch(repo: &gix::Repository, branch_name: &str) -> eyre::Result
     // Now update the symbolic HEAD ref itself to point to the new branch
     let local_head = gix::refs::FullName::try_from("HEAD")?;
     let new_target = gix::refs::FullName::try_from(format!("refs/heads/{branch_name}"))?;
+
+    let change = gix::refs::transaction::Change::Update {
+        log: gix::refs::transaction::LogChange::default(),
+        expected: gix::refs::transaction::PreviousValue::Any,
+        new: gix::refs::Target::Symbolic(new_target),
+    };
+
+    let edit = gix::refs::transaction::RefEdit {
+        change,
+        name: local_head,
+        deref: false,
+    };
+
+    repo.edit_reference(edit)?;
+
+    Ok(())
+}
+
+#[tracing::instrument(level = "debug", skip_all, fields(path = %repo.path().display()))]
+fn create_orphan_branch(repo: &gix::Repository, branch_name: &str) -> eyre::Result<()> {
+    tracing::debug!("Switching to orphan branch {branch_name:?}");
+
+    let full_name = format!("refs/heads/{branch_name}");
+    if let Some(existing) = repo.try_find_reference(&full_name)? {
+        eyre::bail!("Branch {existing:?} already exists");
+    }
+
+    // Point HEAD at the (now nonexistent) branch -- the next commit will create it as a root.
+    let local_head = gix::refs::FullName::try_from("HEAD")?;
+    let new_target = gix::refs::FullName::try_from(full_name)?;
 
     let change = gix::refs::transaction::Change::Update {
         log: gix::refs::transaction::LogChange::default(),
@@ -835,6 +889,20 @@ mod tests {
     }
 
     #[test]
+    fn test_create_orphan_branch_yields_root_commit() {
+        let repo = Builder::new().commit("on main").build().unwrap();
+
+        repo.create_orphan_branch("orphan").unwrap();
+        let head_name = repo.repo.head_name().unwrap().unwrap();
+        assert_eq!(head_name.as_bstr(), "refs/heads/orphan");
+
+        // The next commit on the orphan branch must be a root (no parents).
+        let id = repo.commit("orphan root").create().unwrap();
+        let commit = repo.repo.find_commit(id).unwrap();
+        assert_eq!(commit.parent_ids().count(), 0);
+    }
+
+    #[test]
     fn test_temp_repo_tags() {
         let repo = Builder::new().build().unwrap();
         let id = repo.commit("c1").create().unwrap();
@@ -845,5 +913,33 @@ mod tests {
         let mut tag = repo.annotated_tag("v2", id2, "release").unwrap();
         let peeled = tag.peel_to_id().unwrap();
         assert_eq!(peeled, id2);
+    }
+
+    #[test]
+    fn test_merge_with_extra_parent_creates_three_parent_commit() {
+        //  *-.   octopus
+        //  |\ \
+        //  | | * on side2
+        //  | |/
+        //  | * on side1
+        //  |/
+        //  * Initial commit
+        let temp = Builder::new().commit("Initial commit").build().unwrap();
+
+        temp.set_branch("side1").unwrap();
+        temp.commit("on side1").create().unwrap();
+        temp.set_branch("side2").unwrap();
+        temp.commit("on side2").create().unwrap();
+
+        // on the main branch, merge side1 and side2 into main
+        temp.set_branch("main").unwrap();
+        temp.merge("side1", "octopus")
+            .with_extra_parent("side2")
+            .create()
+            .unwrap();
+
+        let head = temp.repo.head_id().unwrap();
+        let commit = head.object().unwrap().into_commit();
+        assert_eq!(commit.parent_ids().count(), 3);
     }
 }

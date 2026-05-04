@@ -76,18 +76,18 @@ impl Rule for MostProfound {
         Ok(None)
     }
 
-    fn finalize(&mut self) -> eyre::Result<Option<Grant>> {
+    fn finalize(&mut self) -> eyre::Result<Vec<Grant>> {
         let Some((ref name, ref email, timestamp)) = self.leader else {
-            return Ok(None);
+            return Ok(Vec::new());
         };
-        Ok(Some(Grant {
+        Ok(vec![Grant {
             commit: gix::ObjectId::null(gix::hash::Kind::Sha1),
             user_name: name.clone(),
             user_email: email.clone(),
             timestamp,
             name_override: None,
             description_override: None,
-        }))
+        }])
     }
 
     fn init_cache(&mut self, cache: Self::Cache) {
@@ -127,17 +127,16 @@ mod tests {
         // Bob swears 1 time
         rule.process(&bob, &profanity()).unwrap();
 
-        let grant = rule.finalize().unwrap();
-        assert!(grant.is_some());
-        let grant = grant.unwrap();
-        assert_eq!(grant.user_email, "alice@example.com");
+        let grants = rule.finalize().unwrap();
+        assert_eq!(grants.len(), 1);
+        assert_eq!(grants[0].user_email, "alice@example.com");
     }
 
     #[test]
     fn no_grant_without_profanity() {
         let mut rule = MostProfound::default();
-        let grant = rule.finalize().unwrap();
-        assert!(grant.is_none());
+        let grants = rule.finalize().unwrap();
+        assert!(grants.is_empty());
     }
 
     #[test]
@@ -197,13 +196,14 @@ mod tests {
             rule2.process(&bob, &profanity()).unwrap();
         }
 
-        let grant = rule2.finalize().unwrap().unwrap();
+        let grants = rule2.finalize().unwrap();
+        assert_eq!(grants.len(), 1);
         assert_eq!(
-            grant.user_email, "alice@example.com",
+            grants[0].user_email, "alice@example.com",
             "Alice (cached count 5) should beat Bob (count 2)"
         );
         assert_eq!(
-            grant.user_name, "Alice",
+            grants[0].user_name, "Alice",
             "leader name should survive cache round-trip"
         );
     }

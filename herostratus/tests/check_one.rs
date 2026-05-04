@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use herostratus_tests::cmd::{CommandExt, TestHarness};
+use herostratus_tests::cmd::{CommandExt, TestHarness, assert_grants};
 use herostratus_tests::fixtures::repository::Builder;
 
 /// check-one processes only the named repository, leaving the other untouched.
@@ -40,14 +40,8 @@ fn check_one_processes_single_repo() {
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     // Both initial commits should be granted H5 (they're empty commits)
-    assert!(
-        stdout.contains(&initial1.to_string()),
-        "Initial run should grant H5 for repo1's initial commit {initial1}: {stdout}"
-    );
-    assert!(
-        stdout.contains(&initial2.to_string()),
-        "Initial run should grant H5 for repo2's initial commit {initial2}: {stdout}"
-    );
+    assert_grants(&stdout, initial1, "You can always add more later");
+    assert_grants(&stdout, initial2, "You can always add more later");
 
     // -- Add new commits to both upstreams --
     // Use new authors so H5 (PerUser, non-recurrent) can fire again
@@ -70,10 +64,7 @@ fn check_one_processes_single_repo() {
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     // repo1's new commit should be granted H5
-    assert!(
-        stdout.contains(&second1.to_string()),
-        "check-one should grant H5 for repo1's new commit {second1}: {stdout}"
-    );
+    assert_grants(&stdout, second1, "You can always add more later");
     // repo2's new commit must NOT appear -- check-one only processes repo1
     assert!(
         !stdout.contains(&second2.to_string()),
@@ -93,10 +84,7 @@ fn check_one_processes_single_repo() {
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     // repo2's new commit should now be granted (fetched + checked)
-    assert!(
-        stdout.contains(&second2.to_string()),
-        "check-all should grant H5 for repo2's new commit {second2}: {stdout}"
-    );
+    assert_grants(&stdout, second2, "You can always add more later");
     // repo1's new commit must NOT appear again (already processed by check-one)
     assert!(
         !stdout.contains(&second1.to_string()),
@@ -128,10 +116,7 @@ fn check_one_by_url() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains(&initial_commit.to_string()),
-        "check-one by URL should grant H5 for {initial_commit}: {stdout}"
-    );
+    assert_grants(&stdout, initial_commit, "You can always add more later");
 }
 
 /// check-one fetches new upstream commits by default
@@ -171,10 +156,7 @@ fn check_one_fetches_by_default() {
     let output = cmd.captured_output();
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains(&new_commit.to_string()),
-        "check-one should fetch and grant H5 for new commit {new_commit}: {stdout}"
-    );
+    assert_grants(&stdout, new_commit, "You can always add more later");
 
     // Add another commit to upstream
     let missed_commit = upstream

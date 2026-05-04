@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use eyre::WrapErr;
 use serde::{Deserialize, Serialize};
 
-use crate::rules::{H002Config, H003Config, H012Config, H013Config};
+use crate::rules::{H002Config, H003Config, H012Config, H013Config, TentacleMergeConfig};
 
 /// Configuration for each of the repositories that Herostratus processes
 #[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
@@ -38,6 +38,7 @@ pub struct RulesConfig {
     pub h3_longest_subject_line: Option<H003Config>,
     pub h12_quine_commit: Option<H012Config>,
     pub h13_fortune_teller: Option<H013Config>,
+    pub tentacle_merge: Option<TentacleMergeConfig>,
 }
 
 impl Config {
@@ -326,6 +327,21 @@ mod tests {
                 .length_threshold,
             80
         );
+    }
+
+    #[test]
+    fn tentacle_merge_config_deserializes() {
+        let config_toml = "[repositories.herostratus]\n\
+                       path = \"git/Notgnoshi/herostratus\"\n\
+                       url = \"git@github.com:Notgnoshi/herostratus.git\"\n\
+                       [rules.tentacle_merge]\n\
+                       octopus_threshold = 4\n\
+                       cthulhu_threshold = 12\n\
+                      ";
+        let config = deserialize_config(config_toml).unwrap();
+        let tm = config.rules.unwrap().tentacle_merge.unwrap();
+        assert_eq!(tm.octopus_threshold, 4);
+        assert_eq!(tm.cthulhu_threshold, 12);
     }
 
     #[test]

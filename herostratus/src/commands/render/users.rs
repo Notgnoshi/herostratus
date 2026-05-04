@@ -126,6 +126,8 @@ mod tests {
             commit: gix::ObjectId::from_bytes_or_panic(&[0xAA; 20]),
             user_name: name.to_string(),
             user_email: email.to_string(),
+            name_override: None,
+            description_override: None,
         }
     }
 

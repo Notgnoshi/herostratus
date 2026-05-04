@@ -87,8 +87,8 @@ impl Rule for LongestSubject {
         Ok(None)
     }
 
-    fn finalize(&mut self) -> eyre::Result<Option<Grant>> {
-        Ok(self.candidate.take())
+    fn finalize(&mut self) -> eyre::Result<Vec<Grant>> {
+        Ok(self.candidate.take().into_iter().collect())
     }
 
     fn init_cache(&mut self, cache: Self::Cache) {
@@ -121,9 +121,9 @@ mod tests {
             &Observation::SubjectLength { length: 8 },
         )
         .unwrap();
-        let grant = rule.finalize().unwrap();
-        assert!(grant.is_some());
-        assert_eq!(grant.unwrap().user_name, "Alice");
+        let grants = rule.finalize().unwrap();
+        assert_eq!(grants.len(), 1);
+        assert_eq!(grants[0].user_name, "Alice");
     }
 
     #[test]
@@ -137,8 +137,8 @@ mod tests {
             &Observation::SubjectLength { length: 80 },
         )
         .unwrap();
-        let grant = rule.finalize().unwrap();
-        assert!(grant.is_none());
+        let grants = rule.finalize().unwrap();
+        assert!(grants.is_empty());
     }
 
     #[test]
@@ -167,7 +167,7 @@ mod tests {
                 &Observation::SubjectLength { length: 80 },
             )
             .unwrap();
-        let grant = rule2.finalize().unwrap();
-        assert!(grant.is_none());
+        let grants = rule2.finalize().unwrap();
+        assert!(grants.is_empty());
     }
 }

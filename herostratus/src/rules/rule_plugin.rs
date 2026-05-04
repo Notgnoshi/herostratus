@@ -31,7 +31,7 @@ pub trait RulePlugin {
     /// Called when all observations for the current commit have been sent.
     fn commit_complete(&mut self, ctx: &CommitContext) -> eyre::Result<Option<Grant>>;
     /// Called after all commits have been processed.
-    fn finalize(&mut self) -> eyre::Result<Option<Grant>>;
+    fn finalize(&mut self) -> eyre::Result<Vec<Grant>>;
 }
 
 impl<R: Rule> RulePlugin for R {
@@ -70,7 +70,7 @@ impl<R: Rule> RulePlugin for R {
     fn commit_complete(&mut self, ctx: &CommitContext) -> eyre::Result<Option<Grant>> {
         <R>::commit_complete(self, ctx)
     }
-    fn finalize(&mut self) -> eyre::Result<Option<Grant>> {
+    fn finalize(&mut self) -> eyre::Result<Vec<Grant>> {
         <R>::finalize(self)
     }
 }

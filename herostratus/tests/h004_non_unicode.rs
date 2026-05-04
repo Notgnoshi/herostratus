@@ -1,7 +1,5 @@
 use herostratus::config::Config;
-use herostratus_tests::cmd::{CommandExt, TestHarness};
-use predicates::prelude::*;
-use predicates::str;
+use herostratus_tests::cmd::{CommandExt, TestHarness, assert_grants};
 
 #[test]
 fn h004_non_unicode() {
@@ -13,10 +11,10 @@ fn h004_non_unicode() {
     let output = cmd.captured_output();
     assert!(output.status.success());
 
-    let assertion = str::contains("0f64af5fd5f51a45943dcd3f8c0fb53b88974aec");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        assertion.eval(&stdout),
-        "Output did not contain hash: {stdout:?}"
+    assert_grants(
+        &stdout,
+        "0f64af5fd5f51a45943dcd3f8c0fb53b88974aec",
+        "But ... How?!",
     );
 }

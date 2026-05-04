@@ -44,11 +44,19 @@ pub struct AchievementContext {
     pub total_grants: usize,
     pub unique_holders: usize,
     pub history: Vec<ActivityEntry>,
+    /// True when at least one holder's `achievement_name` differs from the catalog `name` (i.e.
+    /// some grant carried a `name_override`). Lets the detail template show a "Variant" column
+    /// only when it would carry useful information.
+    pub has_variant_names: bool,
 }
 
 /// A user who holds an achievement.
 #[derive(Debug, serde::Serialize)]
 pub struct HolderEntry {
+    /// Per-grant achievement name. For grants without an override this matches the catalog name;
+    /// for grants with `name_override` set this is the override, so the achievement detail page
+    /// can label each variant distinctly.
+    pub achievement_name: String,
     pub user_name: String,
     pub user_slug: String,
     pub repo_name: String,
@@ -158,9 +166,11 @@ pub fn aggregate(
                     AchievementEventKind::Grant => "grant".to_string(),
                     AchievementEventKind::Revoke => "revoke".to_string(),
                 },
-                achievement_name: achievement
-                    .map(|a| a.name.clone())
-                    .unwrap_or_else(|| event.achievement_id.clone()),
+                achievement_name: event.name_override.clone().unwrap_or_else(|| {
+                    achievement
+                        .map(|a| a.name.clone())
+                        .unwrap_or_else(|| event.achievement_id.clone())
+                }),
                 achievement_human_id: event.achievement_id.clone(),
                 user_name: user
                     .map(|u| u.name.clone())
@@ -275,6 +285,11 @@ fn build_achievement_contexts(
                 .map(|g| {
                     let user = user_by_email.get(g.event.user_email.as_str());
                     HolderEntry {
+                        achievement_name: g
+                            .event
+                            .name_override
+                            .clone()
+                            .unwrap_or_else(|| a.name.clone()),
                         user_name: user
                             .map(|u| u.name.clone())
                             .unwrap_or_else(|| g.event.user_name.clone()),
@@ -303,6 +318,8 @@ fn build_achievement_contexts(
             unique_emails.dedup();
             let unique_holders = unique_emails.len();
 
+            let has_variant_names = holders.iter().any(|h| h.achievement_name != a.name);
+
             AchievementContext {
                 id: a.id,
                 human_id: a.human_id.clone(),
@@ -313,6 +330,7 @@ fn build_achievement_contexts(
                 total_grants,
                 unique_holders,
                 history,
+                has_variant_names,
             }
         })
         .collect()
@@ -410,13 +428,19 @@ fn build_user_contexts(
                     .entry(grant.repo_name)
                     .or_default()
                     .push(UserAchievementEntry {
-                        achievement_name: achievement
-                            .map(|a| a.name.clone())
-                            .unwrap_or_else(|| grant.event.achievement_id.clone()),
+                        achievement_name: grant.event.name_override.clone().unwrap_or_else(|| {
+                            achievement
+                                .map(|a| a.name.clone())
+                                .unwrap_or_else(|| grant.event.achievement_id.clone())
+                        }),
                         achievement_human_id: grant.event.achievement_id.clone(),
-                        description: achievement
-                            .map(|a| a.description.clone())
-                            .unwrap_or_default(),
+                        description: grant.event.description_override.clone().unwrap_or_else(
+                            || {
+                                achievement
+                                    .map(|a| a.description.clone())
+                                    .unwrap_or_default()
+                            },
+                        ),
                         commit: grant.event.commit.to_string(),
                         timestamp: grant.event.timestamp,
                     });
@@ -485,6 +509,8 @@ mod tests {
             commit: gix::ObjectId::from_bytes_or_panic(&[0xAA; 20]),
             user_name: name.to_string(),
             user_email: email.to_string(),
+            name_override: None,
+            description_override: None,
         }
     }
 
@@ -560,6 +586,68 @@ mod tests {
         assert_eq!(site.achievements[0].holders[0].user_name, "Bob");
         assert_eq!(site.achievements[0].total_grants, 2);
         assert_eq!(site.achievements[0].unique_holders, 1);
+    }
+
+    #[test]
+    fn aggregate_prefers_override_over_catalog_for_per_grant_displays() {
+        let achievements = vec![test_achievement("second-chance", "Second Chance")];
+        let repositories = vec![test_repo("repo")];
+        let mut event = make_event(
+            "bob@example.com",
+            "Bob",
+            "second-chance",
+            AchievementEventKind::Grant,
+            100,
+        );
+        event.name_override = Some("Third Time's the Charm".to_string());
+        event.description_override = Some("Three roots and counting".to_string());
+        let events = HashMap::from([("repo".to_string(), vec![event])]);
+        let users = vec![test_user("bob@example.com", "Bob", "bob")];
+
+        let site = aggregate(&achievements, &repositories, &events, &users);
+
+        // Recent-activity entries use the override name.
+        assert_eq!(
+            site.recent_activity[0].achievement_name,
+            "Third Time's the Charm"
+        );
+
+        // Per-user achievement entry uses both overrides.
+        let bob = &site.users[0];
+        let entry = &bob.achievements_by_repo[0].achievements[0];
+        assert_eq!(entry.achievement_name, "Third Time's the Charm");
+        assert_eq!(entry.description, "Three roots and counting");
+
+        // human_id is unchanged so catalog links still resolve.
+        assert_eq!(entry.achievement_human_id, "second-chance");
+
+        let holder = &site.achievements[0].holders[0];
+        assert_eq!(holder.achievement_name, "Third Time's the Charm");
+
+        // Detail template uses this flag to decide whether to render the Variant column.
+        assert!(site.achievements[0].has_variant_names);
+    }
+
+    #[test]
+    fn aggregate_holder_falls_back_to_catalog_name_without_override() {
+        let achievements = vec![test_achievement("fixup", "Leftovers")];
+        let repositories = vec![test_repo("repo")];
+        let events = HashMap::from([(
+            "repo".to_string(),
+            vec![make_event(
+                "alice@example.com",
+                "Alice",
+                "fixup",
+                AchievementEventKind::Grant,
+                100,
+            )],
+        )]);
+        let users = vec![test_user("alice@example.com", "Alice", "alice")];
+
+        let site = aggregate(&achievements, &repositories, &events, &users);
+
+        let holder = &site.achievements[0].holders[0];
+        assert_eq!(holder.achievement_name, "Leftovers");
     }
 
     #[test]

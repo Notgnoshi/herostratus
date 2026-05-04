@@ -1,7 +1,5 @@
 use herostratus::config::Config;
-use herostratus_tests::cmd::{CommandExt, TestHarness};
-use predicates::prelude::*;
-use predicates::str;
+use herostratus_tests::cmd::{CommandExt, TestHarness, assert_grants};
 
 #[test]
 fn h005_empty_commit() {
@@ -17,10 +15,10 @@ fn h005_empty_commit() {
     let output = cmd.captured_output();
     assert!(output.status.success());
 
-    let assertion = str::contains("2dcecd66c21932043cf127b31218cb67c2b0f0a4");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        assertion.eval(&stdout),
-        "Output did not contain hash: {stdout:?}"
+    assert_grants(
+        &stdout,
+        "2dcecd66c21932043cf127b31218cb67c2b0f0a4",
+        "You can always add more later",
     );
 }

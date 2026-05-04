@@ -76,8 +76,10 @@ pub trait Rule {
     /// Called after all commits have been processed.
     ///
     /// Rules that accumulate state across commits (e.g., "shortest subject") emit here.
-    fn finalize(&mut self) -> eyre::Result<Option<Grant>> {
-        Ok(None)
+    /// Unlike [Self::process] and [Self::commit_complete], `finalize` may emit multiple
+    /// grants in a single call; all returned grants share this rule's [Meta].
+    fn finalize(&mut self) -> eyre::Result<Vec<Grant>> {
+        Ok(Vec::new())
     }
 
     /// Initialize the rule with its persisted cache. Called once before any

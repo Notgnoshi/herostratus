@@ -1,8 +1,6 @@
 use herostratus::config::Config;
 use herostratus::rules::H012Config;
-use herostratus_tests::cmd::{CommandExt, TestHarness};
-use predicates::prelude::*;
-use predicates::str;
+use herostratus_tests::cmd::{CommandExt, TestHarness, assert_grants};
 
 #[test]
 fn h012_quine_commit() {
@@ -21,10 +19,10 @@ fn h012_quine_commit() {
     assert!(output.status.success());
 
     // The quine commit has hash 588b41b6e983... and its message contains "588b41b6e9" (10 chars)
-    let assertion = str::contains("588b41b6e983c393df17689d7659145fbce16fa9");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        assertion.eval(&stdout),
-        "Output did not contain quine commit hash: {stdout:?}"
+    assert_grants(
+        &stdout,
+        "588b41b6e983c393df17689d7659145fbce16fa9",
+        "How Did You Even Do That?!",
     );
 }
