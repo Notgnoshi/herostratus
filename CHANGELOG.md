@@ -14,14 +14,26 @@ focus on the user impact** rather than the actual changes made.
 
 ## Added
 
-* New `H15-octopus` rule: granted to the author of a merge commit with three or more parents (and
-  fewer than `cthulhu_threshold`). Configurable via `rules.tentacle_merge.octopus_threshold` and
-  `rules.tentacle_merge.cthulhu_threshold`.
-* New `H16-cthulhu` rule: granted to the author of a merge commit with at least
-  `rules.tentacle_merge.cthulhu_threshold` parents.
-* New `H17-ex-nihilo` rule: granted to the author of an empty root commit
-* New `H18-second-chance` rule: granted to the author of any root commit beyond the first one
-  Herostratus has observed in the repository.
+## Changed
+
+## Fixed
+
+## Deprecated
+
+## Removed
+
+# Herostratus - 1.1.0 - (2026-05-03)
+
+## Added
+
+* Added the following new achievements
+  | ID                | Kind     | Description                                      |
+  | ----------------- | -------- | ------------------------------------------------ |
+  | H15-octopus       | Per-user | Author a merge commit with three or more parents |
+  | H16-cthulhu       | Per-user | Author a merge commit with many parents          |
+  | H17-ex-nihilo     | Per-user | Author an empty root commit                      |
+  | H18-second-chance | Per-user | Add an additional root commit to a repository    |
+
 * Rules are now versioned, giving me the ability to trigger rerunning rules on the full history of a
   project when the rule (or its cache) changes.
 
@@ -33,14 +45,9 @@ focus on the user impact** rather than the actual changes made.
 * Rule H9 had its `Rule::VERSION` bumped to trigger re-running on the full history, so existing
   checkouts pick up the per-grant title and description fix below.
 
-## Deprecated
-
-## Removed
-
 ## Fixed
 
-* Per-grant achievement title and description overrides are now properly shown in the rendered
-  static site.
+* Overridden achievement titles and descriptions are now properly shown in the rendered static site.
 
 # Herostratus - 1.0.1 - (2026-04-20)
 
