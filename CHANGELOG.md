@@ -22,6 +22,12 @@ focus on the user impact** rather than the actual changes made.
 
 ## Removed
 
+# Herostratus - 1.1.1 - (2026-05-04)
+
+This is a bugfix release to fix the incremental shallow-clone deepening behavior being broken for
+more than 32 back-to-back deepen operations, as is often the case for large repositories when a rule
+is invalidated (there were several rules invalidated in the previous release).
+
 # Herostratus - 1.1.0 - (2026-05-03)
 
 ## Added

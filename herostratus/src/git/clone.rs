@@ -9,11 +9,28 @@ use crate::bstr::{BStr, BString};
 /// Also used as the batch size when deepening a shallow repository.
 pub const DEFAULT_SHALLOW_DEPTH: usize = 50;
 
+fn open_options() -> gix::open::Options {
+    // Each `git fetch` produces a new pack file, and gix tracks each pack as one entry in a
+    // fixed-size slotmap that is sized once at `Repository` open time. The default minimum is 32
+    // slots, which is exhausted after ~32 incremental deepenings. We could incrementally repack
+    // during the deepen operation to avoid this, but that's quite a bit harder to implement, so
+    // this is the easy choice.
+    gix::open::Options::default().object_store_slots(gix::odb::store::init::Slots::Given(1024))
+}
+
 pub fn find_local_repository<P: AsRef<Path> + std::fmt::Debug>(
     path: P,
 ) -> eyre::Result<gix::Repository> {
     tracing::debug!("Searching local path {path:?} for a Git repository");
-    let repo = gix::discover(path)?;
+    let repo = gix::ThreadSafeRepository::discover_opts(
+        path,
+        Default::default(),
+        gix::sec::trust::Mapping {
+            full: open_options(),
+            reduced: open_options(),
+        },
+    )?
+    .to_thread_local();
     tracing::debug!("Found local git repository at {:?}", repo.path());
     Ok(repo)
 }
@@ -449,7 +466,15 @@ pub fn clone_repository(
             // Proceed to clone as normal
         } else {
             // Check the existing checkout's remote URL; if it matches, do a pull instead of a clone
-            let mut existing_repo = gix::discover(&config.path)?;
+            let mut existing_repo = gix::ThreadSafeRepository::discover_opts(
+                &config.path,
+                Default::default(),
+                gix::sec::trust::Mapping {
+                    full: open_options(),
+                    reduced: open_options(),
+                },
+            )?
+            .to_thread_local();
             let remote = existing_repo.find_remote("origin")?;
             let existing_url = remote
                 .url(gix::remote::Direction::Fetch)
@@ -471,7 +496,7 @@ pub fn clone_repository(
         destination_must_be_empty: true,
         ..Default::default()
     };
-    let open_opts = gix::open::Options::default();
+    let open_opts = open_options();
     let prepare = gix::clone::PrepareFetch::new(
         url,
         &config.path,
@@ -1124,5 +1149,38 @@ mod tests {
             new_commits.len(),
             total.len()
         );
+    }
+
+    #[test]
+    fn test_many_deepenings_do_not_exhaust_slotmap() {
+        // 35 single-commit deepens is enough to overrun the default 32-slot limit.
+        const N: i64 = 35;
+        let mut builder = repository::Builder::new();
+        for i in 0..N {
+            builder = builder
+                .commit(&format!("commit{i}"))
+                .time(1000 + i)
+                .finish();
+        }
+        let upstream = builder.build().unwrap();
+        let tempdir = tempfile::tempdir().unwrap();
+        let downstream_dir = tempdir.path().join("downstream");
+
+        let config = crate::config::RepositoryConfig {
+            reference: None,
+            url: format!("file://{}", upstream.tempdir.path().display()),
+            path: downstream_dir,
+            ..Default::default()
+        };
+        let mut downstream = clone_repository(&config, false, Some(1)).unwrap();
+
+        // Mirror the production access pattern: walk all of history through DeepeningRevWalk,
+        // which calls deepen + rev_walk in a tight loop. Without the slotmap fix this fails
+        // around the 32nd pack with InsufficientSlots.
+        let head = crate::git::rev::parse("HEAD", &downstream).unwrap();
+        let walk =
+            crate::git::deepen::DeepeningRevWalk::new(head, &mut downstream, config, 1).unwrap();
+        let oids: Vec<_> = walk.collect::<Result<_, _>>().unwrap();
+        assert_eq!(oids.len(), N as usize);
     }
 }
