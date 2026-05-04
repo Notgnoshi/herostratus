@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use eyre::WrapErr;
 
 use crate::config::RepositoryConfig;
@@ -10,8 +12,12 @@ use crate::config::RepositoryConfig;
 ///
 /// For shallow clones, when the buffered commits are drained, the iterator reads the current
 /// shallow boundary OIDs, calls [deepen](crate::git::clone::deepen) to fetch more history, then
-/// walks from the old boundary OIDs (filtering them out, since they were already yielded) and
-/// continues yielding the newly available commits.
+/// walks from the old boundary OIDs and continues yielding the newly available commits.
+///
+/// A commit reachable from HEAD via a short chain (within the original shallow window) can also
+/// be an ancestor of a boundary commit on a longer chain. Without cross-batch deduplication, the
+/// post-deepen walk from the boundary would re-yield such commits. `seen` tracks every yielded
+/// OID across all batches to filter out these cross-batch duplicates.
 ///
 /// Errors from deepening are fatal and propagated as `Some(Err(...))`.
 pub struct DeepeningRevWalk<'repo> {
@@ -21,6 +27,7 @@ pub struct DeepeningRevWalk<'repo> {
     commits: Vec<gix::ObjectId>,
     index: usize,
     done: bool,
+    seen: HashSet<gix::ObjectId>,
 }
 
 impl<'repo> DeepeningRevWalk<'repo> {
@@ -34,7 +41,7 @@ impl<'repo> DeepeningRevWalk<'repo> {
         config: RepositoryConfig,
         batch_size: usize,
     ) -> eyre::Result<Self> {
-        let commits = collect_walk(repo, vec![head_oid], &[])?;
+        let commits = collect_walk(repo, vec![head_oid], &HashSet::new())?;
         Ok(Self {
             repo,
             config,
@@ -42,6 +49,7 @@ impl<'repo> DeepeningRevWalk<'repo> {
             commits,
             index: 0,
             done: false,
+            seen: HashSet::new(),
         })
     }
 }
@@ -51,7 +59,7 @@ impl<'repo> DeepeningRevWalk<'repo> {
 fn collect_walk(
     repo: &gix::Repository,
     start: Vec<gix::ObjectId>,
-    exclude: &[gix::ObjectId],
+    exclude: &HashSet<gix::ObjectId>,
 ) -> eyre::Result<Vec<gix::ObjectId>> {
     let walk = repo.rev_walk(start);
     let walk = walk.sorting(gix::revision::walk::Sorting::ByCommitTime(
@@ -73,10 +81,11 @@ impl Iterator for DeepeningRevWalk<'_> {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            // Yield buffered commits while available.
+            // Yield buffered commits while available, recording them in `seen`.
             if self.index < self.commits.len() {
                 let oid = self.commits[self.index];
                 self.index += 1;
+                self.seen.insert(oid);
                 return Some(Ok(oid));
             }
 
@@ -121,14 +130,18 @@ impl Iterator for DeepeningRevWalk<'_> {
 
             debug_assert!(deepened);
 
-            // Walk from the old boundary OIDs, excluding the boundary OIDs themselves (already
-            // yielded in the previous batch).
-            match collect_walk(self.repo, boundary_oids.clone(), &boundary_oids) {
+            // Walk from the old boundary OIDs, excluding everything we've yielded in any prior
+            // batch. The exclude set must be the cumulative `seen` set, not just `boundary_oids`,
+            // because a commit can be reachable from HEAD via a short chain (already yielded) AND
+            // be an ancestor of a boundary commit on a longer chain (about to be re-yielded by this
+            // walk).
+            match collect_walk(self.repo, boundary_oids, &self.seen) {
                 Ok(new_commits) => {
                     if new_commits.is_empty() {
-                        // Deepened successfully but no new commits reachable from the old
-                        // boundary. This can happen if the boundary shifted but all new commits
-                        // are on branches we don't follow.
+                        // Deepened successfully but no new commits reachable from the old boundary.
+                        // This can happen if the boundary shifted but all new commits are on
+                        // branches we don't follow, or if every newly-visible commit was already
+                        // yielded via another path.
                         self.done = true;
                         return None;
                     }
@@ -262,6 +275,68 @@ mod test {
         assert_eq!(
             expected, actual,
             "Commit ordering should match full rev_walk"
+        );
+    }
+
+    #[test]
+    fn test_deepening_walk_no_cross_batch_duplicates() {
+        // Topology where common ancestor X is reachable from HEAD via two chains of unequal length:
+        //
+        //   R - X - A ---- M (HEAD)
+        //        \        /
+        //         Y1-Y2-Y3
+        //
+        // depth=4 makes the short A-chain (M, A, X, R) fully visible, but cuts the long Y-chain at
+        // Y1 (boundary). X is yielded in batch 1 via the A path, and is also an ancestor of the
+        // boundary Y1. After deepen, walking from {Y1} reaches X again. Without cross-batch dedup
+        // the iterator yields X twice.
+        let upstream = repository::Builder::new()
+            .commit("R")
+            .time(1_000)
+            .commit("X")
+            .time(2_000)
+            .branch("feature")
+            .commit("Y1")
+            .time(3_000)
+            .commit("Y2")
+            .time(4_000)
+            .commit("Y3")
+            .time(5_000)
+            .branch("main")
+            .commit("A")
+            .time(6_000)
+            .build()
+            .unwrap();
+
+        upstream.merge("feature", "M").time(7_000).create().unwrap();
+
+        let tempdir = tempfile::tempdir().unwrap();
+        let downstream_dir = tempdir.path().join("downstream");
+        let config = RepositoryConfig {
+            reference: None,
+            url: format!("file://{}", upstream.tempdir.path().display()),
+            path: downstream_dir,
+            ..Default::default()
+        };
+        let mut downstream = crate::git::clone::clone_repository(&config, false, Some(4)).unwrap();
+        assert!(downstream.is_shallow());
+
+        let head = crate::git::rev::parse("HEAD", &downstream).unwrap();
+        let walk = DeepeningRevWalk::new(head, &mut downstream, config, 2).unwrap();
+        let yielded: Vec<gix::ObjectId> = walk.collect::<Result<_, _>>().unwrap();
+
+        let mut counts: std::collections::HashMap<gix::ObjectId, usize> =
+            std::collections::HashMap::new();
+        for oid in &yielded {
+            *counts.entry(*oid).or_insert(0) += 1;
+        }
+        let dupes: Vec<_> = counts.iter().filter(|(_, c)| **c > 1).collect();
+        assert!(
+            dupes.is_empty(),
+            "DeepeningRevWalk yielded duplicates: {dupes:#?}\n\
+             total yielded={}, unique={}",
+            yielded.len(),
+            counts.len()
         );
     }
 

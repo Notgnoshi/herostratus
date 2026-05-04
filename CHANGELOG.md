@@ -22,6 +22,12 @@ focus on the user impact** rather than the actual changes made.
 
 ## Removed
 
+# Herostratus - 1.1.2 - (2026-05-04)
+
+This is a bugfix release to fix the incremental shallow-clone deepening behavior potentially
+revisiting the initial root commit of a repository multiple times, which can trigger the new H17 and
+H18 achievements incorrectly.
+
 # Herostratus - 1.1.1 - (2026-05-04)
 
 This is a bugfix release to fix the incremental shallow-clone deepening behavior being broken for
