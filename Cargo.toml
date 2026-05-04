@@ -14,7 +14,7 @@ default-members = ["herostratus", "herostratus-tests", "herostratus-quine"]
 debug = true
 
 [workspace.package]
-version = "1.1.0"
+version = "1.1.1"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/Notgnoshi/herostratus"
@@ -48,6 +48,7 @@ thread_local = "1.1"
 toml = "1.0.7"
 tracing = "0.1.41"
 tracing-chrome = "0.7"
+tracing-error = "0.2"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 
 [workspace.lints.rustdoc]

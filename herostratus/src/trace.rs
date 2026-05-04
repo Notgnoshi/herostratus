@@ -45,6 +45,7 @@ pub fn init(log_level: tracing::Level, use_color: bool) -> Option<tracing_chrome
     tracing_subscriber::registry()
         .with(fmt_layer)
         .with(chrome_layer)
+        .with(tracing_error::ErrorLayer::default())
         .init();
 
     guard
