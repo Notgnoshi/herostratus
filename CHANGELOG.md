@@ -16,6 +16,8 @@ focus on the user impact** rather than the actual changes made.
 
 ## Changed
 
+Bumped MSRV to 1.96.
+
 ## Fixed
 
 ## Deprecated
