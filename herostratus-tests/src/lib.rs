@@ -4,7 +4,7 @@ pub mod fixtures;
 use tracing::Level;
 use tracing_subscriber::EnvFilter;
 
-#[ctor::ctor]
+#[ctor::ctor(unsafe)]
 fn setup_test_logging() {
     let filter = EnvFilter::builder()
         .with_default_directive(Level::DEBUG.into())
