@@ -430,7 +430,7 @@ fn bare() -> eyre::Result<TempRepository> {
     );
 
     let options = gix::create::Options {
-        destination_must_be_empty: true,
+        destination_must_be_empty: Some(true),
         ..Default::default()
     };
     let repo = gix::ThreadSafeRepository::init(tempdir.path(), gix::create::Kind::Bare, options)?;
@@ -447,7 +447,7 @@ fn non_bare() -> eyre::Result<TempRepository> {
     );
 
     let options = gix::create::Options {
-        destination_must_be_empty: true,
+        destination_must_be_empty: Some(true),
         ..Default::default()
     };
     let repo =

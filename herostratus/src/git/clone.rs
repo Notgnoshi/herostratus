@@ -493,7 +493,7 @@ pub fn clone_repository(
 
     let url = gix::Url::from_bytes(BString::from(config.url.as_bytes()).as_ref())?;
     let create_opts = gix::create::Options {
-        destination_must_be_empty: true,
+        destination_must_be_empty: Some(true),
         ..Default::default()
     };
     let open_opts = open_options();
