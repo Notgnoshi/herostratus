@@ -268,10 +268,10 @@ fn ssh_command_for_key(key_path: &Path) -> String {
 /// If [https_password](crate::config::RepositoryConfig::https_password) is set, the connection will
 /// use it (along with [remote_username](crate::config::RepositoryConfig::remote_username)) instead
 /// of the default credential helper cascade.
-fn apply_https_credentials<'a, 'repo, T>(
+fn apply_https_credentials<'remote, 'auth, 'repo, T>(
     config: &crate::config::RepositoryConfig,
-    connection: gix::remote::Connection<'a, 'repo, T>,
-) -> eyre::Result<gix::remote::Connection<'a, 'repo, T>>
+    connection: gix::remote::Connection<'remote, 'auth, 'repo, T>,
+) -> eyre::Result<gix::remote::Connection<'remote, 'auth, 'repo, T>>
 where
     T: gix::protocol::transport::client::blocking_io::Transport,
 {
