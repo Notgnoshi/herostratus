@@ -20,6 +20,10 @@ Bumped MSRV to 1.96.
 
 ## Fixed
 
+Fixed an issue where retired rules (rules that were omitted during a run after new rules were added)
+would not be saved in the checkpoint, causing them to be considered as new rules in the following
+run.
+
 ## Deprecated
 
 ## Removed
