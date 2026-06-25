@@ -38,9 +38,13 @@ pub fn fetch_one(
             skip_fetch = true;
             // TODO: Count number of commits cloned?
             let checkpoint_path = data_dir.join("cache").join(name).join("checkpoint.json");
+            let checkpoint = crate::cache::CheckpointCache::load(&checkpoint_path)?;
             let shallow = if checkpoint_path.exists() {
                 let depth = crate::git::clone::DEFAULT_SHALLOW_DEPTH;
-                tracing::info!("Checkpoint exists; shallow clone with depth={depth}");
+                tracing::info!(
+                    "Checkpoint {:?} exists; shallow clone with depth={depth}",
+                    checkpoint.data.commit
+                );
                 Some(depth)
             } else {
                 None

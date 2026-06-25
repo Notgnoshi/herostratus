@@ -9,6 +9,21 @@ use crate::bstr::{BStr, BString};
 /// Also used as the batch size when deepening a shallow repository.
 pub const DEFAULT_SHALLOW_DEPTH: usize = 50;
 
+/// Format a shallow boundary for logging.
+///
+/// The boundary is the set of commits at the edge of a shallow repository's history. It's usually a
+/// single commit, but can be several after a deepen that splits or merges history.
+fn format_boundary(boundary: &[gix::ObjectId]) -> String {
+    if boundary.is_empty() {
+        return "(none)".to_string();
+    }
+    boundary
+        .iter()
+        .map(|oid| oid.to_hex_with_len(12).to_string())
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 fn open_options() -> gix::open::Options {
     // Each `git fetch` produces a new pack file, and gix tracks each pack as one entry in a
     // fixed-size slotmap that is sized once at `Repository` open time. The default minimum is 32
@@ -253,10 +268,10 @@ fn ssh_command_for_key(key_path: &Path) -> String {
 /// If [https_password](crate::config::RepositoryConfig::https_password) is set, the connection will
 /// use it (along with [remote_username](crate::config::RepositoryConfig::remote_username)) instead
 /// of the default credential helper cascade.
-fn apply_https_credentials<'a, 'repo, T>(
+fn apply_https_credentials<'remote, 'auth, 'repo, T>(
     config: &crate::config::RepositoryConfig,
-    connection: gix::remote::Connection<'a, 'repo, T>,
-) -> eyre::Result<gix::remote::Connection<'a, 'repo, T>>
+    connection: gix::remote::Connection<'remote, 'auth, 'repo, T>,
+) -> eyre::Result<gix::remote::Connection<'remote, 'auth, 'repo, T>>
 where
     T: gix::protocol::transport::client::blocking_io::Transport,
 {
@@ -390,8 +405,9 @@ pub fn deepen(
     }
     let remote = remote.with_refspecs(&refspecs, gix::remote::Direction::Fetch)?;
     tracing::info!(
-        "Deepening {ref_name:?} by {depth} commits from {:?}",
-        config.url
+        "Deepening {ref_name:?} by {depth} commits from {:?}, starting at shallow boundary {}",
+        config.url,
+        format_boundary(&boundary_before),
     );
     tracing::debug!("refspecs: {refspecs:?}");
 
@@ -413,9 +429,9 @@ pub fn deepen(
     let fetched = boundary_before != boundary_after;
     if fetched {
         tracing::info!(
-            "Deepened: boundary changed from {} to {} commits",
-            boundary_before.len(),
-            boundary_after.len()
+            "Deepened {ref_name:?}: shallow boundary moved from {} to {}",
+            format_boundary(&boundary_before),
+            format_boundary(&boundary_after),
         );
     } else {
         tracing::info!("No new commits fetched (boundary unchanged)");

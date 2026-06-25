@@ -195,6 +195,8 @@ struct Pipeline {
     checkpoint: PipelineCheckpoint,
     data_dir: Option<PathBuf>,
     repo_name: String,
+    /// The full set of enabled (rule_id, version) pairs, snapshotted at construction
+    all_enabled_rules: Vec<(usize, u32)>,
 }
 
 struct CommitResult {
@@ -257,6 +259,7 @@ impl Pipeline {
         }
 
         let achievement_log = AchievementLog::load(log_path.as_deref())?;
+        let all_enabled_rules = rule_engine.active_rules_with_versions();
 
         Ok(Self {
             observer_engine,
@@ -265,6 +268,7 @@ impl Pipeline {
             checkpoint,
             data_dir: data_dir.map(Path::to_path_buf),
             repo_name: repo_name.to_string(),
+            all_enabled_rules,
         })
     }
 
@@ -308,7 +312,7 @@ impl Pipeline {
         num_achievements += self.emit(meta_outputs, &mut on_event);
 
         self.checkpoint
-            .save_checkpoint(self.rule_engine.active_rules_with_versions())?;
+            .save_checkpoint(self.all_enabled_rules.clone())?;
 
         if let Some(data_dir) = &self.data_dir {
             let repo_name = &self.repo_name;
@@ -357,6 +361,14 @@ impl Pipeline {
                         });
                     }
                     CheckpointAction::Retire { rule_ids } => {
+                        let changed: Vec<&str> = self
+                            .rule_engine
+                            .iter_rules()
+                            .filter(|r| !rule_ids.contains(&r.meta().id))
+                            .map(|r| r.meta().human_id)
+                            .collect();
+                        tracing::info!("Rules {changed:?} were changed since the last checkpoint");
+
                         let data_dir = &self.data_dir;
                         let repo_name = &self.repo_name;
                         let outputs = self.rule_engine.retire(&rule_ids, |human_id, data| {
@@ -1068,6 +1080,36 @@ mod tests {
             !grants(&events2).iter().any(|a| a.descriptor_id == 1),
             "H001 should not fire in run 2 (retired at checkpoint)"
         );
+    }
+
+    #[test]
+    fn checkpoint_converges_after_retire() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let temp_repo = repository::Builder::new()
+            .commit("fixup! something")
+            .commit("Hi")
+            .build()
+            .unwrap();
+
+        // Run 1: only H001
+        run_pipeline_with_rules(&temp_repo.repo, Some(data_dir.path()), "test-repo", &[1]);
+        // Run 2: H001 + H002; retires H001 at checkpoint, reprocesses for H002
+        let (stats2, _) =
+            run_pipeline_with_rules(&temp_repo.repo, Some(data_dir.path()), "test-repo", &[1, 2]);
+        assert_eq!(
+            stats2.num_commits_processed, 2,
+            "run 2 reprocesses for H002"
+        );
+
+        // Run 3: identical rule set [1, 2]. Both rules are now current at HEAD, so the checkpoint
+        // should early-exit with zero commits processed.
+        let (stats3, events3) =
+            run_pipeline_with_rules(&temp_repo.repo, Some(data_dir.path()), "test-repo", &[1, 2]);
+        assert_eq!(
+            stats3.num_commits_processed, 0,
+            "run 3 should early-exit; reprocessing means the checkpoint dropped a retired rule"
+        );
+        assert!(grants(&events3).is_empty(), "run 3 should emit nothing");
     }
 
     #[test]
