@@ -70,21 +70,22 @@ impl Rule for ShortestSubject {
     }
 
     fn consumes(&self) -> &'static [Discriminant<Observation>] {
-        &[Observation::SUBJECT_LENGTH]
+        &[Observation::SUBJECT]
     }
 
     fn process(&mut self, ctx: &CommitContext, obs: &Observation) -> eyre::Result<Option<Grant>> {
-        let Observation::SubjectLength { length } = obs else {
+        let Observation::Subject { subject } = obs else {
             return Ok(None);
         };
+        let length = subject.len();
 
-        let dominated_by_threshold = *length >= self.threshold;
-        let dominated_by_cache = self.cache.shortest_length.is_some_and(|s| *length >= s);
+        let dominated_by_threshold = length >= self.threshold;
+        let dominated_by_cache = self.cache.shortest_length.is_some_and(|s| length >= s);
         if dominated_by_threshold || dominated_by_cache {
             return Ok(None);
         }
 
-        self.cache.shortest_length = Some(*length);
+        self.cache.shortest_length = Some(length);
         self.candidate = Some(META.grant(ctx));
         Ok(None)
     }
@@ -107,22 +108,21 @@ mod tests {
 
     use super::*;
 
+    fn subj(len: usize) -> Observation {
+        Observation::Subject {
+            subject: "x".repeat(len),
+        }
+    }
+
     #[test]
     fn grants_shortest() {
         let mut rule = ShortestSubject {
             threshold: 10,
             ..Default::default()
         };
-        rule.process(
-            &CommitContext::test("Alice"),
-            &Observation::SubjectLength { length: 5 },
-        )
-        .unwrap();
-        rule.process(
-            &CommitContext::test("Bob"),
-            &Observation::SubjectLength { length: 8 },
-        )
-        .unwrap();
+        rule.process(&CommitContext::test("Alice"), &subj(5))
+            .unwrap();
+        rule.process(&CommitContext::test("Bob"), &subj(8)).unwrap();
         let grants = rule.finalize().unwrap();
         assert_eq!(grants.len(), 1);
         assert_eq!(grants[0].user_name, "Alice");
@@ -134,11 +134,8 @@ mod tests {
             threshold: 5,
             ..Default::default()
         };
-        rule.process(
-            &CommitContext::test("Alice"),
-            &Observation::SubjectLength { length: 8 },
-        )
-        .unwrap();
+        rule.process(&CommitContext::test("Alice"), &subj(8))
+            .unwrap();
         let grants = rule.finalize().unwrap();
         assert!(grants.is_empty());
     }
@@ -149,11 +146,8 @@ mod tests {
             threshold: 10,
             ..Default::default()
         };
-        rule.process(
-            &CommitContext::test("Alice"),
-            &Observation::SubjectLength { length: 3 },
-        )
-        .unwrap();
+        rule.process(&CommitContext::test("Alice"), &subj(3))
+            .unwrap();
         let cache = rule.fini_cache();
         assert_eq!(cache.shortest_length, Some(3));
 
@@ -164,10 +158,7 @@ mod tests {
         rule2.init_cache(cache);
         // Length 5 is shorter than threshold (10) but not shorter than cached (3)
         rule2
-            .process(
-                &CommitContext::test("Bob"),
-                &Observation::SubjectLength { length: 5 },
-            )
+            .process(&CommitContext::test("Bob"), &subj(5))
             .unwrap();
         let grants = rule2.finalize().unwrap();
         assert!(grants.is_empty());
