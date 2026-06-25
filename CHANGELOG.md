@@ -16,6 +16,16 @@ focus on the user impact** rather than the actual changes made.
 
 ## Changed
 
+## Fixed
+
+## Deprecated
+
+## Removed
+
+# Herostratus - 1.1.3 - (2026-06-25)
+
+## Changed
+
 Bumped MSRV to 1.96.
 
 ## Fixed
@@ -23,10 +33,6 @@ Bumped MSRV to 1.96.
 Fixed an issue where retired rules (rules that were omitted during a run after new rules were added)
 would not be saved in the checkpoint, causing them to be considered as new rules in the following
 run.
-
-## Deprecated
-
-## Removed
 
 # Herostratus - 1.1.2 - (2026-05-04)
 
