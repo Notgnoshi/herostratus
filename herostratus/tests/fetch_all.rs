@@ -109,7 +109,7 @@ fn shallow_clone_with_checkpoint_recovery() {
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("Checkpoint exists; shallow clone"),
+        stderr.contains("exists; shallow clone with depth="),
         "Should log shallow clone decision: {stderr}"
     );
     assert!(
