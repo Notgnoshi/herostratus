@@ -15,6 +15,7 @@ mod h015_octopus;
 mod h016_cthulhu;
 mod h017_ex_nihilo;
 mod h018_second_chance;
+mod h019_flattery;
 mod tentacle_merge_config;
 
 pub use h002_shortest_subject::H002Config;
