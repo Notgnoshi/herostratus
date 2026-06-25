@@ -6,7 +6,7 @@ mod non_unicode;
 mod parent_count;
 mod profanity;
 mod quine_prefix;
-mod subject_length;
+mod subject;
 mod whitespace_only;
 
 #[cfg(test)]

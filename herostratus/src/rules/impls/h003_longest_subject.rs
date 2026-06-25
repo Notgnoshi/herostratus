@@ -68,21 +68,22 @@ impl Rule for LongestSubject {
     }
 
     fn consumes(&self) -> &'static [Discriminant<Observation>] {
-        &[Observation::SUBJECT_LENGTH]
+        &[Observation::SUBJECT]
     }
 
     fn process(&mut self, ctx: &CommitContext, obs: &Observation) -> eyre::Result<Option<Grant>> {
-        let Observation::SubjectLength { length } = obs else {
+        let Observation::Subject { subject } = obs else {
             return Ok(None);
         };
+        let length = subject.len();
 
-        let dominated_by_threshold = *length <= self.threshold;
-        let dominated_by_cache = self.cache.longest_length.is_some_and(|l| *length <= l);
+        let dominated_by_threshold = length <= self.threshold;
+        let dominated_by_cache = self.cache.longest_length.is_some_and(|l| length <= l);
         if dominated_by_threshold || dominated_by_cache {
             return Ok(None);
         }
 
-        self.cache.longest_length = Some(*length);
+        self.cache.longest_length = Some(length);
         self.candidate = Some(META.grant(ctx));
         Ok(None)
     }
@@ -105,22 +106,21 @@ mod tests {
 
     use super::*;
 
+    fn subj(len: usize) -> Observation {
+        Observation::Subject {
+            subject: "x".repeat(len),
+        }
+    }
+
     #[test]
     fn grants_longest() {
         let mut rule = LongestSubject {
             threshold: 5,
             ..Default::default()
         };
-        rule.process(
-            &CommitContext::test("Alice"),
-            &Observation::SubjectLength { length: 10 },
-        )
-        .unwrap();
-        rule.process(
-            &CommitContext::test("Bob"),
-            &Observation::SubjectLength { length: 8 },
-        )
-        .unwrap();
+        rule.process(&CommitContext::test("Alice"), &subj(10))
+            .unwrap();
+        rule.process(&CommitContext::test("Bob"), &subj(8)).unwrap();
         let grants = rule.finalize().unwrap();
         assert_eq!(grants.len(), 1);
         assert_eq!(grants[0].user_name, "Alice");
@@ -132,11 +132,8 @@ mod tests {
             threshold: 100,
             ..Default::default()
         };
-        rule.process(
-            &CommitContext::test("Alice"),
-            &Observation::SubjectLength { length: 80 },
-        )
-        .unwrap();
+        rule.process(&CommitContext::test("Alice"), &subj(80))
+            .unwrap();
         let grants = rule.finalize().unwrap();
         assert!(grants.is_empty());
     }
@@ -147,11 +144,8 @@ mod tests {
             threshold: 5,
             ..Default::default()
         };
-        rule.process(
-            &CommitContext::test("Alice"),
-            &Observation::SubjectLength { length: 100 },
-        )
-        .unwrap();
+        rule.process(&CommitContext::test("Alice"), &subj(100))
+            .unwrap();
         let cache = rule.fini_cache();
         assert_eq!(cache.longest_length, Some(100));
 
@@ -162,10 +156,7 @@ mod tests {
         rule2.init_cache(cache);
         // Length 80 is longer than threshold (5) but not longer than cached (100)
         rule2
-            .process(
-                &CommitContext::test("Bob"),
-                &Observation::SubjectLength { length: 80 },
-            )
+            .process(&CommitContext::test("Bob"), &subj(80))
             .unwrap();
         let grants = rule2.finalize().unwrap();
         assert!(grants.is_empty());

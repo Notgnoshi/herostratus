@@ -14,6 +14,12 @@ focus on the user impact** rather than the actual changes made.
 
 ## Added
 
+Added the following new achievements
+
+| ID           | Kind             | Description                           |
+| ------------ | ---------------- | ------------------------------------- |
+| H19-flattery | Per-user, repeat | Copy a previous commit's subject line |
+
 ## Changed
 
 ## Fixed

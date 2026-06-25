@@ -269,7 +269,12 @@ mod tests {
     fn ignores_non_matching_observation() {
         let rules: Vec<Box<dyn RulePlugin>> = vec![Box::new(GrantOnDummy::new(100))];
         let mut engine = RuleEngine::new(rules);
-        let outputs = commit_cycle(&mut engine, &[Observation::SubjectLength { length: 42 }]);
+        let outputs = commit_cycle(
+            &mut engine,
+            &[Observation::Subject {
+                subject: "non-matching".to_string(),
+            }],
+        );
         assert!(outputs.is_empty());
     }
 

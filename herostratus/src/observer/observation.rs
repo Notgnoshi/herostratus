@@ -10,8 +10,8 @@ pub enum Observation {
     /// The commit subject line starts with a fixup/squash/amend/WIP/TODO/FIXME/DROPME prefix.
     Fixup,
 
-    /// The length (in bytes) of the commit's subject line.
-    SubjectLength { length: usize },
+    /// The commit subject line, as a lossy-UTF-8 string.
+    Subject { subject: String },
 
     /// The raw commit message contains bytes that are not valid UTF-8.
     NonUnicodeMessage,
@@ -51,8 +51,14 @@ pub enum Observation {
 
 impl Observation {
     pub const FIXUP: Discriminant<Self> = discriminant(&Observation::Fixup);
-    pub const SUBJECT_LENGTH: Discriminant<Self> =
-        discriminant(&Observation::SubjectLength { length: 0 });
+    pub const SUBJECT: Discriminant<Self> = {
+        let obs = Observation::Subject {
+            subject: String::new(),
+        };
+        let d = discriminant(&obs);
+        std::mem::forget(obs);
+        d
+    };
     pub const NON_UNICODE_MESSAGE: Discriminant<Self> =
         discriminant(&Observation::NonUnicodeMessage);
     pub const EMPTY_COMMIT: Discriminant<Self> = discriminant(&Observation::EmptyCommit);
