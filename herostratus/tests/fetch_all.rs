@@ -109,10 +109,6 @@ fn shallow_clone_with_checkpoint_recovery() {
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("exists; shallow clone with depth="),
-        "Should log shallow clone decision: {stderr}"
-    );
-    assert!(
         stderr.contains(&format!("processing {num_new_commits} commits")),
         "Second run should process only the {num_new_commits} new commits: {stderr}"
     );

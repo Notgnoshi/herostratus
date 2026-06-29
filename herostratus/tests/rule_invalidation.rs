@@ -81,6 +81,11 @@ fn version_bump_invalidates_cache_and_prunes_events() {
         "H001 grant expected pre-invalidation: {pre_csv}"
     );
 
+    // Simulate what happens in CI runs: the cached data is persisted, but not the git checkouts.
+    let git_dir = h.path().join("git");
+    assert!(git_dir.exists());
+    std::fs::remove_dir_all(&git_dir).unwrap();
+
     // Run 2: invalidation fires for rule 2.
     let mut cmd = h.command();
     cmd.arg("check-all");

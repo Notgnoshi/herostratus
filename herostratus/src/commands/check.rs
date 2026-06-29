@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use crate::achievement::{AchievementEvent, grant};
 use crate::cli::{CheckAllArgs, CheckArgs, CheckOneArgs};
-use crate::commands::fetch_all::{FetchStat, fetch_one};
+use crate::commands::fetch_all::{FetchStat, current_rule_versions, fetch_one};
 use crate::config::Config;
 use crate::git::clone::find_local_repository;
 
@@ -246,7 +246,8 @@ pub fn check_one(
 
     let mut fetch_stats = Vec::new();
     if !args.no_fetch {
-        fetch_stats.push(fetch_one(name, repo_config, data_dir)?);
+        let current_rules = current_rule_versions(config);
+        fetch_stats.push(fetch_one(name, repo_config, data_dir, &current_rules)?);
     }
 
     let reference = repo_config
