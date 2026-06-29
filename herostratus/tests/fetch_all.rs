@@ -33,14 +33,14 @@ fn add_and_fetch() {
 }
 
 /// Simulate an ephemeral CI scenario where the bare repo is wiped between runs, but the data_dir
-/// (with checkpoint) persists. The upstream has more than DEFAULT_SHALLOW_DEPTH (50) commits, so
-/// the shallow clone will NOT contain the checkpoint commit -- DeepeningRevWalk must deepen to
-/// reach it.
+/// (with checkpoint) persists. After the first run, more than DEFAULT_SHALLOW_DEPTH new commits
+/// are added, so the shallow clone does NOT contain the checkpoint commit and DeepeningRevWalk
+/// must deepen to reach it. The rule set is unchanged, so the clone is shallow.
 #[test]
 fn shallow_clone_with_checkpoint_recovery() {
-    // 1. Create an upstream repo with 60 commits (more than DEFAULT_SHALLOW_DEPTH=50)
+    // 1. Create an upstream repo with a handful of commits
     let mut builder = Builder::new();
-    let num_initial_commits: i64 = 60;
+    let num_initial_commits: i64 = 5;
     for i in 0..num_initial_commits {
         builder = builder
             .commit(&format!("commit {i}"))
@@ -59,7 +59,7 @@ fn shallow_clone_with_checkpoint_recovery() {
     let output = cmd.captured_output();
     assert!(output.status.success());
 
-    // 4. Run check-all (full clone, processes all 60 commits, creates checkpoint)
+    // 4. Run check-all (full clone, processes all initial commits, creates checkpoint)
     let mut cmd = h.command();
     cmd.arg("check-all");
     let output = cmd.captured_output();
@@ -79,10 +79,11 @@ fn shallow_clone_with_checkpoint_recovery() {
         checkpoint.display()
     );
 
-    // 6. Add 55 new commits to upstream. With DEFAULT_SHALLOW_DEPTH=50, the shallow clone will
-    //    get the 50 newest commits, which does NOT include the checkpoint (commit 59 of 115).
-    //    DeepeningRevWalk must deepen at least once to reach it.
-    let num_new_commits: i64 = 55;
+    // 6. Add more than DEFAULT_SHALLOW_DEPTH new commits so the checkpoint commit falls outside
+    //    the shallow window and DeepeningRevWalk must deepen at least once to reach it. Derived
+    //    from the constant so a future depth bump keeps this test exercising the deepen path
+    //    instead of silently fitting inside one shallow clone.
+    let num_new_commits: i64 = (herostratus::git::clone::DEFAULT_SHALLOW_DEPTH + 10) as i64;
     for i in 0..num_new_commits {
         temp_upstream
             .commit(&format!("new commit {i}"))
@@ -97,10 +98,9 @@ fn shallow_clone_with_checkpoint_recovery() {
     std::fs::remove_dir_all(&git_dir).unwrap();
 
     // 8. Run check-all again. This should:
-    //    - Shallow clone (depth=50) because checkpoint exists
-    //    - The 50 newest commits are 66-115, but the checkpoint is at commit 59
-    //    - DeepeningRevWalk deepens to reach the checkpoint
-    //    - Pipeline processes the 55 new commits and hits the checkpoint
+    //    - Shallow clone because the checkpoint covers all current rules
+    //    - The checkpoint is older than the shallow window, so DeepeningRevWalk deepens to reach it
+    //    - Pipeline processes the new commits and hits the checkpoint
     let mut cmd = h.command();
     cmd.arg("check-all");
     let output = cmd.captured_output();
