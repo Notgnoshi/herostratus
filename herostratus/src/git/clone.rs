@@ -7,7 +7,7 @@ use crate::bstr::{BStr, BString};
 /// Default number of commits to fetch when performing a shallow clone.
 ///
 /// Also used as the batch size when deepening a shallow repository.
-pub const DEFAULT_SHALLOW_DEPTH: usize = 50;
+pub const DEFAULT_SHALLOW_DEPTH: usize = 200;
 
 /// Format a shallow boundary for logging.
 ///

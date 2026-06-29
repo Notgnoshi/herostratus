@@ -33,6 +33,24 @@ pub struct Checkpoint {
     pub rules: Vec<(usize, u32)>,
 }
 
+impl Checkpoint {
+    /// Indicates whether the given `(rule_id, version)` was processed on all commits up to the
+    /// [Checkpoint::commit]
+    ///
+    /// See also [Checkpoint::has_processed_all]
+    pub fn has_processed(&self, rule: (usize, u32)) -> bool {
+        self.rules.contains(&rule)
+    }
+
+    /// Indicates whether every `(rule_id, version)` in `rules` was processed on all commits up to
+    /// [Checkpoint::commit].
+    ///
+    /// See also [Checkpoint::has_processed]
+    pub fn has_processed_all(&self, rules: &[(usize, u32)]) -> bool {
+        rules.iter().all(|rule| self.has_processed(*rule))
+    }
+}
+
 /// A checkpoint for a specific repository / branch pair
 ///
 /// Saved to `<data dir>/cache/<name>/checkpoint.json`
@@ -143,5 +161,17 @@ mod tests {
         let cp: Checkpoint = serde_json::from_str(v1).unwrap();
         let migrated = serde_json::to_string(&cp).unwrap();
         assert_eq!(migrated, r#"{"commit":null,"rules":[[1,1],[2,1],[3,1]]}"#);
+    }
+
+    #[test]
+    fn has_processed_reports_membership() {
+        let cp = Checkpoint {
+            commit: None,
+            rules: vec![(1, 1), (2, 3)],
+        };
+        assert!(cp.has_processed((1, 1)));
+        assert!(cp.has_processed((2, 3)));
+        assert!(!cp.has_processed((2, 1)), "wrong version is not processed");
+        assert!(!cp.has_processed((3, 1)), "absent rule is not processed");
     }
 }
