@@ -61,30 +61,14 @@ impl PipelineCheckpoint {
     /// their current versions (early exit) or whether some rules need a full pass (retire those
     /// that are unchanged, continue).
     pub fn resolve(&self, current_enabled: &[(usize, u32)]) -> CheckpointAction {
-        // Unchanged = present in checkpoint at matching version
+        // Unchanged = already processed by this checkpoint at the current version.
         let rule_ids: Vec<usize> = current_enabled
             .iter()
-            .filter(|(id, ver)| {
-                self.checkpoint
-                    .data
-                    .rules
-                    .iter()
-                    .any(|(cid, cver)| cid == id && cver == ver)
-            })
+            .filter(|pair| self.checkpoint.data.has_processed(**pair))
             .map(|(id, _)| *id)
             .collect();
 
-        // Anything in current_enabled that is NOT unchanged needs a full pass
-        let has_remaining = current_enabled.iter().any(|(id, ver)| {
-            !self
-                .checkpoint
-                .data
-                .rules
-                .iter()
-                .any(|(cid, cver)| cid == id && cver == ver)
-        });
-
-        if !has_remaining {
+        if self.checkpoint.data.has_processed_all(current_enabled) {
             tracing::info!(
                 "No rule changes since last run; finalizing achievements and exiting early ..."
             );
