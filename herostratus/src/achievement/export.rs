@@ -1,7 +1,5 @@
 use std::path::Path;
 
-use chrono::Utc;
-
 use crate::achievement::meta::AchievementKind;
 use crate::rules::RulePlugin;
 
@@ -84,7 +82,6 @@ pub struct RepositoryRow {
     #[serde(rename = "ref")]
     pub reference: String,
     pub commits_checked: u64,
-    pub last_checked: chrono::DateTime<Utc>,
 }
 
 /// Upsert a repository row in `{data_dir}/export/repositories.csv`.
@@ -119,7 +116,6 @@ pub fn upsert_repository_csv(
         commit_url_prefix: commit_url_prefix.unwrap_or("").to_string(),
         reference: reference.to_string(),
         commits_checked,
-        last_checked: Utc::now(),
     };
 
     if let Some(existing) = rows.iter_mut().find(|r| r.name == name) {
@@ -223,6 +219,34 @@ mod tests {
 
         assert_eq!(rows[1].name, "repo-b");
         assert_eq!(rows[1].commits_checked, 5);
+    }
+
+    #[test]
+    fn upsert_migrates_legacy_rows_with_last_checked_column() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("export/repositories.csv");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(
+            &path,
+            "name,url,commit_url_prefix,ref,commits_checked,last_checked\n\
+             repo-a,https://example.com/a.git,https://example.com/a/commit/,HEAD,30,2026-08-15T00:04:19.741875662Z\n",
+        )
+        .unwrap();
+
+        upsert_repository_csv(
+            dir.path(),
+            "repo-a",
+            "https://example.com/a.git",
+            Some("https://example.com/a/commit/"),
+            "HEAD",
+            20,
+        )
+        .unwrap();
+
+        let contents = std::fs::read_to_string(&path).unwrap();
+        let expected = "name,url,commit_url_prefix,ref,commits_checked\n\
+                    repo-a,https://example.com/a.git,https://example.com/a/commit/,HEAD,50\n";
+        assert_eq!(contents, expected);
     }
 
     #[test]

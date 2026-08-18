@@ -89,6 +89,7 @@ mod tests {
         write_csv(
             dir.path(),
             "repositories.csv",
+            // The legacy last_checked column must be tolerated, so old data files still load
             "name,url,commit_url_prefix,ref,commits_checked,last_checked\n\
              my-repo,https://example.com/repo.git,https://example.com/repo/commit/,main,100,2026-01-01T00:00:00Z\n",
         );

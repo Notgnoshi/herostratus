@@ -74,8 +74,6 @@ pub struct RepoContext {
     pub commit_url_prefix: String,
     pub reference: String,
     pub commits_checked: u64,
-    #[serde(serialize_with = "timestamp_serde::serialize")]
-    pub last_checked: chrono::DateTime<Utc>,
     pub events: Vec<ActivityEntry>,
     pub achievement_summary: Vec<AchievementSummaryEntry>,
     pub total_achievements: usize,
@@ -394,7 +392,6 @@ fn build_repo_contexts(
                 commit_url_prefix: repo.commit_url_prefix.clone(),
                 reference: repo.reference.clone(),
                 commits_checked: repo.commits_checked,
-                last_checked: repo.last_checked,
                 total_achievements: repo_active.len(),
                 unique_achievers: unique_achievers.len(),
                 events: repo_events,
@@ -531,8 +528,6 @@ mod tests {
             commit_url_prefix: String::new(),
             reference: "main".to_string(),
             commits_checked: 10,
-            last_checked: chrono::TimeZone::with_ymd_and_hms(&chrono::Utc, 2026, 1, 1, 0, 0, 0)
-                .unwrap(),
         }
     }
 
