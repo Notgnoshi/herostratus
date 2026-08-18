@@ -114,7 +114,7 @@ pub fn builtin_rules(config: &RulesConfig) -> Vec<Box<dyn RulePlugin>> {
         .map(|f| f.build(config))
         .collect();
 
-    rules
+    let mut rules: Vec<_> = rules
         .into_iter()
         .filter(|rule| {
             let meta = rule.meta();
@@ -131,7 +131,12 @@ pub fn builtin_rules(config: &RulesConfig) -> Vec<Box<dyn RulePlugin>> {
             }
             !disabled
         })
-        .collect()
+        .collect();
+
+    // inventory's iteration order is linker-dependent. Sort so that everything downstream (rule
+    // processing, checkpoint serialization, cache saves) is deterministic
+    rules.sort_by_key(|rule| rule.meta().id);
+    rules
 }
 
 /// Get a new instance of each registered rule with default configuration.
