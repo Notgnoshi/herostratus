@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::mem::Discriminant;
 
 use chrono::{DateTime, Utc};
@@ -22,7 +22,7 @@ const META: Meta = Meta {
 /// count. The AchievementLog handles revoking the previous holder when a new leader emerges.
 #[derive(Default)]
 pub struct MostProfound {
-    counts: HashMap<String, usize>,
+    counts: BTreeMap<String, usize>,
     /// (name, email, timestamp of the commit that made them the leader)
     leader: Option<(String, String, DateTime<Utc>)>,
 }
@@ -31,7 +31,7 @@ inventory::submit!(RuleFactory::default::<MostProfound>());
 
 #[derive(Default, Clone, serde::Deserialize, serde::Serialize)]
 pub struct MostProfoundCache {
-    counts: HashMap<String, usize>,
+    counts: BTreeMap<String, usize>,
     /// The current leader, so their name and timestamp survive cache round-trips even if they
     /// don't appear in the next run.
     leader: Option<(String, String, DateTime<Utc>)>,

@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::mem::Discriminant;
 
 use crate::achievement::{AchievementKind, Grant, Meta};
@@ -50,9 +50,9 @@ struct Occurrence {
 #[derive(Default, Clone, serde::Deserialize, serde::Serialize)]
 pub struct FlatteryCache {
     /// Hashes of every normalized subject ever seen.
-    seen: HashSet<u64>,
+    seen: BTreeSet<u64>,
     /// Cumulative per-author copy count, for milestone tracking.
-    user_counts: HashMap<String, usize>,
+    user_counts: BTreeMap<String, usize>,
 }
 
 /// Grant an achievement to commits that reuse a subject line seen in an older commit.
