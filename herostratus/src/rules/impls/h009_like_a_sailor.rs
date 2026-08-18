@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::mem::Discriminant;
 
 use crate::achievement::{AchievementKind, Grant, Meta};
@@ -22,13 +22,13 @@ const THRESHOLDS: &[usize] = &[5, 10, 25, 100];
 /// The AchievementLog allows recurrent per-user grants.
 #[derive(Default)]
 pub struct LikeASailor {
-    counts: HashMap<String, usize>,
+    counts: BTreeMap<String, usize>,
 }
 
 inventory::submit!(RuleFactory::default::<LikeASailor>());
 
 impl Rule for LikeASailor {
-    type Cache = HashMap<String, usize>;
+    type Cache = BTreeMap<String, usize>;
     const VERSION: u32 = 3;
 
     fn meta(&self) -> &Meta {

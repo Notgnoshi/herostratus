@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::path::Path;
 
 pub use crate::achievement::{AchievementLogEvent, AchievementRow, RepositoryRow};
@@ -19,9 +19,9 @@ pub fn load_repositories(export_dir: &Path) -> eyre::Result<Vec<RepositoryRow>> 
     Ok(records)
 }
 
-pub fn load_events(export_dir: &Path) -> eyre::Result<HashMap<String, Vec<AchievementLogEvent>>> {
+pub fn load_events(export_dir: &Path) -> eyre::Result<BTreeMap<String, Vec<AchievementLogEvent>>> {
     let events_dir = export_dir.join("events");
-    let mut all_events = HashMap::new();
+    let mut all_events = BTreeMap::new();
 
     if !events_dir.exists() {
         tracing::debug!("No events directory at {events_dir:?}");
@@ -89,6 +89,7 @@ mod tests {
         write_csv(
             dir.path(),
             "repositories.csv",
+            // The legacy last_checked column must be tolerated, so old data files still load
             "name,url,commit_url_prefix,ref,commits_checked,last_checked\n\
              my-repo,https://example.com/repo.git,https://example.com/repo/commit/,main,100,2026-01-01T00:00:00Z\n",
         );

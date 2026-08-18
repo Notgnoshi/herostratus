@@ -357,13 +357,9 @@ fn exports_repositories_csv_with_commit_url_prefixes() {
     );
     assert_eq!(&rows["local-repo"][2], "");
 
-    // All should have commits_checked=1, ref=HEAD, non-empty last_checked
+    // All should have commits_checked=1, ref=HEAD
     for (name, row) in &rows {
         assert_eq!(&row[3], "HEAD", "{name} should have ref=HEAD");
         assert_eq!(&row[4], "1", "{name} should have commits_checked=1");
-        assert!(
-            !row[5].is_empty(),
-            "{name} should have non-empty last_checked"
-        );
     }
 }

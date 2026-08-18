@@ -108,14 +108,13 @@ Changes only when Herostratus is updated with new rules.
 One row per tracked repository. `check-one` upserts its row (updates if the repo already exists,
 appends if new). This file is small (one row per repo), so read-modify-write is acceptable.
 
-| Column              | Type     | Description                                               |
-| ------------------- | -------- | --------------------------------------------------------- |
-| `name`              | string   | Repository name (unique, used as slug)                    |
-| `url`               | string   | URL to the repository                                     |
-| `commit_url_prefix` | string   | Optional URL prefix for linking commits (from RepoConfig) |
-| `ref`               | string   | Git ref checked (e.g., refs/heads/main)                   |
-| `commits_checked`   | int      | Total commits processed                                   |
-| `last_checked`      | datetime | Timestamp of last run                                     |
+| Column              | Type   | Description                                               |
+| ------------------- | ------ | --------------------------------------------------------- |
+| `name`              | string | Repository name (unique, used as slug)                    |
+| `url`               | string | URL to the repository                                     |
+| `commit_url_prefix` | string | Optional URL prefix for linking commits (from RepoConfig) |
+| `ref`               | string | Git ref checked (e.g., refs/heads/main)                   |
+| `commits_checked`   | int    | Total commits processed                                   |
 
 The `commit_url_prefix` is an optional field provided by the Herostratus `RepoConfig` and passed
 through to the data files so the renderer can link commit hashes without any forge-detection logic.

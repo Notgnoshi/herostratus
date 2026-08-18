@@ -23,8 +23,8 @@ fn setup_fixture(dir: &Path) {
     write_file(
         dir,
         "export/repositories.csv",
-        "name,url,commit_url_prefix,ref,commits_checked,last_checked\n\
-         test-repo,https://example.com/test.git,https://example.com/test/commit/,main,42,2026-01-15T00:00:00Z\n",
+        "name,url,commit_url_prefix,ref,commits_checked\n\
+         test-repo,https://example.com/test.git,https://example.com/test/commit/,main,42\n",
     );
     write_file(
         dir,

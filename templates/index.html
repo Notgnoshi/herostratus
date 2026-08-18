@@ -12,14 +12,12 @@
         <th>Name</th>
         <th>Achievements</th>
         <th>Achievers</th>
-        <th>Last Checked</th>
     </tr>
     {% for repo in repositories %}
     <tr>
         <td><a href="{{ root }}repo/{{ repo.name }}.html">{{ repo.name }}</a></td>
         <td>{{ repo.total_achievements }}</td>
         <td>{{ repo.unique_achievers }}</td>
-        <td>{{ repo.last_checked }}</td>
     </tr>
     {% endfor %}
 </table>

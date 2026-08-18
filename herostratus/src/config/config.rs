@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -10,8 +10,8 @@ use crate::rules::{H002Config, H003Config, H012Config, H013Config, TentacleMerge
 /// Configuration for each of the repositories that Herostratus processes
 #[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
 pub struct Config {
-    // Name -> Config pairs (Use HashMap over Vec for prettiness of TOML)
-    pub repositories: HashMap<String, RepositoryConfig>,
+    // Name -> Config pairs (Use a map rather than Vec for prettiness of TOML)
+    pub repositories: BTreeMap<String, RepositoryConfig>,
     pub rules: Option<RulesConfig>,
 
     /// Path to a global mailmap file applied to all repositories.
@@ -222,7 +222,6 @@ pub fn write_config(data_dir: &Path, config: &Config) -> eyre::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
     use std::path::PathBuf;
 
     use herostratus_tests::fixtures::config::empty;
@@ -239,7 +238,7 @@ mod tests {
 
     #[test]
     fn read_write_config() {
-        let mut repositories = HashMap::new();
+        let mut repositories = BTreeMap::new();
         let config = RepositoryConfig {
             path: PathBuf::from("git/Notgnoshi/herostratus"),
             reference: None,

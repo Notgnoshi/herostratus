@@ -22,16 +22,21 @@ Added the following new achievements
 
 ## Changed
 
-If new rules are added, or existing rules have their rule version bumped, we have to process the
-full commit history again on those new rules. Previously, we did this by iteratively deepening the
-shallow checkout when we hit the end of the commit iterator. This was very slow. Now, we check ahead
-of time if we know we need to do a full depth clone, which is more performant.
+* If new rules are added, or existing rules have their rule version bumped, we have to process the
+  full commit history again on those new rules. Previously, we did this by iteratively deepening the
+  shallow checkout when we hit the end of the commit iterator. This was very slow. Now, we check
+  ahead of time if we know we need to do a full depth clone, which is more performant.
+* Changed a few details around the `config.toml` and rule caches to reduce run-to-run noise caused
+  by indeterminate iteration order over `HashMap`s and `HashSet`s.
 
 ## Fixed
 
 ## Deprecated
 
 ## Removed
+
+Removed the "Last Checked" timestamp from the generated static site. This removes a source of
+run-to-run noise if tracking Herostratus's data directory in Git.
 
 # Herostratus - 1.1.3 - (2026-06-25)
 
