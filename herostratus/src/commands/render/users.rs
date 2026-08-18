@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::achievement::AchievementLogEvent;
 
@@ -15,7 +15,7 @@ pub struct User {
 /// For each unique email, the display name is taken from the event with the latest timestamp.
 /// Slugs are generated from the display name, with numeric suffixes to break collisions. Ties are
 /// broken by earliest event timestamp (the first-seen user gets the bare slug).
-pub fn derive_users(all_events: &HashMap<String, Vec<AchievementLogEvent>>) -> Vec<User> {
+pub fn derive_users(all_events: &BTreeMap<String, Vec<AchievementLogEvent>>) -> Vec<User> {
     // Collect per-email: latest name and earliest timestamp
     let mut by_email: HashMap<
         &str,
@@ -43,12 +43,12 @@ pub fn derive_users(all_events: &HashMap<String, Vec<AchievementLogEvent>>) -> V
         }
     }
 
-    // Sort by earliest event timestamp for deterministic slug assignment
+    // Sort by earliest event timestamp for deterministic slug assignment, tie-breaking by email
     let mut entries: Vec<_> = by_email
         .into_iter()
         .map(|(email, (name, earliest, _latest))| (email, name, earliest))
         .collect();
-    entries.sort_by_key(|&(_, _, earliest)| *earliest);
+    entries.sort_by_key(|&(email, _, earliest)| (*earliest, email));
 
     // Assign slugs with collision handling
     let mut slug_counts: HashMap<String, usize> = HashMap::new();
@@ -166,7 +166,7 @@ mod tests {
 
     #[test]
     fn derive_users_picks_latest_name() {
-        let events = HashMap::from([(
+        let events = BTreeMap::from([(
             "repo".to_string(),
             vec![
                 make_event("alice@example.com", "alice", ts(100)),
@@ -183,7 +183,7 @@ mod tests {
     #[test]
     fn derive_users_slug_collision() {
         // Two different emails that slugify to the same thing
-        let events = HashMap::from([(
+        let events = BTreeMap::from([(
             "repo".to_string(),
             vec![
                 make_event("alice1@example.com", "Alice Smith", ts(100)),
@@ -203,7 +203,7 @@ mod tests {
 
     #[test]
     fn derive_users_across_repos() {
-        let events = HashMap::from([
+        let events = BTreeMap::from([
             (
                 "repo-a".to_string(),
                 vec![make_event("alice@example.com", "Alice", ts(100))],

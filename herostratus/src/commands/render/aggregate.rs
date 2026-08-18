@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use chrono::{DateTime, Utc};
 
@@ -139,7 +139,7 @@ pub struct ActivityEntry {
 pub fn aggregate(
     achievements: &[AchievementRow],
     repositories: &[RepositoryRow],
-    events: &HashMap<String, Vec<AchievementLogEvent>>,
+    events: &BTreeMap<String, Vec<AchievementLogEvent>>,
     users: &[User],
 ) -> SiteData {
     let user_by_email: HashMap<&str, &User> = users.iter().map(|u| (u.email.as_str(), u)).collect();
@@ -238,7 +238,7 @@ struct ActiveGrant<'a> {
 /// An active grant is a grant event for which there is no subsequent revoke event with the same
 /// achievement_id and user_email in the same repo.
 fn compute_active_grants<'a>(
-    events: &'a HashMap<String, Vec<AchievementLogEvent>>,
+    events: &'a BTreeMap<String, Vec<AchievementLogEvent>>,
 ) -> Vec<ActiveGrant<'a>> {
     let mut active = Vec::new();
 
@@ -336,7 +336,7 @@ fn build_achievement_contexts(
 
 fn build_repo_contexts(
     repositories: &[RepositoryRow],
-    events: &HashMap<String, Vec<AchievementLogEvent>>,
+    events: &BTreeMap<String, Vec<AchievementLogEvent>>,
     all_activity: &[ActivityEntry],
     active_grants: &[ActiveGrant<'_>],
     achievement_by_id: &HashMap<&str, &AchievementRow>,
@@ -377,7 +377,11 @@ fn build_repo_contexts(
                     }
                 })
                 .collect();
-            achievement_summary.sort_by_key(|a| std::cmp::Reverse(a.grant_count));
+            achievement_summary.sort_by(|a, b| {
+                b.grant_count
+                    .cmp(&a.grant_count)
+                    .then_with(|| a.achievement_human_id.cmp(&b.achievement_human_id))
+            });
 
             let mut unique_achievers: Vec<&str> = repo_active
                 .iter()
@@ -403,7 +407,7 @@ fn build_repo_contexts(
 
 fn build_user_contexts(
     users: &[User],
-    events: &HashMap<String, Vec<AchievementLogEvent>>,
+    events: &BTreeMap<String, Vec<AchievementLogEvent>>,
     all_activity: &[ActivityEntry],
     active_grants: &[ActiveGrant<'_>],
     achievement_by_id: &HashMap<&str, &AchievementRow>,
@@ -483,8 +487,6 @@ fn build_user_contexts(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
     use chrono::TimeZone;
 
     use super::*;
@@ -543,7 +545,7 @@ mod tests {
     fn aggregate_computes_active_grants() {
         let achievements = vec![test_achievement("fixup", "Leftovers")];
         let repositories = vec![test_repo("repo")];
-        let events = HashMap::from([(
+        let events = BTreeMap::from([(
             "repo".to_string(),
             vec![
                 make_event(
@@ -596,7 +598,7 @@ mod tests {
         );
         event.name_override = Some("Third Time's the Charm".to_string());
         event.description_override = Some("Three roots and counting".to_string());
-        let events = HashMap::from([("repo".to_string(), vec![event])]);
+        let events = BTreeMap::from([("repo".to_string(), vec![event])]);
         let users = vec![test_user("bob@example.com", "Bob", "bob")];
 
         let site = aggregate(&achievements, &repositories, &events, &users);
@@ -627,7 +629,7 @@ mod tests {
     fn aggregate_holder_falls_back_to_catalog_name_without_override() {
         let achievements = vec![test_achievement("fixup", "Leftovers")];
         let repositories = vec![test_repo("repo")];
-        let events = HashMap::from([(
+        let events = BTreeMap::from([(
             "repo".to_string(),
             vec![make_event(
                 "alice@example.com",
@@ -649,7 +651,7 @@ mod tests {
     fn aggregate_user_achievements_grouped_by_repo() {
         let achievements = vec![test_achievement("fixup", "Leftovers")];
         let repositories = vec![test_repo("repo-a"), test_repo("repo-b")];
-        let events = HashMap::from([
+        let events = BTreeMap::from([
             (
                 "repo-a".to_string(),
                 vec![make_event(
@@ -685,7 +687,7 @@ mod tests {
     fn aggregate_recent_activity_sorted_reverse_chronological() {
         let achievements = vec![test_achievement("fixup", "Leftovers")];
         let repositories = vec![test_repo("repo")];
-        let events = HashMap::from([(
+        let events = BTreeMap::from([(
             "repo".to_string(),
             vec![
                 make_event(
